@@ -1,0 +1,46 @@
+{
+  "topic": "How SQLite changes a CHECK constraint: the documented table-rebuild procedure and its rules for foreign keys, triggers, views, indexes and transactions, as better-sqlite3 runs it",
+  "notes": "Owning pages named directly; no searches. decompose was not run for real: its dry run planned 5 searches (budget 3), so MAP.md is the seeded checklist classified by hand. better-sqlite3 docs pinned to tag v13.0.3, the version in MoonAliza's package.json.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 6,
+  "prefer": [
+    "www.sqlite.org",
+    "raw.githubusercontent.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://www.sqlite.org/lang_altertable.html",
+      "type": "P",
+      "why": "U-01, U-04: the 12-step generalized ALTER TABLE procedure, and RENAME TABLE behaviour for triggers, views and legacy_alter_table (3.25/3.26 changes)"
+    },
+    {
+      "url": "https://www.sqlite.org/foreignkeys.html",
+      "type": "P",
+      "why": "U-02: PRAGMA foreign_keys is a no-op inside a transaction; DROP TABLE and foreign keys"
+    },
+    {
+      "url": "https://www.sqlite.org/pragma.html",
+      "type": "P",
+      "why": "U-02, U-03, U-04: foreign_keys, foreign_key_check output, legacy_alter_table, defer_foreign_keys"
+    },
+    {
+      "url": "https://www.sqlite.org/lang_droptable.html",
+      "type": "P",
+      "why": "U-04: what DROP TABLE removes (indexes, triggers) and the implicit DELETE it runs"
+    },
+    {
+      "url": "https://www.sqlite.org/lang_transaction.html",
+      "type": "P",
+      "why": "U-05: transactional DDL, rollback behaviour on error"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/WiseLibs/better-sqlite3/v13.0.3/docs/api.md",
+      "type": "P",
+      "why": "U-06: db.transaction() semantics, nested transactions as savepoints, exceptions roll back, db.pragma()"
+    }
+  ]
+}
