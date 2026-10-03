@@ -854,6 +854,34 @@ describe('schema v4 engine review controls', () => {
     expect(research.transition(command('approved', 9, { cause: 'KIT_APPROVED', reviewedPackage: reviewedPackage(9) })).outcome).toBe('applied');
   });
 
+  test('a job leaves reviewing or packaging for an outcome only once its review run holds no live engine work', () => {
+    // Spec, "Job states and edges": a job leaves reviewing only when its review run is terminal, or (to packaging, or
+    // main's freeze outcome) once the run has given its final answer. Live work could still edit the workspace.
+    for (const live of ['queued', 'running', 'awaiting_approval', 'cancelling'] as const) {
+      const { store } = open(); collectedJob(store); reviewRun(store, 'r1', live); startReview(store, 'j1', 'r1');
+      const before = { job: store.getResearch('j1'), journal: store.researchEvents('j1') };
+      expect(() => jobs(store).jobs.transition(command('not_ready', 5, { cause: 'TEST', failure: 'REVIEW_WORKSPACE_CHANGED' })), live).toThrow(/^RUN_ACTIVE$/);
+      for (const actor of ['engine', 'main', 'recovery'] as const) expect(() => step(store, 'j1', 'not_ready', actor, { failure: 'REVIEW_RUN_FAILED' }), `${live} ${actor}`).toThrow(/^RUN_ACTIVE$/);
+      expect({ job: store.getResearch('j1'), journal: store.researchEvents('j1') }, live).toEqual(before);
+      expect(store.getRun('r1')?.status, live).toBe(live);
+      // The same job may end once the run is terminal.
+      store.appendEvent('r1', 'run.failed', {}, { status: 'failed' });
+      expect(step(store, 'j1', 'not_ready', 'engine', { failure: 'REVIEW_RUN_FAILED' }).research.status, live).toBe('not_ready');
+    }
+    // After the final answer main may still record its freeze outcome, either way.
+    const { store } = open(); collectedJob(store); reviewRun(store, 'r1', 'awaiting_review'); startReview(store, 'j1', 'r1');
+    expect(jobs(store).jobs.transition(command('not_ready', 5, { cause: 'TEST', failure: 'REVIEW_WORKSPACE_CHANGED' })).outcome).toBe('applied');
+    // packaging: a run that is live again (a corrupted or forged state) blocks both outcomes too.
+    const second = open().store; collectedJob(second); reviewRun(second, 'r1', 'awaiting_review'); startReview(second, 'j1', 'r1');
+    step(second, 'j1', 'packaging', 'main', { reviewDigest: D1 });
+    second.appendEvent('r1', 'run.status', { status: 'running' }, { status: 'running' });
+    expect(() => step(second, 'j1', 'not_ready', 'main', { failure: 'REVIEW_GATE_FAILED' })).toThrow(/^RUN_ACTIVE$/);
+    expect(() => approve(second, 'j1')).toThrow(/^RUN_ACTIVE$/);
+    // A job whose run is absent (never created, or its record gone) is not held.
+    const third = open().store; collectedJob(third); startReview(third, 'j1', 'r-missing');
+    expect(step(third, 'j1', 'not_ready', 'recovery', { failure: 'REVIEW_INTERRUPTED' }).research.status).toBe('not_ready');
+  });
+
   test('research.cancel stops a packaging job', () => {
     const { store } = open(); collectedJob(store); reviewRun(store, 'r1'); startReview(store, 'j1', 'r1'); step(store, 'j1', 'packaging', 'main', { reviewDigest: D1 });
     const { jobs: research } = jobs(store);

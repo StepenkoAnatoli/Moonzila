@@ -82,6 +82,8 @@ const researchColumns: Column[] = [['id','id'],['projectId','project_id'],['revi
   ['reviewSessionId','review_session_id'],['reviewRunId','review_run_id'],['reviewDigest','review_digest'],['reviewedPackageSha256','reviewed_package_sha256'],['reviewedValidatorRevision','reviewed_validator_revision'],['reviewedBoundRevision','reviewed_bound_revision']];
 const researchEventColumns: Column[] = [['researchId','research_id'],['revision','revision'],['from','from_status'],['to','to_status'],['actor','actor'],['requestId','request_id'],['cause','cause'],['detail','detail','json'],['engineEpoch','engine_epoch'],['at','at']];
 const activeResearch = ACTIVE_RESEARCH.map(status => `'${status}'`).join(',');
+/** Run states with engine work still in flight: a review run in one of them can still change the workspace. */
+const LIVE_REVIEW_RUN: ReadonlySet<StoreRunStatus> = new Set(['queued', 'running', 'awaiting_approval', 'cancelling']);
 
 function json(value: unknown): string {
   const encoded = JSON.stringify(value);
@@ -275,6 +277,10 @@ export class Store {
       // A review takes the project's single research slot. While another job holds it (a new collection beside a
       // collected or not_ready job), starting or retrying the review is refused with the domain code, not the index's.
       if (step.to === 'reviewing' && this.hasActiveResearch(existing.projectId)) throw new Error('RUN_ACTIVE');
+      // A review ends (not_ready or approved) only once its run holds no live engine work: terminal, absent, or having
+      // given its final answer (awaiting_review). The engine records a run's terminal event before the job's edge.
+      if ((existing.status === 'reviewing' || existing.status === 'packaging') && (step.to === 'not_ready' || step.to === 'approved') && existing.reviewRunId !== undefined
+        && LIVE_REVIEW_RUN.has(this.getRun(existing.reviewRunId)?.status ?? 'completed')) throw new Error('RUN_ACTIVE');
       // Derive the step from the caller's expectation, so the journal trigger and the WHERE clause also refuse a stale caller.
       const revision = step.expectedRevision + 1; const iso = new Date(at).toISOString();
       const event: StoreResearchEvent = { researchId: existing.id, revision, from: existing.status, to: step.to, actor: step.actor, requestId: step.requestId, cause: step.cause, detail: patch, engineEpoch: this.engineEpoch, at };
