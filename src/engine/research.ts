@@ -37,11 +37,15 @@ export function newClientRef(): string { return `mz-${randomUUID().replaceAll('-
 
 export type ResearchAdmissionCode = 'PROJECT_NOT_FOUND' | 'PROJECT_UNTRUSTED' | 'RESEARCH_NOT_ALLOWED' | 'POLICY_CHANGED' | 'TRUST_CHANGED';
 /** A job may cause an effect only while the project still matches what was admitted, as approvals do. */
-export function researchAdmission(project: StoreProject | undefined, job?: Pick<StoreResearch, 'policyRevision' | 'trustRevision'>): ResearchAdmissionCode | undefined {
+/**
+ * The research setting and trust a job was admitted under. An inference-only policy edit keeps research running (user
+ * decision, October 3): only turning research off, changing its level, or a trust change ends a job.
+ */
+export function researchAdmission(project: StoreProject | undefined, job?: Pick<StoreResearch, 'researchLevel' | 'trustRevision'>): ResearchAdmissionCode | undefined {
   if (!project) return 'PROJECT_NOT_FOUND';
   if (!project.trusted) return 'PROJECT_UNTRUSTED';
   if (project.policy.research === 'off') return 'RESEARCH_NOT_ALLOWED';
-  if (job && project.policy.revision !== job.policyRevision) return 'POLICY_CHANGED';
+  if (job && project.policy.research !== job.researchLevel) return 'POLICY_CHANGED';
   if (job && project.trustRevision !== job.trustRevision) return 'TRUST_CHANGED';
   return undefined;
 }

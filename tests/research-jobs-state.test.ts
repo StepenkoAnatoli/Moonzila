@@ -374,7 +374,7 @@ describe('restart reconciliation and never dispatching twice', () => {
     for (const change of ['policy', 'trust', 'off'] as const) {
       const { store } = open(); project(store); create(store);
       const current = store.getProject('p')!;
-      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2 } });
+      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2, research: 'private-connected' } });
       if (change === 'trust') store.putProject({ ...current, trustRevision: 2 });
       if (change === 'off') store.putProject({ ...current, policy: { ...current.policy, research: 'off' } });
       const jobs = new ResearchJobs(store, () => {});
@@ -393,7 +393,7 @@ describe('restart reconciliation and never dispatching twice', () => {
       jobs.transition({ method: 'research.transition', requestId: 'd', researchId: 'j1', expectedRevision: 1, to: 'dispatching', cause: 'DISPATCH', target });
       jobs.transition({ method: 'research.transition', requestId: 'c', researchId: 'j1', expectedRevision: 2, to: 'collecting', cause: 'KIT_DISPATCHED', workflowRunId: '5' });
       const current = store.getProject('p')!;
-      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2 } });
+      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2, research: 'private-connected' } });
       if (change === 'trust') store.putProject({ ...current, trustRevision: 2 });
       if (change === 'off') store.putProject({ ...current, policy: { ...current.policy, research: 'off' } });
       // The verification itself is valid: it names the job's revision, admitted policy revision, run and client ref.
@@ -403,6 +403,19 @@ describe('restart reconciliation and never dispatching twice', () => {
       expect(store.researchEvents('j1').events.at(-1)).toMatchObject({ from: 'collecting', to: 'failed', cause: 'ADMISSION_CHANGED' });
       expect(store.researchEvents('j1').events.some(e => e.to === 'collected')).toBe(false);
     }
+  });
+
+  test('an inference-only policy edit keeps research admitted: the dispatch and the package are still accepted', () => {
+    const { store } = open(); project(store); create(store);
+    const jobs = new ResearchJobs(store, () => {});
+    const current = store.getProject('p')!;
+    store.putProject({ ...current, policy: { ...current.policy, revision: 2, inference: 'cloud-allowed' } });
+    expect(jobs.context('j1').admission).toBeNull();
+    expect(jobs.transition({ method: 'research.transition', requestId: 'd', researchId: 'j1', expectedRevision: 1, to: 'dispatching', cause: 'DISPATCH', target }).outcome).toBe('applied');
+    jobs.transition({ method: 'research.transition', requestId: 'c', researchId: 'j1', expectedRevision: 2, to: 'collecting', cause: 'KIT_DISPATCHED', workflowRunId: '5' });
+    store.putProject({ ...store.getProject('p')!, policy: { ...store.getProject('p')!.policy, revision: 3, inference: 'local-only' } });
+    // The verification binds the admitted policy revision (1), which an inference edit does not change.
+    expect(jobs.transition({ method: 'research.transition', requestId: 'v', researchId: 'j1', expectedRevision: 3, to: 'collected', cause: 'PACKAGE_VERIFIED', verification: verification() }).outcome).toBe('applied');
   });
 
   test('a fact transition is still recorded after a policy change', () => {

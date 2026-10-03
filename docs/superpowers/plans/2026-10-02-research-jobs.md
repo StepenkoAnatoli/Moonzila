@@ -179,7 +179,7 @@ October 3, integration of the five build teams (import, collector items, small f
   - Decisions for the user:
     - `research.purge` semantics. The contract deletes the job; the source plan keeps the metadata. The import team recommends keeping the job and its journal and deleting only the retained ZIP, for finished jobs whose digest no other verification references.
     - How research is turned on: nothing in the app changes `policy.research` from `off`. The renderer team recommends a confirmation like "Allow cloud inference" that offers only `public-technical`.
-    - Whether an inference-only policy edit should still end research jobs. Today every policy revision does.
+    - Whether an inference-only policy edit should still end research jobs. Decided October 3: it does not; admission compares the research level and trust (done in the Task 5 cycle).
     - Whether `research.start` should carry the acknowledged repository, so that main refuses a stale acknowledgement.
   - Product work:
     - a park-reason field on the job DTO, so the panel can say why a collecting job waits;

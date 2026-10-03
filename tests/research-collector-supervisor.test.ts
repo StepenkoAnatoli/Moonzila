@@ -209,7 +209,7 @@ test('a hold stops the watch; after a policy change the job fails with the new a
   await until(() => watching !== undefined);
   const release = h.supervisor.hold('p');
   expect(watching!.aborted).toBe(true);
-  h.store.putProject({ ...h.store.getProject('p')!, policy: { revision: 2, inference: 'local-only', research: 'public-technical' } });
+  h.store.putProject({ ...h.store.getProject('p')!, policy: { revision: 2, inference: 'local-only', research: 'private-connected' } });
   release();
   await until(() => h.store.getResearch(job.id)!.status === 'failed');
   expect(h.store.getResearch(job.id)).toMatchObject({ failure: 'POLICY_CHANGED', workflowRunId: '1' });
