@@ -170,6 +170,11 @@ October 3, integration of the five build teams (import, collector items, small f
   - Resolved: the helper's admission timer takes `admissionMs`, so the whole pre-start step is bounded at 60 s.
   - Resolved: a job held after a commit error stays in `ownedIds()` until the next app start, so recovery after an engine-only restart (or at attach, after a failed replay) cannot fail it and drop its spooled run id.
   - Kept: `STOPPED` waits without counting; it only follows the supervisor's own stop, and counting it would let user holds fail a job.
+- **Decided by the user, October 3 (after PR #29):**
+  - The next cycle is Task 5, the research review.
+  - `research.purge` deletes only the retained ZIP. The job and its journal stay. It is allowed only for finished jobs whose digest no other verification references.
+  - Research is turned on through a confirmation dialog, as "Allow cloud inference" is, offering only `public-technical`.
+  - An inference-only policy edit no longer ends research jobs; only a change to the research setting or to trust does.
 - **Open after the October 3 integration (owner: the next research cycle unless the user decides otherwise).**
   - Decisions for the user:
     - `research.purge` semantics. The contract deletes the job; the source plan keeps the metadata. The import team recommends keeping the job and its journal and deleting only the retained ZIP, for finished jobs whose digest no other verification references.
