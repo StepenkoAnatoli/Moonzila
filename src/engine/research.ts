@@ -4,6 +4,7 @@ import { IdSchema, ResearchCollectorSchema, ResearchSchema, ResearchStartParams,
 import { canonicalHash } from './policy';
 import { ACTIVE_RESEARCH } from './research-state';
 import type { Store, StoreProject, StoreResearch, StoreResearchEvent } from './store';
+import type { ReviewedPackage } from './review-contract';
 
 const { queries, urls, preferDomains, depth, maxPages } = ResearchStartParams.shape;
 /** The collector inputs kept with a job. Strict, so nothing else (such as a token) can be stored beside them. */
@@ -71,18 +72,22 @@ export const ResearchTransitionReplySchema = z.object({ outcome: z.enum(['applie
 const ids = z.array(IdSchema).max(1000);
 export const ResearchRecoverySchema = z.object({
   failed: ids, cancelled: ids, reviewing: ids, unreadable: ids,
+  // Review recovery (schema v4): jobs to freeze, jobs to resume packaging, and storage/review folder names to delete.
+  freeze: ids, packaging: ids, reviewDiscard: ids,
   resume: z.array(z.object({ researchId: IdSchema, revision: RevisionSchema, workflowRunId: WorkflowRunIdSchema }).strict()).max(1000),
   dispatchable: z.array(z.object({ researchId: IdSchema, revision: RevisionSchema }).strict()).max(1000),
 }).strict();
 
 export interface ResearchTransitionCommand {
   method: 'research.transition'; requestId: string; researchId: string; expectedRevision: number;
-  to: 'dispatching' | 'collecting' | 'collected' | 'failed' | 'cancelled'; cause: string;
+  to: 'dispatching' | 'collecting' | 'collected' | 'failed' | 'cancelled' | 'packaging' | 'approved' | 'not_ready'; cause: string;
   target?: z.infer<typeof ResearchTargetSchema>; workflowRunId?: string; failure?: string; verification?: ResearchVerification;
+  reviewDigest?: string; reviewedPackage?: ReviewedPackage;
 }
 export interface ResearchRecovery {
   failed: string[]; cancelled: string[]; resume: Array<{ researchId: string; revision: number; workflowRunId: string }>;
   dispatchable: Array<{ researchId: string; revision: number }>; reviewing: string[]; unreadable: string[];
+  freeze: string[]; packaging: string[]; reviewDiscard: string[];
 }
 
 /** Durable research jobs. The engine owns state; main owns the collector process and drives fact transitions. */
@@ -133,6 +138,9 @@ export class ResearchJobs {
     const { requestId, ...input } = command;
     const accepted = this.store.acceptRequest({ method: 'research.transition', clientRequestId: requestId, canonicalInputHash: canonicalHash(input) }, () => {
       const job = this.store.getResearch(command.researchId); if (!job) throw new Error('NOT_FOUND');
+      // The review states arrive with schema v4 (Task 5); until then they are no edge, as the store would also say.
+      const to = command.to;
+      if (to === 'packaging' || to === 'approved' || to === 'not_ready') throw new Error('RESEARCH_TRANSITION_INVALID');
       const patch = { target: command.target, workflowRunId: command.workflowRunId, failure: command.failure, verification: command.verification };
       for (const key of Object.keys(patch) as (keyof typeof patch)[]) if (patch[key] === undefined) delete patch[key];
       // Admission is re-checked in this transaction before each effect it gates: the dispatch, and accepting a package.
@@ -140,7 +148,7 @@ export class ResearchJobs {
       const refusal = gated ? researchAdmission(this.store.getProject(job.projectId), job) : undefined;
       const { research } = refusal
         ? this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to: 'failed', actor: 'main', cause: command.to === 'dispatching' ? 'ADMISSION_REFUSED' : 'ADMISSION_CHANGED', requestId, patch: { failure: refusal } })
-        : this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to: command.to, actor: 'main', cause: command.cause, requestId, patch });
+        : this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to, actor: 'main', cause: command.cause, requestId, patch });
       return { entityId: job.id, response: { outcome: refusal ? 'refused' as const : 'applied' as const, research: researchDto(research) } };
     });
     if (!accepted.replayed) this.publish(accepted.response.research);
@@ -152,7 +160,7 @@ export class ResearchJobs {
    * Main calls this at app start (owned = []) and after an engine-only restart (owned = its live jobs). It is idempotent.
    */
   recover(owned: readonly string[]): ResearchRecovery {
-    const result: ResearchRecovery = { failed: [], cancelled: [], resume: [], dispatchable: [], reviewing: [], unreadable: [] };
+    const result: ResearchRecovery = { failed: [], cancelled: [], resume: [], dispatchable: [], reviewing: [], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] };
     const notices: Research[] = [];
     const skip = new Set(owned);
     this.store.transaction(() => {

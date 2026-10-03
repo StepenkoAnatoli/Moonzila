@@ -4,6 +4,7 @@ import { RequestSchema, ProfileSchema, EventSchema, IdSchema, ResearchSchema, To
 import { ResearchCodeSchema, ResearchTargetSchema, ResearchVerificationSchema, WorkflowRunIdSchema } from './research';
 import { CommandInputSchema, CommandPlanSchema, CommandResultSchema } from '../shared/commands';
 import { TokenUsageSchema } from '../shared/context';
+import { ResearchReviewBeginSchema, ResearchReviewContextRequestSchema, ReviewDigestSchema, ReviewedPackageSchema, ReviewToolErrorSchema, ReviewToolInputSchema, ReviewToolNameSchema, ReviewToolResultSchema } from './review-contract';
 
 const id = z.string().min(1).max(128);
 const { hasCredential: _hasCredential, ...storedProfileShape } = ProfileSchema.shape;
@@ -18,11 +19,16 @@ export const ControlSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('vault.references') }).strict(),
   z.object({ method: z.literal('request.lookup'), requestId: id, requestMethod: z.string(), inputHash: z.string() }).strict(),
   z.object({ method: z.literal('research.context'), researchId: id }).strict(),
-  // Main records collector facts. Readiness, review and user cancellation are not reachable from here.
+  // Main records collector and packaging facts. User cancellation is not reachable from here, and `approved` only
+  // through the v4 readiness rule (docs/specification/research-review.md).
   z.object({ method: z.literal('research.transition'), requestId: id, researchId: id, expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-    to: z.enum(['dispatching', 'collecting', 'collected', 'failed', 'cancelled']), cause: ResearchCodeSchema,
-    target: ResearchTargetSchema.optional(), workflowRunId: WorkflowRunIdSchema.optional(), failure: ResearchCodeSchema.optional(), verification: ResearchVerificationSchema.optional() }).strict(),
-  z.object({ method: z.literal('research.recover'), owned: z.array(id).max(1000) }).strict(),
+    to: z.enum(['dispatching', 'collecting', 'collected', 'failed', 'cancelled', 'packaging', 'approved', 'not_ready']), cause: ResearchCodeSchema,
+    target: ResearchTargetSchema.optional(), workflowRunId: WorkflowRunIdSchema.optional(), failure: ResearchCodeSchema.optional(), verification: ResearchVerificationSchema.optional(),
+    reviewDigest: ReviewDigestSchema.optional(), reviewedPackage: ReviewedPackageSchema.optional() }).strict(),
+  // `reviewFolders`: the names under storage/review, so recovery can say which whole job folders to discard.
+  z.object({ method: z.literal('research.recover'), owned: z.array(id).max(1000), reviewFolders: z.array(id).max(1000).optional() }).strict(),
+  ResearchReviewBeginSchema,
+  ResearchReviewContextRequestSchema,
   z.object({ method: z.literal('shutdown') }).strict(),
 ]);
 export type Control = z.infer<typeof ControlSchema>;
@@ -76,6 +82,8 @@ export const ToEngineSchema = z.discriminatedUnion('type', [
   z.object({ ...identity, type: z.literal('inference.error'), code: z.enum(['RUN_CANCELLED', 'PROVIDER_ERROR', 'CONTEXT_LIMIT']) }).strict(),
   z.object({ ...identity, type: z.literal('command.prepared'), result: CommandPlanSchema }).strict(),
   z.object({ ...identity, type: z.literal('command.result'), result: CommandResultSchema }).strict(),
+  z.object({ ...identity, type: z.literal('research.tool.result'), result: ReviewToolResultSchema }).strict(),
+  z.object({ ...identity, type: z.literal('research.tool.error'), code: ReviewToolErrorSchema }).strict(),
   z.object({ ...identity, type: z.literal('command.error'), code: z.enum(['RUN_CANCELLED', 'COMMAND_UNAVAILABLE', 'COMMAND_CHANGED', 'APPROVAL_STALE', 'COMMAND_UNKNOWN', 'GIT_UNAVAILABLE', 'GIT_UNSAFE_REPOSITORY', 'GIT_INSPECTION_LIMIT']) }).strict(),
 ]);
 export const FromEngineSchema = z.discriminatedUnion('type', [
@@ -88,6 +96,7 @@ export const FromEngineSchema = z.discriminatedUnion('type', [
   z.object({ ...identity, type: z.literal('inference'), runId: id, messages: InferenceMessagesSchema, tools: InferenceToolsSchema.optional() }).strict(),
   z.object({ epoch: id, type: z.literal('inference.cancel'), runId: id }).strict(),
   z.object({ ...identity, type: z.literal('command.prepare'), runId: id, input: CommandInputSchema }).strict(),
+  z.object({ ...identity, type: z.literal('research.tool'), runId: id, name: ReviewToolNameSchema, input: ReviewToolInputSchema }).strict(),
   z.object({ ...identity, type: z.literal('command.execute'), runId: id, operationId: id }).strict(),
   z.object({ ...identity, type: z.literal('git.inspect'), runId: id, name: z.enum(['git_status', 'git_diff', 'git_log']), input: BoundedJsonObjectSchema }).strict(),
 ]);

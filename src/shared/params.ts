@@ -37,7 +37,10 @@ const PublicLine = (max: number) => z.string().trim().min(1).max(max).refine(val
 // preferDomains is joined with commas: a host, optionally with a path, never a comma.
 const PreferDomain = z.string().trim().min(1).max(253).regex(/^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?:\/[A-Za-z0-9._~/-]*)?$/);
 const ClientRefSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/);
-export const ResearchSchema = z.object({ id: IdSchema, projectId: IdSchema, revision: RevisionSchema, status: ResearchStatusSchema, topic: z.string().min(1).max(2048), clientRef: ClientRefSchema, workflowRunId: z.string().regex(/^\d{1,20}$/).optional(), packageDigest: DigestSchema.optional(), failure: z.string().min(1).max(128).optional(), createdAt: DateTimeSchema, updatedAt: DateTimeSchema }).strict();
+export const ResearchSchema = z.object({ id: IdSchema, projectId: IdSchema, revision: RevisionSchema, status: ResearchStatusSchema, topic: z.string().min(1).max(2048), clientRef: ClientRefSchema, workflowRunId: z.string().regex(/^\d{1,20}$/).optional(), packageDigest: DigestSchema.optional(), failure: z.string().min(1).max(128).optional(),
+  // Task 5: the review conversation and the reviewed package, so the renderer can open the review.
+  reviewSessionId: IdSchema.optional(), reviewRunId: IdSchema.optional(), reviewedPackageDigest: DigestSchema.optional(),
+  createdAt: DateTimeSchema, updatedAt: DateTimeSchema }).strict();
 export type Research = z.infer<typeof ResearchSchema>;
 /** Characters of topic, queries, URLs and joined preferred domains one research job may carry: an early refusal only. */
 export const RESEARCH_INPUT_BUDGET = 12_000;
@@ -118,7 +121,8 @@ export const MethodSpec = {
   'research.start': method(ResearchStartParams, researchResult, 'engine', 'network', 'research-policy'),
   'research.read': method(ResearchId, researchResult, 'engine', 'read', 'project-member'),
   'research.cancel': method(ResearchId, researchResult, 'engine', 'lifecycle', 'project-member'),
-  'research.review.start': method(z.object({ researchId: IdSchema, profileId: IdSchema }).strict(), researchResult, 'engine', 'write', 'trusted-project'),
+  // Main-owned (Task 5 decision Q2): the workspace must exist before the engine admits a run that edits it.
+  'research.review.start': method(z.object({ researchId: IdSchema, profileId: IdSchema }).strict(), researchResult, 'main', 'write', 'trusted-project'),
   'research.purge': method(ResearchId, Deleted, 'engine', 'write', 'project-member'),
   'skill.list': method(ProjectId, z.object({ skills: z.array(SkillSchema).max(1000) }).strict(), 'engine', 'read', 'project-member'),
   'mission.create': method(z.object({ projectId: IdSchema, profileId: IdSchema, title: z.string().trim().min(1).max(256), instructions: z.string().trim().min(1).max(65536), modelStepBudget: z.number().int().min(1).max(1000).default(120), maxAgents: z.number().int().min(1).max(5).default(5) }).strict(), missionResult, 'engine', 'write', 'trusted-project'),

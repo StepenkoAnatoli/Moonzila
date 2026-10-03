@@ -96,7 +96,7 @@ test('reply schemas accept the engine\'s real replies and refuse extra keys', ()
   const { jobs, context } = setup('collecting');
   expect(context().research).toMatchObject({ status: 'collecting', workflowRunId: '41', repository: 'owner/collector', inputs: { depth: 'quick' } });
   expect(context().admission).toBeNull();
-  expect(ResearchRecoverySchema.parse(structuredClone(jobs.recover([])))).toEqual({ failed: [], cancelled: [], resume: [{ researchId: 'j', revision: 3, workflowRunId: '41' }], dispatchable: [], reviewing: [], unreadable: [] });
+  expect(ResearchRecoverySchema.parse(structuredClone(jobs.recover([])))).toEqual({ failed: [], cancelled: [], resume: [{ researchId: 'j', revision: 3, workflowRunId: '41' }], dispatchable: [], reviewing: [], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] });
   expect(() => ResearchContextSchema.parse({ ...context(), extra: 1 })).toThrow();
   expect(() => ResearchContextSchema.parse({ ...context(), research: { ...context().research, token: 'x' } })).toThrow();
 });

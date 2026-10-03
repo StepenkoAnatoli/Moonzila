@@ -325,7 +325,7 @@ describe('restart reconciliation and never dispatching twice', () => {
     const published: Research[] = [];
     const jobs = new ResearchJobs(store, r => published.push(r));
     const result = jobs.recover(['owned']);
-    expect(result).toEqual({ failed: ['dispatching'], cancelled: ['cancelling'], resume: [{ researchId: 'collecting', revision: 3, workflowRunId: '11' }], dispatchable: [{ researchId: 'queued', revision: 1 }], reviewing: ['reviewing'], unreadable: [] });
+    expect(result).toEqual({ failed: ['dispatching'], cancelled: ['cancelling'], resume: [{ researchId: 'collecting', revision: 3, workflowRunId: '11' }], dispatchable: [{ researchId: 'queued', revision: 1 }], reviewing: ['reviewing'], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] });
     expect(store.getResearch('dispatching')).toMatchObject({ status: 'failed', failure: 'REMOTE_STATE_UNKNOWN' });
     expect(store.researchEvents('dispatching').events.at(-1)).toMatchObject({ actor: 'recovery', to: 'failed' });
     expect(store.getResearch('owned')).toMatchObject({ status: 'dispatching' });
@@ -482,7 +482,16 @@ describe('application and boundaries', () => {
   test('the control channel cannot produce readiness or carry secrets', () => {
     const base = { method: 'research.transition', requestId: 'r', researchId: 'j', expectedRevision: 1, cause: 'DISPATCH' };
     expect(ControlSchema.safeParse({ ...base, to: 'collected' }).success).toBe(true);
-    for (const to of ['approved', 'not_ready', 'reviewing', 'cancelling', 'queued']) expect(ControlSchema.safeParse({ ...base, to }).success, to).toBe(false);
+    for (const to of ['reviewing', 'cancelling', 'queued']) expect(ControlSchema.safeParse({ ...base, to }).success, to).toBe(false);
+    // Main may name the review outcomes (Task 5), so readiness is the engine's to refuse: no review edge exists before
+    // schema v4, and v4's readiness trigger demands a frozen digest, a packaging step and main's KIT_APPROVED journal row.
+    for (const to of ['approved', 'not_ready', 'packaging'] as const) {
+      const { store } = open(); project(store); create(store);
+      const jobs = new ResearchJobs(store, () => {});
+      expect(ControlSchema.safeParse({ ...base, to }).success, to).toBe(true);
+      expect(() => jobs.transition({ method: 'research.transition', requestId: `r-${to}`, researchId: 'j1', expectedRevision: 1, to, cause: 'KIT_APPROVED' }), to).toThrow('RESEARCH_TRANSITION_INVALID');
+      expect(store.getResearch('j1'), to).toMatchObject({ status: 'queued', revision: 1 }); expect(store.researchEvents('j1').events, to).toHaveLength(1);
+    }
     expect(ControlSchema.safeParse({ ...base, to: 'failed', failure: 'X_CODE', token: 'ghp_x' }).success).toBe(false);
     expect(ControlSchema.safeParse({ ...base, to: 'collecting', workflowRunId: '01' }).success).toBe(false);
     expect(ControlSchema.safeParse({ ...base, to: 'collecting', workflowRunId: '9007199254740993' }).success).toBe(false);
