@@ -759,6 +759,27 @@ describe('schema v4 store transitions', () => {
       expect(() => store.transitionResearch({ researchId: 'j1', expectedRevision: 7, to, actor, cause: 'MATRIX', patch: minimalPatch(to, 0, 7) }), `${to} by ${actor}`).toThrow(/RESEARCH_TRANSITION_INVALID/);
   });
 
+  test('a retry records the new review conversation, not the previous one', () => {
+    const { store } = open(); collectedJob(store); startReview(store, 'j1', 'r1', 'fresh', 's-first');
+    step(store, 'j1', 'not_ready', 'engine', { failure: 'REVIEW_RUN_FAILED' });
+    expect(startReview(store, 'j1', 'r2', 'fresh', 's-second').research).toMatchObject({ status: 'reviewing', reviewRunId: 'r2', reviewSessionId: 's-second' });
+    expect(store.getResearch('j1')).toMatchObject({ reviewRunId: 'r2', reviewSessionId: 's-second' });
+  });
+
+  test('the journal refuses a step whose source status is not the job\'s current status', () => {
+    const { store, path } = open(); collectedJob(store); store.close();
+    const db = raw(path); db.pragma('foreign_keys = ON');
+    const insert = (from: string) => db.prepare("INSERT INTO research_events VALUES ('j1',5,?,'reviewing','user',NULL,'X_STEP','{}','e',0)").run(from);
+    // Revision 5 is the next one; only the source status is wrong.
+    expect(() => insert('queued')).toThrow('STALE_REVISION');
+    expect(() => insert('not_ready')).toThrow('STALE_REVISION');
+    expect(db.prepare("SELECT count(*) AS n FROM research_events WHERE research_id='j1'").get()).toEqual({ n: 4 });
+    // The positive control: the same row from the job's real status is accepted.
+    insert('collected');
+    expect(db.prepare("SELECT count(*) AS n FROM research_events WHERE research_id='j1'").get()).toEqual({ n: 5 });
+    db.close();
+  });
+
   test('restart keeps an awaiting_review run that a reviewing or packaging job names, and interrupts every other active run', () => {
     const path = tempPath(); const seed = new Store(path);
     collectedJob(seed, 'reviewing', 'p1', '11'); reviewRun(seed, 'r-reviewing', 'awaiting_review', 'p1'); startReview(seed, 'reviewing', 'r-reviewing');
