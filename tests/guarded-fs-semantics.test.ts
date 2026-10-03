@@ -68,25 +68,32 @@ describe.skipIf(!windows)(`guarded file semantics (${SKIP_REASON})`, () => {
     await rename(folder, join(root, 'swapped')); await rm(join(root, 'swapped'), { recursive: true });
   });
 
-  test('Q9: records whether a new file and subfolder can be created inside a guarded folder', async () => {
+  test('Q9: records whether entries can be created, and unguarded files renamed or deleted, inside a guarded folder', async () => {
     const { root, folder, file } = await fixture();
     const newFile = join(folder, 'new.txt'); const newFolder = join(folder, 'new-folder');
-    let fileOutcome = ''; let folderOutcome = ''; let guardBefore = ''; let guardAfter = '';
+    // Unguarded files beside the guarded one (BRIEF U-03 day-one check: create, create a subfolder, rename, delete).
+    const loose = join(folder, 'loose.txt'); const renamed = join(folder, 'loose-renamed.txt'); const doomed = join(folder, 'doomed.txt');
+    await writeFile(loose, 'loose bytes'); await writeFile(doomed, 'doomed bytes');
+    const outcomes = { file: '', folder: '', renameUnguarded: '', deleteUnguarded: '', guardBefore: '', guardAfter: '' };
     // The design must not depend on the answer (spec Q9): print it, even on a red run, and check only that it is one of two outcomes.
     try {
       await withGuards(root, file, async () => {
-        guardBefore = await attempt(() => writeFile(file, 'witness'));
-        fileOutcome = await attempt(() => writeFile(newFile, 'new entry'));
-        folderOutcome = await attempt(() => mkdir(newFolder));
-        guardAfter = await attempt(() => writeFile(file, 'witness'));
+        outcomes.guardBefore = await attempt(() => writeFile(file, 'witness'));
+        outcomes.file = await attempt(() => writeFile(newFile, 'new entry'));
+        outcomes.folder = await attempt(() => mkdir(newFolder));
+        outcomes.renameUnguarded = await attempt(() => rename(loose, renamed));
+        outcomes.deleteUnguarded = await attempt(() => unlink(doomed));
+        outcomes.guardAfter = await attempt(() => writeFile(file, 'witness'));
       });
-    } finally { console.info('Q9 guarded folder accepts new entries', JSON.stringify({ file: fileOutcome, folder: folderOutcome, guardBefore, guardAfter })); }
+    } finally { console.info('Q9 guarded folder accepts entry changes', JSON.stringify(outcomes)); }
     // Witness: the guarded file refused a write before and after, so the outcomes come from a guarded folder.
-    expect(guardBefore).not.toBe('ok'); expect(guardAfter).not.toBe('ok');
-    if (fileOutcome === 'ok') expect(await readFile(newFile, 'utf8')).toBe('new entry');
-    else await expect(stat(newFile)).rejects.toMatchObject({ code: 'ENOENT' });
-    if (folderOutcome === 'ok') expect((await stat(newFolder)).isDirectory()).toBe(true);
-    else await expect(stat(newFolder)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(outcomes.guardBefore).not.toBe('ok'); expect(outcomes.guardAfter).not.toBe('ok');
+    const absent = (path: string) => expect(stat(path)).rejects.toMatchObject({ code: 'ENOENT' });
+    if (outcomes.file === 'ok') expect(await readFile(newFile, 'utf8')).toBe('new entry'); else await absent(newFile);
+    if (outcomes.folder === 'ok') expect((await stat(newFolder)).isDirectory()).toBe(true); else await absent(newFolder);
+    if (outcomes.renameUnguarded === 'ok') { expect(await readFile(renamed, 'utf8')).toBe('loose bytes'); await absent(loose); }
+    else { expect(await readFile(loose, 'utf8')).toBe('loose bytes'); await absent(renamed); }
+    if (outcomes.deleteUnguarded === 'ok') await absent(doomed); else expect(await readFile(doomed, 'utf8')).toBe('doomed bytes');
     expect(await readFile(file, 'utf8')).toBe('verified bytes');
   });
 
