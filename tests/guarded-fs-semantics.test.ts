@@ -71,14 +71,18 @@ describe.skipIf(!windows)(`guarded file semantics (${SKIP_REASON})`, () => {
   test('Q9: records whether a new file and subfolder can be created inside a guarded folder', async () => {
     const { root, folder, file } = await fixture();
     const newFile = join(folder, 'new.txt'); const newFolder = join(folder, 'new-folder');
-    let fileOutcome = ''; let folderOutcome = '';
+    let fileOutcome = ''; let folderOutcome = ''; let guardBefore = ''; let guardAfter = '';
     // The design must not depend on the answer (spec Q9): print it, even on a red run, and check only that it is one of two outcomes.
     try {
       await withGuards(root, file, async () => {
+        guardBefore = await attempt(() => writeFile(file, 'witness'));
         fileOutcome = await attempt(() => writeFile(newFile, 'new entry'));
         folderOutcome = await attempt(() => mkdir(newFolder));
+        guardAfter = await attempt(() => writeFile(file, 'witness'));
       });
-    } finally { console.info('Q9 guarded folder accepts new entries', JSON.stringify({ file: fileOutcome, folder: folderOutcome })); }
+    } finally { console.info('Q9 guarded folder accepts new entries', JSON.stringify({ file: fileOutcome, folder: folderOutcome, guardBefore, guardAfter })); }
+    // Witness: the guarded file refused a write before and after, so the outcomes come from a guarded folder.
+    expect(guardBefore).not.toBe('ok'); expect(guardAfter).not.toBe('ok');
     if (fileOutcome === 'ok') expect(await readFile(newFile, 'utf8')).toBe('new entry');
     else await expect(stat(newFile)).rejects.toMatchObject({ code: 'ENOENT' });
     if (folderOutcome === 'ok') expect((await stat(newFolder)).isDirectory()).toBe(true);
