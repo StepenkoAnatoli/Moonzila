@@ -1,0 +1,77 @@
+{
+  "topic": "Facts the October 3 break test could not observe: what npm 11's allowScripts does with an uncovered install script, what esbuild's npm postinstall does and whether skipping it matters, and what engine-strict enforces",
+  "notes": "Owner pages named directly: npm's documentation for the install-script policy, package.json fields, config and npm ci; esbuild's getting-started page and the npm install script's source in the esbuild repository; npm's changelog for the version the policy appeared in. Keyless, no search, seven pages. Second pass: docs.npmjs.com renders client-side and the keyless captures held only a title, so the same pages are taken from the npm repository's documentation source at the v11.19.0 tag, plus the config definitions file and the v11 release line's changelog.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 13,
+  "prefer": [
+    "docs.npmjs.com",
+    "esbuild.github.io",
+    "raw.githubusercontent.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://docs.npmjs.com/cli/v11/commands/npm-install-scripts",
+      "type": "P",
+      "why": "U-01, U-04: the install-scripts command and what npm does with scripts the policy does not cover"
+    },
+    {
+      "url": "https://docs.npmjs.com/cli/v11/configuring-npm/package-json",
+      "type": "P",
+      "why": "U-01: the allowScripts field of package.json"
+    },
+    {
+      "url": "https://docs.npmjs.com/cli/v11/using-npm/config",
+      "type": "P",
+      "why": "U-03: engine-strict, and the .npmrc files npm reads"
+    },
+    {
+      "url": "https://docs.npmjs.com/cli/v11/commands/npm-ci",
+      "type": "P",
+      "why": "U-03: whether npm ci honours engine-strict and project config"
+    },
+    {
+      "url": "https://esbuild.github.io/getting-started/",
+      "type": "P",
+      "why": "U-02: how esbuild's npm package installs its platform binary"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/evanw/esbuild/main/lib/npm/node-install.ts",
+      "type": "P",
+      "why": "U-02: what the postinstall script does, from its source"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/npm/cli/latest/CHANGELOG.md",
+      "type": "P",
+      "why": "U-04: the npm release that introduced allowScripts and npm install-scripts"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/npm/cli/v11.19.0/docs/lib/content/commands/npm-install-scripts.md",
+      "type": "P",
+      "why": "U-01, U-04: the npm 11.19.0 documentation source for npm install-scripts (the rendered docs.npmjs.com page is client-side and captured without a body)"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/npm/cli/v11.19.0/docs/lib/content/configuring-npm/package-json.md",
+      "type": "P",
+      "why": "U-01: the allowScripts field, from the npm 11.19.0 documentation source"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/npm/cli/v11.19.0/workspaces/config/lib/definitions/definitions.js",
+      "type": "P",
+      "why": "U-03: the definition and description of engine-strict in npm 11.19.0 (config.md is generated from this file)"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/npm/cli/v11.19.0/docs/lib/content/commands/npm-ci.md",
+      "type": "P",
+      "why": "U-03: npm ci in 11.19.0, from the documentation source"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/npm/cli/release/v11/CHANGELOG.md",
+      "type": "P",
+      "why": "U-04: the npm 11 release line's changelog, where the 11.x policy entries live (the latest-branch changelog stops at 11.12.1)"
+    }
+  ]
+}
