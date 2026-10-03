@@ -369,6 +369,17 @@ Added to this cycle (user, October 3): packaged builds turn off Electron's code-
 - A packaged-build check reads them back.
 - With these fuses, the e2e `-r` preload cannot be active in a packaged build: `-r` is not an Electron switch (E-03), and `NODE_OPTIONS` is refused (E-01, E-02).
 
+## Schema v4 as built (unit B0, October 3)
+
+Schema v4 follows "Job states and edges" and "Schema v4" above, as amended by Q5. Where the build is stricter than the text, it says so here:
+
+- `research_readiness_digest` also refuses when the job's `collecting → collected` step journaled no package digest, so a missing digest never passes the comparison.
+- The `reviewing` check also requires `reviewed_package_sha256` to be null, which is what makes `not_ready → reviewing` fail unless the reviewed fields are cleared. Further checks: `review_run_id` and `review_session_id` are set together, the three reviewed columns are set together, digests are 64 lowercase hex, the validator revision 40 lowercase hex, and `reviewed_bound_revision` is positive.
+- `research_reviewed_immutable` freezes the status as well as `review_digest`, the reviewed columns and the review run and session of an `approved` row.
+- The store refuses `collected → reviewing` unless `workspace` is `fresh`, and a `reviewedPackage` whose `boundRevision` is not the job's `packaging` revision.
+- `research.transition` refuses `reviewing → packaging` while the review run is not `awaiting_review`. A review step refused by admission is journaled with cause `ADMISSION_CHANGED`; a refused `approved` still records `reviewedPackage`.
+- `research.recover` lists a `reviewing` job whose run is terminal or absent in `reviewing`, after moving it to `not_ready` / `REVIEW_INTERRUPTED`.
+
 ## Out of scope
 
 - The renderer panel, the approval card's "research workspace" label and the failure text (Task 6).
