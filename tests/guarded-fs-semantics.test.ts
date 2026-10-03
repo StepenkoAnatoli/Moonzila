@@ -12,7 +12,9 @@ const SKIP_REASON = 'Windows only: NTFS share modes, the native helper and MoveF
 
 const roots: string[] = [];
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'moonaliza-fs-semantics-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonaliza-fs-semantics-'));
+  // A broken guard lets the ancestor rename in the first test move the whole fixture; clean up both names.
+  roots.push(root, `${root}-moved`);
   const folder = join(root, 'locked'); await mkdir(folder);
   const file = join(folder, 'input.txt'); await writeFile(file, 'verified bytes');
   return { root, folder, file };
