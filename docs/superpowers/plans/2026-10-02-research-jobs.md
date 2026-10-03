@@ -175,6 +175,35 @@ October 3, integration of the five build teams (import, collector items, small f
   - `research.purge` deletes only the retained ZIP. The job and its journal stay. It is allowed only for finished jobs whose digest no other verification references.
   - Research is turned on through a confirmation dialog, as "Allow cloud inference" is, offering only `public-technical`.
   - An inference-only policy edit no longer ends research jobs; only a change to the research setting or to trust does.
+- **Task 5 work breakdown (lead-orchestrator, October 3).**
+  - Prerequisites, all done:
+    - research: three corpora, `1202d5a` `7f361bd` `4b682ec`;
+    - decisions: `00daa0c`;
+    - frozen contracts: `fb34691`, `src/engine/review-contract.ts`;
+    - Q1 admission: `f582f16`.
+  - Units: one commit each, disjoint files, in this order.
+  - Wave 1, in parallel:
+    - **B0 schema v4.** Files: `migrations.ts`, `store.ts`, `research-state.ts`, `research.ts` transition writes, the shared status list, `tests/research-jobs-state.test.ts` and a `schema-v3.sql` fixture.
+      - Adds the `packaging` status, the `engine` actor and the review columns and checks.
+      - Replaces the readiness trigger with the digest-gated one, against the collected digest in the journal.
+      - Adds the reviewed-columns immutability trigger, the v4 review edges and per-edge review writes.
+      - Changes `recoverInterrupted` to keep a named `awaiting_review` run.
+      - Implements `research.review.context`.
+    - **B5 fuses.** `electron-builder.yml` `electronFuses`, plus a check script that reads the fuses back on the packaged exe.
+    - **B6 Windows guard tests.** A Windows-only test of the helper's guards (Q9 day-one check) and of replace-by-rename.
+  - Wave 2, after B0:
+    - **B2 engine review run.** Files: `src/engine/research-review.ts`, `application.ts`, `policy.ts`, `operations.ts`, `tools/files.ts`, `tools/reads.ts`.
+      - `research.review.begin`, mode `research` and `rootFor(run)`.
+      - The allowlist before prepare, the protected-root exemption, and `undoAuthority`.
+      - The cancel branch, run-end transitions, and the kit-tool port.
+    - **B3 main review supervisor.** Files: `src/main/review.ts`, `src/main/review-workspace.ts`, `adapter.ts` `prepareReview`, and the `index.ts` wiring.
+      - review.start, materialisation, the kit tools, freeze, packaging, recovery and sweep.
+    - **B4 renderer review UI** in `ResearchPanel.tsx`.
+    - **B8 research enable dialog.**
+  - Wave 3:
+    - **B7 `research.purge`** (retained ZIPs only);
+    - docs;
+    - Phase 4 review (spec, breaker, mutation, invariant) on the integrated branch.
 - **Open after the October 3 integration (owner: the next research cycle unless the user decides otherwise).**
   - Decisions for the user:
     - `research.purge` semantics. The contract deletes the job; the source plan keeps the metadata. The import team recommends keeping the job and its journal and deleting only the retained ZIP, for finished jobs whose digest no other verification references.
