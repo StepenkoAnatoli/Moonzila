@@ -109,17 +109,28 @@ test('a binary without the fuse wire, with an unknown wire version, or no file a
   expect(missing?.stderr).toMatch(/^FUSES_UNREADABLE: /);
 });
 
-test('the packaging configuration flips exactly the fuses the check requires', async () => {
-  const config = await readFile(resolve('electron-builder.yml'), 'utf8');
-  const block = /^electronFuses:\n((?: {2}.*\n?)*)/m.exec(config)?.[1] ?? '';
-  const entries = Object.fromEntries(block.split('\n').filter(line => line.trim() && !line.trim().startsWith('#')).map(line => {
+const CONFIGURED_FUSES = {
+  runAsNode: 'false',
+  enableNodeOptionsEnvironmentVariable: 'false',
+  enableNodeCliInspectArguments: 'false',
+  onlyLoadAppFromAsar: 'true',
+  enableEmbeddedAsarIntegrityValidation: 'true',
+};
+function fuseEntries(config: string) {
+  // Line endings normalised first: a Windows checkout with core.autocrlf=true has CRLF.
+  const block = /^electronFuses:\n((?: {2}.*\n?)*)/m.exec(config.replace(/\r\n/g, '\n'))?.[1] ?? '';
+  return Object.fromEntries(block.split('\n').filter(line => line.trim() && !line.trim().startsWith('#')).map(line => {
     const [key, value] = line.replace(/#.*$/, '').trim().split(/:\s*/); return [key, value];
   }));
-  expect(entries).toEqual({
-    runAsNode: 'false',
-    enableNodeOptionsEnvironmentVariable: 'false',
-    enableNodeCliInspectArguments: 'false',
-    onlyLoadAppFromAsar: 'true',
-    enableEmbeddedAsarIntegrityValidation: 'true',
-  });
+}
+
+test('the packaging configuration flips exactly the fuses the check requires', async () => {
+  const config = await readFile(resolve('electron-builder.yml'), 'utf8');
+  expect(fuseEntries(config)).toEqual(CONFIGURED_FUSES);
+});
+
+test('the configuration check reads the same fuses from a CRLF checkout (core.autocrlf=true on Windows)', async () => {
+  const config = (await readFile(resolve('electron-builder.yml'), 'utf8')).replace(/\r?\n/g, '\r\n');
+  expect(config).toContain('\r\n');
+  expect(fuseEntries(config)).toEqual(CONFIGURED_FUSES);
 });
