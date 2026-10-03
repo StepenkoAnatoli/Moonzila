@@ -41,20 +41,22 @@ describe.skipIf(!windows)(`guarded file semantics (${SKIP_REASON})`, () => {
     const { root, folder, file } = await fixture();
     const replacement = join(root, 'replacement.txt'); await writeFile(replacement, 'swapped bytes');
     const outcomes: Record<string, string> = {};
-    await withGuards(root, file, async () => {
-      outcomes.read = await attempt(() => readFile(file, 'utf8'));
-      outcomes.writeFile = await attempt(() => writeFile(file, 'changed'));
-      outcomes.openForWrite = await attempt(async () => { const handle = await open(file, 'r+'); await handle.close(); });
-      outcomes.truncate = await attempt(() => truncate(file, 0));
-      outcomes.unlink = await attempt(() => unlink(file));
-      outcomes.renameFile = await attempt(() => rename(file, join(folder, 'moved.txt')));
-      outcomes.renameOverFile = await attempt(() => rename(replacement, file));
-      outcomes.renameFolder = await attempt(() => rename(folder, join(root, 'swapped')));
-      outcomes.renameAncestor = await attempt(() => rename(root, `${root}-moved`));
-      outcomes.rmdirFolder = await attempt(() => rmdir(folder));
-      outcomes.rmFolder = await attempt(() => rm(folder, { recursive: true }));
-    });
-    console.info('guarded file semantics', JSON.stringify(outcomes));
+    // Printed whatever happens, so a red Windows CI run still records what each operation did.
+    try {
+      await withGuards(root, file, async () => {
+        outcomes.read = await attempt(() => readFile(file, 'utf8'));
+        outcomes.writeFile = await attempt(() => writeFile(file, 'changed'));
+        outcomes.openForWrite = await attempt(async () => { const handle = await open(file, 'r+'); await handle.close(); });
+        outcomes.truncate = await attempt(() => truncate(file, 0));
+        outcomes.unlink = await attempt(() => unlink(file));
+        outcomes.renameFile = await attempt(() => rename(file, join(folder, 'moved.txt')));
+        outcomes.renameOverFile = await attempt(() => rename(replacement, file));
+        outcomes.renameFolder = await attempt(() => rename(folder, join(root, 'swapped')));
+        outcomes.renameAncestor = await attempt(() => rename(root, `${root}-moved`));
+        outcomes.rmdirFolder = await attempt(() => rmdir(folder));
+        outcomes.rmFolder = await attempt(() => rm(folder, { recursive: true }));
+      });
+    } finally { console.info('guarded file semantics', JSON.stringify(outcomes)); }
     const { read, ...refusals } = outcomes;
     expect(read).toBe('ok');
     for (const [operation, outcome] of Object.entries(refusals)) expect({ operation, outcome }).not.toMatchObject({ outcome: 'ok' });
@@ -70,12 +72,13 @@ describe.skipIf(!windows)(`guarded file semantics (${SKIP_REASON})`, () => {
     const { root, folder, file } = await fixture();
     const newFile = join(folder, 'new.txt'); const newFolder = join(folder, 'new-folder');
     let fileOutcome = ''; let folderOutcome = '';
-    await withGuards(root, file, async () => {
-      fileOutcome = await attempt(() => writeFile(newFile, 'new entry'));
-      folderOutcome = await attempt(() => mkdir(newFolder));
-    });
-    // The design must not depend on the answer (spec Q9): print it, and check only that it is one of two outcomes.
-    console.info('Q9 guarded folder accepts new entries', JSON.stringify({ file: fileOutcome, folder: folderOutcome }));
+    // The design must not depend on the answer (spec Q9): print it, even on a red run, and check only that it is one of two outcomes.
+    try {
+      await withGuards(root, file, async () => {
+        fileOutcome = await attempt(() => writeFile(newFile, 'new entry'));
+        folderOutcome = await attempt(() => mkdir(newFolder));
+      });
+    } finally { console.info('Q9 guarded folder accepts new entries', JSON.stringify({ file: fileOutcome, folder: folderOutcome })); }
     if (fileOutcome === 'ok') expect(await readFile(newFile, 'utf8')).toBe('new entry');
     else await expect(stat(newFile)).rejects.toMatchObject({ code: 'ENOENT' });
     if (folderOutcome === 'ok') expect((await stat(newFolder)).isDirectory()).toBe(true);
