@@ -6,7 +6,7 @@ export const DateTimeSchema = z.iso.datetime({ offset: true });
 export const RevisionSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 export const DigestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 /** One vocabulary for durable research jobs and their events; readiness exists only as `approved`, set from a fresh kit validation. */
-export const ResearchStatusSchema = z.enum(['queued', 'dispatching', 'collecting', 'collected', 'reviewing', 'approved', 'not_ready', 'failed', 'cancelling', 'cancelled']);
+export const ResearchStatusSchema = z.enum(['queued', 'dispatching', 'collecting', 'collected', 'reviewing', 'packaging', 'approved', 'not_ready', 'failed', 'cancelling', 'cancelled']);
 export const HttpUrlSchema = z.string().min(1).max(2048).url().refine(value => {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password && !url.hash; } catch { return false; }
 }, 'An HTTP(S) URL without embedded credentials or fragment is required');

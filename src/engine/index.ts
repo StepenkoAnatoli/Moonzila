@@ -83,8 +83,9 @@ async function control(command: Control): Promise<unknown> {
     case 'research.context': return app.research.context(command.researchId);
     case 'research.transition': return app.research.transition(command);
     case 'research.recover': return app.research.recover(command.owned);
-    // Task 5 contracts are frozen; the engine side lands with schema v4 and the review run.
-    case 'research.review.begin': case 'research.review.context': throw new Error('NOT_IMPLEMENTED');
+    case 'research.review.context': return app.research.reviewContext(command.researchId);
+    // The review run (Task 5, B2) creates the review session and run; until it lands, begin is unavailable.
+    case 'research.review.begin': throw new Error('NOT_IMPLEMENTED');
     case 'vault.references': return store.listSecretRefs();
     case 'request.lookup': return store.lookupAcceptedRequest({ method: command.requestMethod, clientRequestId: command.requestId, canonicalInputHash: command.inputHash }) ?? null;
     case 'shutdown': await app.shutdown(); store.close(); return { closed: true };

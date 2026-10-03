@@ -4,7 +4,7 @@ import { IdSchema, ResearchCollectorSchema, ResearchSchema, ResearchStartParams,
 import { canonicalHash } from './policy';
 import { ACTIVE_RESEARCH } from './research-state';
 import type { Store, StoreProject, StoreResearch, StoreResearchEvent } from './store';
-import type { ReviewedPackage } from './review-contract';
+import { REVIEW_WRITE_ALLOWLIST, ReviewChangeSchema, type ResearchReviewContext, type ReviewChange, type ReviewedPackage } from './review-contract';
 
 const { queries, urls, preferDomains, depth, maxPages } = ResearchStartParams.shape;
 /** The collector inputs kept with a job. Strict, so nothing else (such as a token) can be stored beside them. */
@@ -52,8 +52,11 @@ export function researchAdmission(project: StoreProject | undefined, job?: Pick<
 
 /** The renderer sees identity and status only; inputs, the collector target and the admission binding stay in the engine. */
 export function researchDto(job: StoreResearch): Research {
-  const { id, projectId, revision, status, topic, clientRef, workflowRunId, failure, createdAt, updatedAt } = job;
-  return ResearchSchema.parse({ id, projectId, revision, status, topic, clientRef, createdAt, updatedAt, ...(workflowRunId === undefined ? {} : { workflowRunId }), ...(failure === undefined ? {} : { failure }) });
+  const { id, projectId, revision, status, topic, clientRef, workflowRunId, failure, createdAt, updatedAt, reviewSessionId, reviewRunId, reviewedPackageSha256 } = job;
+  return ResearchSchema.parse({ id, projectId, revision, status, topic, clientRef, createdAt, updatedAt, ...(workflowRunId === undefined ? {} : { workflowRunId }), ...(failure === undefined ? {} : { failure }),
+    // The review conversation, so the renderer can open it, and the reviewed package's digest (Task 5).
+    ...(reviewSessionId === undefined ? {} : { reviewSessionId }), ...(reviewRunId === undefined ? {} : { reviewRunId }),
+    ...(reviewedPackageSha256 === undefined ? {} : { reviewedPackageDigest: reviewedPackageSha256 }) });
 }
 
 const AdmissionSchema = z.enum(['PROJECT_NOT_FOUND', 'PROJECT_UNTRUSTED', 'RESEARCH_NOT_ALLOWED', 'POLICY_CHANGED', 'TRUST_CHANGED']);
@@ -68,6 +71,8 @@ export const ResearchContextSchema = z.object({
     clientRef: ClientRefSchema, researchLevel: z.enum(['public-technical', 'private-connected']), policyRevision: Revision, trustRevision: Revision,
     collectorRevision: RevisionSchema.optional(), repository: repository.optional(), workflow: workflow.optional(), ref: ref.optional(), dispatchedAt: z.string().max(64).optional(),
     workflowRunId: WorkflowRunIdSchema.optional(), failure: ResearchCodeSchema.optional(), createdAt: z.string().max(64), updatedAt: z.string().max(64),
+    reviewSessionId: IdSchema.optional(), reviewRunId: IdSchema.optional(), reviewDigest: digest.optional(),
+    reviewedPackageSha256: digest.optional(), reviewedValidatorRevision: sha1.optional(), reviewedBoundRevision: positive.optional(),
   }).strict(),
   admission: AdmissionSchema.nullable(),
 }).strict();
@@ -93,6 +98,10 @@ export interface ResearchRecovery {
   dispatchable: Array<{ researchId: string; revision: number }>; reviewing: string[]; unreadable: string[];
   freeze: string[]; packaging: string[]; reviewDiscard: string[];
 }
+
+const TERMINAL_RUN: ReadonlySet<string> = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
+/** Job states whose storage/review/<id> folder may still be needed: a workspace to review, freeze, package or retry. */
+const WORKSPACE_HELD: ReadonlySet<string> = new Set(['collected', 'reviewing', 'packaging', 'not_ready']);
 
 /** Durable research jobs. The engine owns state; main owns the collector process and drives fact transitions. */
 export class ResearchJobs {
@@ -121,7 +130,7 @@ export class ResearchJobs {
   /** Stopping is always allowed. Work already in flight is cancelled by main once its owned process has stopped. */
   cancel(researchId: string, requestId: string, notices: Research[]): { research: Research } {
     const job = this.store.getResearch(researchId); if (!job) throw new Error('NOT_FOUND');
-    const to = job.status === 'queued' ? 'cancelled' : ['dispatching', 'collecting', 'reviewing'].includes(job.status) ? 'cancelling' : undefined;
+    const to = job.status === 'queued' ? 'cancelled' : ['dispatching', 'collecting', 'reviewing', 'packaging'].includes(job.status) ? 'cancelling' : undefined;
     if (!to) return { research: researchDto(job) };
     const { research } = this.store.transitionResearch({ researchId, expectedRevision: job.revision, to, actor: 'user', cause: 'CANCEL_REQUESTED', requestId });
     const dto = researchDto(research); notices.push(dto); return { research: dto };
@@ -142,16 +151,20 @@ export class ResearchJobs {
     const { requestId, ...input } = command;
     const accepted = this.store.acceptRequest({ method: 'research.transition', clientRequestId: requestId, canonicalInputHash: canonicalHash(input) }, () => {
       const job = this.store.getResearch(command.researchId); if (!job) throw new Error('NOT_FOUND');
-      // The review states arrive with schema v4 (Task 5); until then they are no edge, as the store would also say.
       const to = command.to;
-      if (to === 'packaging' || to === 'approved' || to === 'not_ready') throw new Error('RESEARCH_TRANSITION_INVALID');
-      const patch = { target: command.target, workflowRunId: command.workflowRunId, failure: command.failure, verification: command.verification };
+      const patch = { target: command.target, workflowRunId: command.workflowRunId, failure: command.failure, verification: command.verification, reviewDigest: command.reviewDigest, reviewedPackage: command.reviewedPackage };
       for (const key of Object.keys(patch) as (keyof typeof patch)[]) if (patch[key] === undefined) delete patch[key];
-      // Admission is re-checked in this transaction before each effect it gates: the dispatch, and accepting a package.
-      const gated = (command.to === 'dispatching' || command.to === 'collected') && job.revision === command.expectedRevision;
+      const current = job.revision === command.expectedRevision;
+      // A job is frozen only once its review run has given its final answer: a live run could still edit the workspace.
+      if (to === 'packaging' && current && job.status === 'reviewing' && (job.reviewRunId === undefined || this.store.getRun(job.reviewRunId)?.status !== 'awaiting_review')) throw new Error('RESEARCH_TRANSITION_INVALID');
+      // Admission is re-checked in this transaction before each effect it gates: the dispatch, accepting a package, freezing
+      // a review and recording readiness. A refused review step ends the review as not_ready with the admission code.
+      const gated = (to === 'dispatching' || to === 'collected' || to === 'packaging' || to === 'approved') && current;
       const refusal = gated ? researchAdmission(this.store.getProject(job.projectId), job) : undefined;
+      const review = to === 'packaging' || to === 'approved';
       const { research } = refusal
-        ? this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to: 'failed', actor: 'main', cause: command.to === 'dispatching' ? 'ADMISSION_REFUSED' : 'ADMISSION_CHANGED', requestId, patch: { failure: refusal } })
+        ? this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to: review ? 'not_ready' : 'failed', actor: 'main', cause: to === 'dispatching' ? 'ADMISSION_REFUSED' : 'ADMISSION_CHANGED', requestId,
+          patch: { failure: refusal, ...(to === 'approved' && command.reviewedPackage ? { reviewedPackage: command.reviewedPackage } : {}) } })
         : this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to, actor: 'main', cause: command.cause, requestId, patch });
       return { entityId: job.id, response: { outcome: refusal ? 'refused' as const : 'applied' as const, research: researchDto(research) } };
     });
@@ -162,8 +175,11 @@ export class ResearchJobs {
   /**
    * Reconcile jobs that no live process owns. An ambiguous dispatch is never re-queued: it fails as REMOTE_STATE_UNKNOWN.
    * Main calls this at app start (owned = []) and after an engine-only restart (owned = its live jobs). It is idempotent.
+   * Review jobs (schema v4): a `reviewing` job whose run is terminal ends as not_ready / REVIEW_INTERRUPTED and is listed in
+   * `reviewing`; one whose run gave its final answer is listed in `freeze`; a `packaging` job in `packaging`.
+   * `reviewDiscard` names the given storage/review folders whose job is absent or holds no workspace any more.
    */
-  recover(owned: readonly string[]): ResearchRecovery {
+  recover(owned: readonly string[], reviewFolders: readonly string[] = []): ResearchRecovery {
     const result: ResearchRecovery = { failed: [], cancelled: [], resume: [], dispatchable: [], reviewing: [], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] };
     const notices: Research[] = [];
     const skip = new Set(owned);
@@ -182,13 +198,46 @@ export class ResearchJobs {
               if (!job.workflowRunId) throw new Error('RESEARCH_STATE_INVALID');
               result.resume.push({ researchId: job.id, revision: job.revision, workflowRunId: job.workflowRunId });
             } else if (job.status === 'queued') result.dispatchable.push({ researchId: job.id, revision: job.revision });
-            else if (job.status === 'reviewing') result.reviewing.push(job.id);
+            else if (job.status === 'reviewing') {
+              const run = job.reviewRunId === undefined ? undefined : this.store.getRun(job.reviewRunId);
+              if (run?.status === 'awaiting_review') result.freeze.push(job.id);
+              else if (!run || TERMINAL_RUN.has(run.status)) {
+                notices.push(researchDto(this.store.transitionResearch({ researchId: job.id, expectedRevision: job.revision, to: 'not_ready', actor: 'recovery', cause: 'RECOVERED', patch: { failure: 'REVIEW_INTERRUPTED' } }).research));
+                result.reviewing.push(job.id);
+              }
+            } else if (job.status === 'packaging') result.packaging.push(job.id);
           });
         } catch { result.unreadable.push(job.id); }
+      }
+      for (const folder of new Set(reviewFolders)) {
+        const status = this.store.getResearch(folder)?.status;
+        if (status === undefined || !WORKSPACE_HELD.has(status)) result.reviewDiscard.push(folder);
       }
     });
     for (const notice of notices) this.publish(notice);
     return result;
+  }
+
+  /**
+   * What main needs to freeze, package or rebuild a review workspace (control `research.review.context`). `changes` are
+   * the completed writes of the job's review runs since its latest `fresh` edge, in creation order, without contents.
+   */
+  reviewContext(researchId: string): ResearchReviewContext {
+    const job = this.store.getResearch(researchId); if (!job) throw new Error('NOT_FOUND');
+    const changes: ReviewChange[] = this.store.listReviewWrites(researchId).map(write => {
+      const input = write.input as { path?: unknown; beforeHash?: unknown; afterHash?: unknown } | null;
+      const change = ReviewChangeSchema.safeParse({ operationId: write.id, runId: write.runId, path: input?.path, beforeHash: input?.beforeHash, afterHash: input?.afterHash });
+      // A review write outside the allowlist was never preparable; finding one means the journal cannot be trusted.
+      if (!change.success || !(REVIEW_WRITE_ALLOWLIST as readonly string[]).includes(change.data.path)) throw new Error('RESEARCH_STATE_INVALID');
+      return change.data;
+    });
+    const run = job.reviewRunId === undefined ? undefined : this.store.getRun(job.reviewRunId);
+    return {
+      researchId: job.id, revision: job.revision, status: job.status, admission: researchAdmission(this.store.getProject(job.projectId), job) ?? null,
+      reviewSessionId: job.reviewSessionId ?? null, reviewRunId: job.reviewRunId ?? null, reviewRunStatus: run?.status ?? null, reviewDigest: job.reviewDigest ?? null,
+      reviewedPackage: job.reviewedPackageSha256 === undefined ? null : { sha256: job.reviewedPackageSha256, validatorRevision: job.reviewedValidatorRevision!, boundRevision: job.reviewedBoundRevision! },
+      changes,
+    };
   }
 
   events(researchId: string): StoreResearchEvent[] { return this.store.researchEvents(researchId, 0, 1000).events; }
