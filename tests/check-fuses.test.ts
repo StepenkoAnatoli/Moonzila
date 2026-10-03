@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
@@ -107,6 +107,23 @@ test('a binary without the fuse wire, with an unknown wire version, or no file a
   const missing = await check(join(root, 'MoonAliza.exe')).then(() => undefined, (error: { code: number; stderr: string }) => error);
   expect(missing?.code).toBe(1);
   expect(missing?.stderr).toMatch(/^FUSES_UNREADABLE: /);
+});
+
+test('a fuse name @electron/fuses no longer knows is unreadable, not reported as a mismatch', async () => {
+  // The script run beside a stand-in @electron/fuses whose FuseV1Options lacks OnlyLoadAppFromAsar, as after an upstream rename.
+  const root = await mkdtemp(join(tmpdir(), 'moonaliza-fuses-')); directories.push(root);
+  await mkdir(join(root, 'scripts')); await copyFile(resolve('scripts/check-fuses.mjs'), join(root, 'scripts', 'check-fuses.mjs'));
+  const library = join(root, 'node_modules', '@electron', 'fuses'); await mkdir(library, { recursive: true });
+  await writeFile(join(library, 'package.json'), JSON.stringify({ name: '@electron/fuses', main: 'index.js' }));
+  await writeFile(join(library, 'index.js'), [
+    "exports.FuseVersion = { V1: '1' };",
+    'exports.FuseV1Options = { RunAsNode: 0, EnableNodeOptionsEnvironmentVariable: 2, EnableNodeCliInspectArguments: 3, EnableEmbeddedAsarIntegrityValidation: 4 };',
+    "exports.getCurrentFuseWire = async () => Object.assign([...Buffer.from('" + HARDENED + "', 'latin1')], { version: '1' });",
+  ].join('\n'));
+  const failure = await promisify(execFile)(process.execPath, [join(root, 'scripts', 'check-fuses.mjs'), join(root, 'MoonAliza.exe')], { windowsHide: true, timeout: 15000, maxBuffer: 65536 })
+    .then(() => undefined, (error: { code: number; stderr: string }) => error);
+  expect(failure?.code).toBe(1);
+  expect(failure?.stderr).toBe('FUSES_UNREADABLE: @electron/fuses does not know the fuse OnlyLoadAppFromAsar\n');
 });
 
 const CONFIGURED_FUSES = {
