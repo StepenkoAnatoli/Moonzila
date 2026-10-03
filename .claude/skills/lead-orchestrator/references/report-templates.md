@@ -33,7 +33,7 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `chore`.
 <one or two sentences: what this delivers and which plan item it completes>
 
 ## Commits
-- `<type>(<scope>)`: <one line>
+- `<type>(<scope>)`: <one line> (built by <role> on <model>; reviewed by <roles> on <model>)
 
 ## Verification (<environment>)
 - <suites and counts; repetition runs; mutations; gate result against baseline>
@@ -53,7 +53,7 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `chore`.
 
 ```
 Summary:          <one or two sentences>
-Changes:          <one line per commit or unit>
+Changes:          <one line per commit or unit, with role and model used>
 Verification:     <commands, counts, repetitions, mutations, baseline comparison,
                   research gate result>
 Not verified:     <item> - to be confirmed by <environment or check>

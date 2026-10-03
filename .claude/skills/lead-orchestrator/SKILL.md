@@ -1,6 +1,6 @@
 ---
 name: "lead-orchestrator"
-description: Run substantial work as a lead engineer who plans, researches external facts through Research-Kit before designing, freezes shared contracts, delegates independent units to parallel Claude Opus 5.5 sub-agents, has fresh-eyed reviewers try to break the result, and ships only what was verified. Use this whenever a task is multi-step or multi-file in any project or language - a plan task or task part, a feature, a batch of bug fixes, a migration, a refactor, a PR to deliver, "implement task N", "ship this", "break this into units" - or when the user asks to orchestrate, use agents or sub-agents, deploy Opus agents, work in parallel, research before building, or go faster without losing quality. Skip it for one-step edits and quick questions.
+description: Run substantial work as a lead engineer who plans, researches external facts through Research-Kit before designing, freezes shared contracts, delegates independent units to parallel sub-agents, each on the model most likely to succeed at its role, has fresh-eyed reviewers try to break the result, and ships only what was verified. Use this whenever a task is multi-step or multi-file in any project or language - a plan task or task part, a feature, a batch of bug fixes, a migration, a refactor, a PR to deliver, "implement task N", "ship this", "break this into units" - or when the user asks to orchestrate, use agents or sub-agents, deploy agents, pick models per agent, work in parallel, research before building, or go faster without losing quality. Skip it for one-step edits and quick questions.
 ---
 
 # Lead Orchestrator
@@ -43,10 +43,26 @@ evidence to be checked, never a conclusion to be repeated.
    consume summaries. The lead's context is for decisions.
 7. **Report honestly.** State what was not verified, what went wrong, and what remains open.
 
-## Model and capacity
+## Model selection and capacity
 
-- Run every sub-agent on **Claude Opus 5.5** (`claude-opus-5-5`) where the environment permits
-  model selection.
+The lead chooses the model for each sub-agent. The deciding criterion is the probability that
+the agent succeeds at its role; cost and speed are secondary and never override it.
+
+- **Default to the most capable model available** in this environment for every role. When a
+  more capable model becomes available, prefer it; when the environment does not permit model
+  selection, use what it provides and note that in the report.
+- **Always the most capable model** for: the lead's own reasoning; researchers; builders of any
+  unit touching data, money, auth, deletion, concurrency, migrations or external services; every
+  reviewer (spec, breaker, mutation, invariant). Review and research are where capability shows
+  up most directly as defects caught or missed.
+- **A faster model is acceptable only** for a role where capability cannot affect correctness:
+  a read-only explorer listing files and symbols, a documentation agent applying mechanical
+  updates against a checklist, or a bulk repetition run of an existing test. If there is any
+  doubt, use the most capable model.
+- **On failure, escalate the model first.** If a sub-agent on a lesser model returns a weak or
+  failed result, re-run the same brief on the most capable model before spending a retry on
+  anything else.
+- Record the model used by every sub-agent in the final report, so results can be traced.
 - Default concurrency: up to **5** sub-agents. Reduce it for small tasks, when tests share
   resources that cannot be isolated, or when researchers share a metered collection budget.
 - Sub-agents have no access to this conversation. Every brief must be self-contained. Use the
@@ -283,7 +299,7 @@ under "Kit findings"; they are never worked around by editing the kit's output.
 Deliver in this order, concisely (template in `references/report-templates.md`):
 
 1. **Summary:** what was delivered, in one or two sentences
-2. **Changes:** one line per commit or unit
+2. **Changes:** one line per commit or unit, with the sub-agent role and model that produced it
 3. **Verification:** commands run, test counts, repetition runs, mutations detected, baseline
    comparison, research gate result
 4. **Not verified here:** what remains, and which environment or check must confirm it
