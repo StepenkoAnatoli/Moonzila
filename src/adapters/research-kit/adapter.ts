@@ -178,7 +178,9 @@ export class ResearchKit {
             if (name !== artifactSha256 + '.zip') total += info.size;
           }
           if (total + bytes.length > 128 * 1024 ** 2) throw new Error('STORAGE_LIMIT');
-          // Written in full and synced under work/ (swept at start), then renamed into place: the store never holds a partial file.
+          // Written in full and synced under work/ (swept at start, same volume), then replaced by rename. On Windows that is
+          // MoveFileExW(MOVEFILE_REPLACE_EXISTING), with no documented crash-atomicity guarantee: the check above, which replaces
+          // a file whose bytes do not hash to its name, is what keeps a torn file from blocking validation.
           const temporary = join(await privateDirectory(join(this.config.storageRoot, 'work')), randomUUID() + '.zip');
           try {
             const handle = await open(temporary, 'wx');
