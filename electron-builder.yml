@@ -10,6 +10,17 @@ asar: true
 asarUnpack:
   - node_modules/better-sqlite3/prebuilds/*.node
 npmRebuild: false
+# Package-time fuses close the packaged app's code-loading paths; scripts/check-fuses.mjs reads
+# them back from the packaged exe. Evidence: docs/research/2026-10-03-electron-fuses (E-01..E-04).
+# grantFileProtocolExtraPrivileges stays at Electron's default: the renderer is loaded from file://
+# (src/main/index.ts loadFile, a module script), and the corpus does not say that file:// loading
+# keeps working with the fuse off.
+electronFuses:
+  runAsNode: false                            # ELECTRON_RUN_AS_NODE ignored; main uses utilityProcess.fork
+  enableNodeOptionsEnvironmentVariable: false # NODE_OPTIONS and NODE_EXTRA_CA_CERTS ignored
+  enableNodeCliInspectArguments: false        # --inspect, --inspect-brk and SIGUSR1 ignored
+  onlyLoadAppFromAsar: true                   # no app/ directory or default_app.asar fallback
+  enableEmbeddedAsarIntegrityValidation: true # needs asar integrity, which asar: true keeps
 extraResources:
   - from: .build/native/MoonAlizaHost.exe
     to: native/MoonAlizaHost.exe
