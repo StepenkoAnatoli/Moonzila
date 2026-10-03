@@ -177,7 +177,8 @@ export class ResearchJobs {
    * Main calls this at app start (owned = []) and after an engine-only restart (owned = its live jobs). It is idempotent.
    * Review jobs (schema v4): a `reviewing` job whose run is terminal ends as not_ready / REVIEW_INTERRUPTED and is listed in
    * `reviewing`; one whose run gave its final answer is listed in `freeze`; a `packaging` job in `packaging`.
-   * `reviewDiscard` names the given storage/review folders whose job is absent or holds no workspace any more.
+   * `reviewDiscard` names the given storage/review folders whose job is absent or holds no workspace any more, and is not
+   * in `owned`.
    */
   recover(owned: readonly string[], reviewFolders: readonly string[] = []): ResearchRecovery {
     const result: ResearchRecovery = { failed: [], cancelled: [], resume: [], dispatchable: [], reviewing: [], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] };
@@ -210,6 +211,8 @@ export class ResearchJobs {
         } catch { result.unreadable.push(job.id); }
       }
       for (const folder of new Set(reviewFolders)) {
+        // A job main still owns may have a live child using its workspace (an engine-only restart): never name it.
+        if (skip.has(folder)) continue;
         const status = this.store.getResearch(folder)?.status;
         if (status === undefined || !WORKSPACE_HELD.has(status)) result.reviewDiscard.push(folder);
       }

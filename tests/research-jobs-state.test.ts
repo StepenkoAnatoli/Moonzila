@@ -929,6 +929,17 @@ describe('schema v4 engine review controls', () => {
     // Idempotent: nothing more to interrupt; the lists that need main's work are offered again.
     expect(research.recover(['owned'])).toMatchObject({ reviewing: [], freeze: ['freeze'], packaging: ['packaging'], reviewDiscard: [] });
   });
+
+  test('research.recover never names the review folder of a job main still owns', () => {
+    // After an engine-only restart main's packaging child may still use the workspace of a job the user has cancelled.
+    const { store } = open(); collectedJob(store); reviewRun(store, 'r1'); startReview(store, 'j1', 'r1');
+    step(store, 'j1', 'packaging', 'main', { reviewDigest: D1 }); step(store, 'j1', 'cancelling', 'user');
+    const { jobs: research } = jobs(store);
+    expect(research.recover(['j1'], ['j1'])).toMatchObject({ cancelled: [], reviewDiscard: [] });
+    expect(store.getResearch('j1')).toMatchObject({ status: 'cancelling' });
+    // Once main no longer owns it, recovery ends the job and its folder may go.
+    expect(research.recover([], ['j1'])).toMatchObject({ cancelled: ['j1'], reviewDiscard: ['j1'] });
+  });
 });
 
 describe('application and boundaries', () => {
