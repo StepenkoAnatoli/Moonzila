@@ -695,8 +695,14 @@ describe('schema v4 constraints', () => {
     expect(() => create(store, 'j2')).toThrow('RUN_ACTIVE');
     step(store, 'j1', 'not_ready', 'main', { failure: 'REVIEW_GATE_FAILED' });
     expect(create(store, 'j2').research.status).toBe('queued');
-    // A second active job in the project is refused by the index too, so a retry of j1 cannot run beside it.
-    expect(() => startReview(store, 'j1', 'r2', 'continued')).toThrow(/UNIQUE.*project_id/);
+    // While a new collection holds the slot, a retry is refused with the domain code, not the index's raw message.
+    const before = { job: store.getResearch('j1'), journal: store.researchEvents('j1') };
+    expect(() => startReview(store, 'j1', 'r2', 'continued')).toThrow(/^RUN_ACTIVE$/);
+    expect({ job: store.getResearch('j1'), journal: store.researchEvents('j1') }).toEqual(before);
+    // A first review of another collected job is refused the same way.
+    step(store, 'j2', 'cancelled', 'user'); collectedJob(store, 'j3', 'p', '9');
+    expect(() => startReview(store, 'j1', 'r2', 'continued')).not.toThrow();
+    expect(() => startReview(store, 'j3', 'r3')).toThrow(/^RUN_ACTIVE$/);
   });
 });
 

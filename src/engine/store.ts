@@ -272,6 +272,9 @@ export class Store {
       if (existing.revision !== step.expectedRevision) throw new Error('STALE_REVISION');
       const patch = step.patch ?? {};
       assertResearchEdge(existing, step.to, step.actor, patch);
+      // A review takes the project's single research slot. While another job holds it (a new collection beside a
+      // collected or not_ready job), starting or retrying the review is refused with the domain code, not the index's.
+      if (step.to === 'reviewing' && this.hasActiveResearch(existing.projectId)) throw new Error('RUN_ACTIVE');
       // Derive the step from the caller's expectation, so the journal trigger and the WHERE clause also refuse a stale caller.
       const revision = step.expectedRevision + 1; const iso = new Date(at).toISOString();
       const event: StoreResearchEvent = { researchId: existing.id, revision, from: existing.status, to: step.to, actor: step.actor, requestId: step.requestId, cause: step.cause, detail: patch, engineEpoch: this.engineEpoch, at };

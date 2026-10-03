@@ -377,6 +377,7 @@ Schema v4 follows "Job states and edges" and "Schema v4" above, as amended by Q5
 - The `reviewing` check also requires `reviewed_package_sha256` to be null, which is what makes `not_ready → reviewing` fail unless the reviewed fields are cleared. Further checks: `review_run_id` and `review_session_id` are set together, the three reviewed columns are set together, digests are 64 lowercase hex, the validator revision 40 lowercase hex, and `reviewed_bound_revision` is positive.
 - `research_reviewed_immutable` freezes the status as well as `review_digest`, the reviewed columns and the review run and session of an `approved` row.
 - The store refuses `collected → reviewing` unless `workspace` is `fresh`, and a `reviewedPackage` whose `boundRevision` is not the job's `packaging` revision.
+- The store itself refuses `collected → reviewing` and `not_ready → reviewing` with `RUN_ACTIVE` while another job of the project is active, so every caller gets the domain code rather than the `research_active` index's constraint message.
 - `research.transition` refuses `reviewing → packaging` while the review run is not `awaiting_review`. A review step refused by admission is journaled with cause `ADMISSION_CHANGED`; a refused `approved` still records `reviewedPackage`.
 - `research.recover` lists a `reviewing` job whose run is terminal or absent in `reviewing`, after moving it to `not_ready` / `REVIEW_INTERRUPTED`.
 
