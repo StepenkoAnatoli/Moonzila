@@ -151,3 +151,31 @@ test('the configuration check reads the same fuses from a CRLF checkout (core.au
   expect(config).toContain('\r\n');
   expect(fuseEntries(config)).toEqual(CONFIGURED_FUSES);
 });
+
+/** The steps of the Windows job as { key: value } maps of their top-level scalar keys (name, if, run, uses). */
+function workflowSteps(workflow: string) {
+  const lines = workflow.replace(/\r\n/g, '\n').split('\n');
+  const start = lines.findIndex(line => /^ {4}steps:\s*$/.test(line));
+  const steps: Array<Record<string, string>> = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() && !line.startsWith('      ')) break;
+    const item = /^ {6}- (\w[\w-]*):\s*(.*)$/.exec(line); const key = /^ {8}(\w[\w-]*):\s*(.*)$/.exec(line);
+    if (item) steps.push({ [item[1] ?? '']: item[2] ?? '' });
+    else if (key && steps.length) steps.at(-1)![key[1] ?? ''] = key[2] ?? '';
+  }
+  return steps;
+}
+
+test('the Windows workflow runs the fuse check on the packaged exe, under the same condition and right after packaging', async () => {
+  const steps = workflowSteps(await readFile(resolve('.github/workflows/windows.yml'), 'utf8'));
+  const config = await readFile(resolve('electron-builder.yml'), 'utf8');
+  const productName = /^productName:\s*(\S+)\s*$/m.exec(config)?.[1];
+  const output = /^directories:\s*\r?\n(?: {2}.*\r?\n)*? {2}output:\s*(\S+)\s*$/m.exec(config)?.[1];
+  expect([productName, output]).toEqual(['MoonAliza', 'release']);
+  const packaging = steps.findIndex(step => step.run === 'npm run package:win');
+  const fuseCheck = steps.findIndex(step => step.run?.startsWith('node scripts/check-fuses.mjs'));
+  expect(packaging).toBeGreaterThanOrEqual(0);
+  expect(fuseCheck).toBe(packaging + 1);
+  expect(steps[fuseCheck]?.if).toBe(steps[packaging]?.if);
+  expect(steps[fuseCheck]?.run).toBe(`node scripts/check-fuses.mjs ${output}/win-unpacked/${productName}.exe`);
+});
