@@ -53,6 +53,9 @@ describe.skipIf(!windows)(`guarded file semantics (${SKIP_REASON})`, () => {
         outcomes.unlink = await attempt(() => unlink(file));
         outcomes.renameFile = await attempt(() => rename(file, join(folder, 'moved.txt')));
         outcomes.renameOverFile = await attempt(() => rename(replacement, file));
+        // These folder refusals check the guarantee, not which handle gives it: the guarded file alone pins every
+        // ancestor against rename (BRIEF E-06), rmdir of a non-empty folder fails anyway, and rm -r must unlink the
+        // guarded file. The helper's directory handles cannot be tested apart from its file handle through spawnOwned.
         outcomes.renameFolder = await attempt(() => rename(folder, join(root, 'swapped')));
         outcomes.renameAncestor = await attempt(() => rename(root, `${root}-moved`));
         outcomes.rmdirFolder = await attempt(() => rmdir(folder));
