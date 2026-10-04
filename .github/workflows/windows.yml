@@ -33,11 +33,24 @@ jobs:
         run: npm run package:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify packaged Electron fuses
+        if: github.event_name == 'workflow_dispatch'
+        run: node scripts/check-fuses.mjs release/win-unpacked/Moonzila.exe
+      # Playwright's launcher needs --inspect, which the shipped exe refuses (decision 13), so the packaged e2e
+      # runs on a test-only package identical to it except for that one fuse, checked before it is used.
+      - name: Build test-only package for the packaged e2e
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run package:win-e2e
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify test-only package fuses
+        if: github.event_name == 'workflow_dispatch'
+        run: node scripts/check-fuses.mjs --test-package release-e2e/win-unpacked/Moonzila.exe
       - name: Verify packaged desktop workflows
         if: github.event_name == 'workflow_dispatch'
         run: npm run test:e2e
         env:
-          MOONALIZA_TEST_EXECUTABLE: '${{ github.workspace }}/release/win-unpacked/Moonzila.exe'
+          MOONALIZA_TEST_EXECUTABLE: '${{ github.workspace }}/release-e2e/win-unpacked/Moonzila.exe'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
