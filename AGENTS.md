@@ -16,7 +16,7 @@ Run `node scripts/check-handoff.mjs` to verify snapshot identities and the main 
 
 ## Delivery workflow
 
-At the end of every completed project step or phase, verify the work, push its branch, and open a pull request. The PR is opened as a draft. The user signals approval by marking it "Ready for review" (user instruction, 2026-10-04); the agent then merges it, but only when the Windows CI run on that exact head commit is green and the PR is mergeable. If either fails, fix it or tell the user what holds it. Never merge a draft PR, and never merge without that signal. Context recovery was delivered in merged PR #11. The attached integration proposal is reference material, reviewed in [the integration review](docs/specification/research-kit-integration-review.md); current backend behavior is in [offline validation](docs/specification/research-kit-offline.md).
+At the end of every completed project step or phase, verify the work, push its branch, and open a pull request. The PR is opened as a draft. The agent decides when to merge it (user instruction, 2026-10-04, superseding "the user marks it Ready for review"), and merges only when all of these hold, checked on the PR's exact head commit: every S1 and S2 finding fixed and re-reviewed, the rest dispositioned in the run ledger; the full Linux gate with no failure outside the recorded baseline; the Windows CI run green; the PR mergeable with no conflict and no open review thread waiting on the agent; for packaging changes, a green `workflow_dispatch` run. The agent then marks it ready, merges with a merge commit, and reports the merge to the user. If any check fails, it fixes the cause or tells the user what holds the PR. Never merge while a check is red or unknown. Context recovery was delivered in merged PR #11. The attached integration proposal is reference material, reviewed in [the integration review](docs/specification/research-kit-integration-review.md); current backend behavior is in [offline validation](docs/specification/research-kit-offline.md).
 
 ## Project skills
 
@@ -69,7 +69,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 
 ### Conventions
 - Commit body: "What changed / Why / What it touched / What you verified / What you got wrong and fixed"; the got-wrong line is never omitted; docs-only commits may use one line per part. Identity: the account's GitHub no-reply address.
-- Branching: work on `main-axuse`, fast-forwarded to `main` after each merge; one PR per step, opened as a draft; once the user marks it "Ready for review", the agent merges it after a green Windows run on the head. No force-push, no reset of shared branches.
+- Branching: work on `main-axuse`, fast-forwarded to `main` after each merge; one PR per step, opened as a draft; the agent decides the merge (user, 2026-10-04) under the merge checks above. No force-push, no reset of shared branches.
 - Standing rule: fix what is needed now, or record it under "Recorded for later" in the plan.
 
 ### Invariants
