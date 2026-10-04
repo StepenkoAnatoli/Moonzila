@@ -14,7 +14,7 @@ import type { OwnedCommand, OwnedOptions, OwnedRunner } from '../src/tools/comma
 import { Store } from '../src/engine/store';
 import { Application } from '../src/engine/application';
 import { createControl, ReviewToolPort } from '../src/engine/control-dispatch';
-import { ControlSchema, ToEngineSchema, engineFailureCode } from '../src/engine/control';
+import { ControlSchema, ToEngineSchema, engineFailureCode, type Control } from '../src/engine/control';
 import { ResearchRecoverySchema } from '../src/engine/research';
 import { Engine } from '../src/main/engine';
 import { ReviewSupervisor } from '../src/main/review';
@@ -156,6 +156,8 @@ interface World {
   approved: Operation[];
   /** Main's event hook, called before the supervisor sees the event (tampering at an exact point). */
   onEvent?: (event: RunEvent) => void;
+  /** A stand-in for an engine reply the engine does not give yet (see `withUnknownWrites`); never changes a reply it gives. */
+  reply?: (control: Control, reply: unknown) => unknown;
 }
 const worlds: World[] = [];
 const side = (world: World) => world.sides.at(-1)!;
@@ -173,7 +175,10 @@ async function boot(data: string): Promise<World> {
     if (!stop || world.engine.epoch !== epoch || stop.signal.aborted) throw new Error('RUN_CANCELLED');
     return stop.signal;
   };
-  world.review = new ReviewSupervisor({ control: control => world.engine.control(control), kit, runSignal: signalOf, redact: async text => text, retryDelayMs: 10 });
+  world.review = new ReviewSupervisor({
+    control: async control => { const reply = await world.engine.control(control); return world.reply ? world.reply(control, reply) : reply; },
+    kit, runSignal: signalOf, redact: async text => text, retryDelayMs: 10,
+  });
   const fork = engineProcess(world.sides);
   world.engine = new Engine('engine.cjs', join(data, 'state.sqlite'), {
     event(event) {
@@ -229,6 +234,32 @@ async function crash(world: World) {
   await world.review.close(); await world.kit.close();
   world.child!.dead = true;
   await world.engine.close();
+}
+
+/**
+ * The engine's half of breaker F1 (research.review.context listing `unknown` review writes, with their status) belongs to
+ * another unit. Until it lands, this stands in for it in the one test that needs it: when the engine's context lists no
+ * unknown write but the journal holds one, the changes are listed again from the journal, completed and unknown, in
+ * creation order. Once the engine lists them itself, its reply passes unchanged.
+ */
+function withUnknownWrites(world: World) {
+  return (control: Control, reply: unknown): unknown => {
+    if (control.method !== 'research.review.context') return reply;
+    const context = reply as { changes: Array<{ status?: string }> };
+    if (context.changes.some(change => change.status === 'unknown')) return reply;
+    const db = store(world);
+    const edges = db.researchEvents(JOB, 0, 1000).events.filter(event => event.to === 'reviewing');
+    const fresh = edges.filter(event => (event.detail as { workspace?: string }).workspace === 'fresh').at(-1);
+    if (!fresh) return reply;
+    const writes = edges.filter(event => event.revision >= fresh.revision).flatMap(event => db.listOperations((event.detail as { reviewRunId: string }).reviewRunId))
+      .filter(op => op.kind === 'write' && (op.status === 'completed' || op.status === 'unknown'))
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+    if (!writes.some(op => op.status === 'unknown')) return reply;
+    return { ...context, changes: writes.map(op => {
+      const input = op.input as { path: string; beforeHash: string | null; afterHash: string | null };
+      return { operationId: op.id, runId: op.runId, path: input.path, beforeHash: input.beforeHash, afterHash: input.afterHash, status: op.status };
+    }) };
+  };
 }
 
 /** Task 4's part: the project, the profile and a job collected with the fixture package, retained under its binding. */
@@ -580,4 +611,48 @@ test('4b. restart during packaging: the answered run is kept, packaging re-runs 
   expect(store(second).getRun(run.id)!.status).toBe('completed');
   await idle(second);
   expect(await readdir(join(second.storage, 'review'))).toEqual([]);
+}, 240000);
+
+test('4c. a crash between an approved edit\'s rename and its record keeps the edit: the retry continues, begin reconciles it, and it is approved', async () => {
+  // Guard: the retry's continued check accepts, for a path with an unknown write, its before or its after hash (breaker F1,
+  // probe P1; mutation: verify the kept workspace against the completed fold only).
+  const first = await world();
+  first.script.push(rewriteFinding);
+  const { store: db, app } = side(first); const record = db.updateOperation.bind(db);
+  let crashedOn: string | undefined; let stopped: Promise<void> | undefined;
+  db.updateOperation = ((id: string, patch: { status?: string }) => {
+    // The process dies right after the edit's rename, before its completed record: that record, and the journal's own
+    // fallback for it, never reach the database; the run in flight stops where it is, and no message reaches main.
+    if (id === crashedOn || (crashedOn === undefined && patch.status === 'completed' && db.getOperation(id)?.kind === 'write')) {
+      if (crashedOn === undefined) { crashedOn = id; first.child!.dead = true; stopped = app.shutdown(); }
+      throw new Error('ENGINE_CRASHED');
+    }
+    return record(id, patch as never);
+  }) as typeof db.updateOperation;
+  const { run } = await startReview(first);
+  const rewrite = await until(() => crashedOn, 'the rewrite to be renamed');
+  await stopped;
+  expect(await readFile(join(first.workspace, 'research', 'EVIDENCE.md'), 'utf8')).toContain(REVIEWED_FINDING);
+  expect(db.getOperation(rewrite)!.status).toBe('started');
+  await crash(first);
+
+  const second = await boot(first.data);
+  second.reply = withUnknownWrites(second);
+  const recovery = await recover(second);
+  expect(recovery.reviewing).toEqual([JOB]);
+  expect(store(second).getResearch(JOB)).toMatchObject({ status: 'not_ready', failure: 'REVIEW_INTERRUPTED' });
+  expect(store(second).getOperation(rewrite)!.status).toBe('unknown');
+  expect(store(second).getRun(run.id)!.status).toBe('interrupted');
+
+  const drafts: string[] = [];
+  second.script.push(...draftAndAnswer(second, drafts), afterApplied('research/BRIEF.md', () => answer()));
+  const retry = await startReview(second);
+  // The kept workspace was accepted: continued, and begin reconciled the unknown write against it as applied.
+  expect(store(second).researchEvents(JOB, 0, 1000).events.find(event => event.detail && (event.detail as { reviewRunId?: string }).reviewRunId === retry.run.id)!.detail).toMatchObject({ workspace: 'continued' });
+  expect(store(second).getOperation(rewrite)!.status).toBe('completed');
+  const job = await settled(second);
+  expect(job).toMatchObject({ status: 'approved' });
+  expect(drafts[0]).toContain(REVIEWED_FINDING);
+  const packaged = new Map((await readPackage(await readFile(join(second.storage, 'artifacts', `${job.reviewedPackageSha256}.zip`)))).base.map(entry => [entry.path, entry.sha256]));
+  expect(packaged.get('research/EVIDENCE.md')).toBe((store(second).getOperation(rewrite)!.input as { afterHash: string }).afterHash);
 }, 240000);

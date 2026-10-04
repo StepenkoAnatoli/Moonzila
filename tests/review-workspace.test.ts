@@ -4,7 +4,7 @@ import { link, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFi
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { crc32 } from 'node:zlib';
-import { copyWorkspace, excludedByCreate, foldExpected, listReviewFolders, materialise, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory } from '../src/main/review-workspace';
+import { acceptsTree, copyWorkspace, excludedByCreate, foldAccepted, foldExpected, listReviewFolders, materialise, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type FoldChange } from '../src/main/review-workspace';
 
 // The private review workspace (spec "The private workspace"). Every path stays inside this test's own mkdtemp root.
 let root: string;
@@ -93,6 +93,29 @@ test('the expected tree folds completed writes over the base; a write whose befo
   expect(expected).toEqual([{ path: 'research/BRIEF.md', sha256: digest('b') }, { path: 'research/EVIDENCE.md', sha256: digest('e2') }]);
   expect(() => foldExpected(base, [{ path: 'research/MAP.md', beforeHash: digest('x'), afterHash: digest('y') }])).toThrow('REVIEW_WORKSPACE_CHANGED');
   expect(() => foldExpected(base, [{ path: 'research/BRIEF.md', beforeHash: digest('x'), afterHash: digest('y') }])).toThrow('REVIEW_WORKSPACE_CHANGED');
+});
+
+test('an unknown write never verifies as one expected tree, but a kept workspace may hold its before or its after hash', () => {
+  const base = [{ path: 'research/MAP.md', sha256: digest('m') }, { path: 'research/EVIDENCE.md', sha256: digest('e') }];
+  const changes: FoldChange[] = [
+    { path: 'research/EVIDENCE.md', beforeHash: digest('e'), afterHash: digest('e2'), status: 'completed' },
+    { path: 'research/EVIDENCE.md', beforeHash: digest('e2'), afterHash: digest('e3'), status: 'unknown' },
+    { path: 'research/BRIEF.md', beforeHash: null, afterHash: digest('b'), status: 'unknown' },
+  ];
+  // The freeze's single expected tree: an unknown write leaves none.
+  expect(() => foldExpected(base, changes)).toThrow('REVIEW_WORKSPACE_CHANGED');
+  const accepted = foldAccepted(base, changes);
+  const tree = (evidence: string, brief?: string) => [...(brief === undefined ? [] : [{ path: 'research/BRIEF.md', sha256: digest(brief) }]), { path: 'research/EVIDENCE.md', sha256: digest(evidence) }, base[0]!];
+  // Each unknown write either landed or did not, independently.
+  for (const [evidence, brief] of [['e2', undefined], ['e3', undefined], ['e2', 'b'], ['e3', 'b']] as const) expect(acceptsTree(tree(evidence, brief), accepted), `${evidence} ${brief}`).toBe(true);
+  // The hash before the completed write, any other bytes, a missing file no write removed, or an extra file is refused.
+  expect(acceptsTree(tree('e'), accepted)).toBe(false);
+  expect(acceptsTree(tree('e3', 'other'), accepted)).toBe(false);
+  expect(acceptsTree([{ path: 'research/EVIDENCE.md', sha256: digest('e3') }], accepted)).toBe(false);
+  expect(acceptsTree([...tree('e3'), { path: 'research/NOTES.md', sha256: digest('n') }], accepted)).toBe(false);
+  // A completed write after an unknown one settles the path; a write whose before-hash the path cannot hold refuses.
+  expect(foldAccepted(base, [...changes, { path: 'research/EVIDENCE.md', beforeHash: digest('e3'), afterHash: digest('e4'), status: 'completed' }]).get('research/EVIDENCE.md')).toEqual(new Set([digest('e4')]));
+  expect(() => foldAccepted(base, [...changes, { path: 'research/EVIDENCE.md', beforeHash: digest('x'), afterHash: digest('y'), status: 'unknown' }])).toThrow('REVIEW_WORKSPACE_CHANGED');
 });
 
 test('the review digest is the SHA-256 of the canonical JSON of the sorted [path, sha256] list, whatever the input order', () => {

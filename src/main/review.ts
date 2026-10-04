@@ -10,7 +10,7 @@ import type { ReviewIdentity, ReviewLaunch, ReviewTool } from '../adapters/resea
 import { privateDirectory } from '../models/artifact-files';
 import type { OwnedResult } from '../tools/commands';
 import type { Research, Run, RunEvent } from '../shared';
-import { copyWorkspace, foldExpected, materialise, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type Inventory } from './review-workspace';
+import { acceptsTree, copyWorkspace, foldAccepted, foldExpected, materialise, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type Inventory } from './review-workspace';
 
 /** What the supervisor needs from the Research Kit adapter (`ResearchKit` implements it). */
 export interface ReviewKit {
@@ -143,7 +143,7 @@ export class ReviewSupervisor {
     let launch: ReviewLaunch;
     try { launch = await kit.prepareReview(); } catch { throw new Error('RESEARCH_KIT_UNAVAILABLE'); }
     const folder = reviewFolder(launch.root, researchId);
-    let workspace: ReviewWorkspace = ctx.status === 'not_ready' && await this.verifies(folder.project, foldOrNull(base, ctx.changes)) ? 'continued' : 'fresh';
+    let workspace: ReviewWorkspace = ctx.status === 'not_ready' && await this.keeps(folder.project, base, ctx.changes) ? 'continued' : 'fresh';
     for (let attempt = 0; ; attempt++) {
       if (workspace === 'fresh') await this.materialise(bytes, folder.job);
       try {
@@ -160,6 +160,16 @@ export class ReviewSupervisor {
   private async materialise(bytes: Buffer, job: string): Promise<void> {
     try { await materialise(bytes, job); }
     catch (error) { throw new Error(message(error) === 'REVIEW_WORKSPACE_TOO_LARGE' ? 'REVIEW_WORKSPACE_TOO_LARGE' : 'STALE_VERIFICATION', { cause: error }); }
+  }
+  /**
+   * A retry may continue the kept workspace when its tree is one the journal allows: the completed fold, with either the
+   * before or the after hash for a path an `unknown` write touched (a crash between its rename and its record). Begin then
+   * reconciles each unknown write against the workspace (spec "Crash windows"; breaker F1).
+   */
+  private async keeps(project: string, base: Inventory, changes: ResearchReviewContext['changes']): Promise<boolean> {
+    let accepted: ReturnType<typeof foldAccepted>;
+    try { accepted = foldAccepted(base, changes); } catch { return false; }
+    try { await removeJournalTemps(project); return acceptsTree(await treeInventory(project), accepted); } catch { return false; }
   }
   /** True when the workspace's tree, after the journal's temporary files are deleted, equals `expected` exactly. */
   private async verifies(project: string, expected: Inventory | null): Promise<boolean> {

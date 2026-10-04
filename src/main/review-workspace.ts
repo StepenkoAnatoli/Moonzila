@@ -167,18 +167,48 @@ export async function treeInventory(project: string, maxFiles: number = MAX_REVI
   return sorted(out);
 }
 
+/** A review write as the fold reads it; a change without a status is a completed one. */
+export type FoldChange = Pick<ReviewChange, 'path' | 'beforeHash' | 'afterHash'> & { status?: ReviewChange['status'] };
+
 /**
  * `expected = fold(base, changes)`: each completed review write sets its path to `afterHash`, or removes it when null.
  * A write whose `beforeHash` is not what the fold holds at that point means the journal and the base disagree, so
- * nothing can verify against it.
+ * nothing can verify against it. An `unknown` write leaves no single expected tree, so it never verifies here: only
+ * `acceptsTree` (a retry's `continued` check) admits one.
  */
-export function foldExpected(base: Inventory, changes: readonly Pick<ReviewChange, 'path' | 'beforeHash' | 'afterHash'>[]): Inventory {
+export function foldExpected(base: Inventory, changes: readonly FoldChange[]): Inventory {
   const tree = new Map(base.map(entry => [entry.path, entry.sha256]));
   for (const change of changes) {
+    if (change.status === 'unknown') throw new Error('REVIEW_WORKSPACE_CHANGED');
     if ((tree.get(change.path) ?? null) !== change.beforeHash) throw new Error('REVIEW_WORKSPACE_CHANGED');
     if (change.afterHash === null) tree.delete(change.path); else tree.set(change.path, change.afterHash);
   }
   return sorted([...tree].map(([path, digest]) => ({ path, sha256: digest })));
+}
+
+/**
+ * The trees a kept workspace may be in (spec "Crash windows": an edit's rename and its record): per path, the hashes it
+ * may hold, `null` for absent. A completed write leaves exactly its `afterHash`; an `unknown` write may or may not be on
+ * disk, so it adds its `afterHash` to what the path could already hold. Each write's `beforeHash` must be one of those.
+ */
+export function foldAccepted(base: Inventory, changes: readonly FoldChange[]): Map<string, ReadonlySet<string | null>> {
+  const tree = new Map<string, ReadonlySet<string | null>>(base.map(entry => [entry.path, new Set([entry.sha256])]));
+  for (const change of changes) {
+    const now = tree.get(change.path) ?? new Set([null]);
+    if (!now.has(change.beforeHash)) throw new Error('REVIEW_WORKSPACE_CHANGED');
+    tree.set(change.path, change.status === 'unknown' ? new Set([...now, change.afterHash]) : new Set([change.afterHash]));
+  }
+  return tree;
+}
+/** True when every file of `tree` holds a hash its path may hold, and every path that may not be absent is present. */
+export function acceptsTree(tree: Inventory, accepted: ReadonlyMap<string, ReadonlySet<string | null>>): boolean {
+  const present = new Set<string>();
+  for (const entry of tree) {
+    if (!accepted.get(entry.path)?.has(entry.sha256)) return false;
+    present.add(entry.path);
+  }
+  for (const [path, hashes] of accepted) if (!present.has(path) && !hashes.has(null)) return false;
+  return true;
 }
 
 /** The review digest: SHA-256 of the canonical JSON of the sorted `[path, sha256]` list. */
