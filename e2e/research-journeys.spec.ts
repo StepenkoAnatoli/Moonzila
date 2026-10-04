@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { FAKE_REPOSITORY, TEST_CA, startFakeGitHub, type FakeGitHub } from '../tests/fixtures/fake-github';
+import { FAKE_HEAD_SHA, FAKE_REPOSITORY, TEST_CA, startFakeGitHub, type FakeGitHub } from '../tests/fixtures/fake-github';
 
 // Plan Task 7's research journeys: the real app, the real pinned kit and the native helper, against the loopback fake
 // GitHub. The app gives a collector child no proxy or CA variable, so e2e/fixtures/collector-network.cjs is loaded
@@ -36,8 +36,11 @@ async function files(directory: string): Promise<string[]> {
   return found;
 }
 
-/** One isolated app: its own data folder, project folder, fake GitHub and a pinned-kit installation. */
-async function journey(name: string) {
+/**
+ * One isolated app: its own data folder, project folder, fake GitHub and a pinned-kit installation. `routeRunRead` opts
+ * into the harness route that answers the verified import's run read from the fake; without it that read is refused.
+ */
+async function journey(name: string, { routeRunRead = false }: { routeRunRead?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), `moonzila-${name}-`));
   const data = join(root, 'data'); const project = join(root, 'Research project');
   await mkdir(join(data, 'research-kit'), { recursive: true }); await mkdir(project);
@@ -51,7 +54,7 @@ async function journey(name: string) {
   const launch = async () => {
     const app = await electron.launch({
       args: [...localArgs, '-r', PRELOAD, resolve('.'), `--user-data-dir=${data}`],
-      env: { ...process.env, MOONALIZA_E2E_COLLECTOR_NETWORK: JSON.stringify({ HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: TEST_CA }) },
+      env: { ...process.env, MOONALIZA_E2E_COLLECTOR_NETWORK: JSON.stringify({ HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: TEST_CA, ...(routeRunRead ? { routeRunRead: true } : {}) }) },
     });
     if (await network(app) === null) {
       const main = app.process(); const exited = new Promise(done => main.once('exit', done));
@@ -181,14 +184,13 @@ test.describe('research journeys', () => {
     } finally { await app?.close(); await fake.close(); await rm(root, { recursive: true, force: true }); }
   });
 
-  // research-review-ui spec 4 and 5 (P4-20), the switch half: research is turned on through the panel's confirmation,
-  // never through the bridge. Reading a collected job's brief is not here: a job reaches `collected` only after the
-  // verified import reads the run from api.github.com, which the harness refuses (journey 2's import park), and the
-  // fake's run answer lacks the fields the importer verifies. Trusting the project needs the native helper too.
-  test('Allow research through the confirmation turns public research on and leaves inference unchanged', async () => {
-    test.setTimeout(120_000);
-    const { root, project, fake, launch } = await journey('journey-switch');
-    let app: ElectronApplication | undefined;
+  // research-review-ui spec 5 (P4-20): research is turned on through the panel's confirmation, never through the bridge,
+  // then a collected job's brief is read in the panel. The job reaches `collected` only through the verified import, whose
+  // GitHub run read the harness answers from the loopback fake when this journey opts in (`routeRunRead`).
+  test('Allow research through the confirmation, collect, and read the collected brief verified by the Research Kit', async () => {
+    test.setTimeout(300_000);
+    const { root, data, project, fake, launch } = await journey('journey-reader', { routeRunRead: true });
+    let app: ElectronApplication | undefined; let producer: string | undefined;
     type Listed = { projects: { id: string; policy: { revision: number; inference: string; research: string } }[] };
     try {
       app = await launch(); const page = await app.firstWindow();
@@ -225,6 +227,45 @@ test.describe('research journeys', () => {
       // Turning research on reaches nothing outside the machine: no collector was launched and nothing reached the fake.
       expect(fake.seen).toEqual([]);
       expect(await network(app)).toEqual({ collectors: 0, rewritten: 0, outcomes: [], refusedFetches: [] });
-    } finally { await app?.close(); await fake.close(); await rm(root, { recursive: true, force: true }); }
+
+      // Collect the way journey 2 does, with a package the pinned kit's producer makes for this job, on the fake run's commit.
+      await invoke(page, 'research.collector.save', { repository: FAKE_REPOSITORY, workflow: 'collect.yml', ref: 'main', token: TOKEN });
+      const { research: started } = await invoke<{ research: Job }>(page, 'research.start', { projectId: after.id, topic: 'Ollama context limits', queries: ['ollama num_ctx'], depth: 'quick', maxPages: 3, acknowledgedPublic: true });
+      await expect.poll(async () => (await read(page, started.id)).status, { timeout: 90_000, message: 'the dispatch must commit collecting' }).toBe('collecting');
+      await expect.poll(() => count(fake, 'GET', RUN), { timeout: 60_000, message: 'the watch must read the run' }).toBeGreaterThan(0);
+      const { collectedProject } = await import(pathToFileURL(join(KIT_ROOT, 'test/artifact-fixtures.mjs')).href) as { collectedProject(date: string): string };
+      producer = collectedProject('2026-10-03'); const zip = join(root, 'package.zip');
+      const made = spawnSync(process.execPath, [join(KIT_ROOT, 'bin/artifact.mjs'), 'create', '--root', producer, '--output', zip, '--client-ref', started.clientRef, '--repository', FAKE_REPOSITORY, '--ref', 'main', '--commit', FAKE_HEAD_SHA, '--workflow', 'collect.yml', '--run-id', '1', '--run-attempt', '1'], { encoding: 'utf8', windowsHide: true, timeout: 60_000 });
+      expect(made.status, made.stderr).toBe(0);
+      const brief = await readFile(join(producer, 'research/BRIEF.md'), 'utf8');
+      fake.set({ zip: await readFile(zip), artifacts: [{ id: 7, name: `research-kit-corpus-v1-${started.clientRef}` }] });
+      await expect.poll(async () => (await read(page, started.id)).status, { timeout: 120_000, message: 'the verified import must commit collected' }).toBe('collected');
+      expect(await read(page, started.id)).not.toHaveProperty('failure');
+      // The import's run read was answered by the fake, never refused and never sent anywhere else.
+      const harness = await network(app);
+      expect(harness?.refusedFetches).toEqual([]); expect(harness?.rewritten).toBe(harness?.collectors);
+      expect(count(fake, 'POST', DISPATCH)).toBe(1);
+      expect(fake.seen.every(request => request.authorization === 'exact')).toBe(true);
+      expect(fake.connects.every(authority => authority === 'api.github.com:443')).toBe(true);
+
+      // The reader: the collected package, validated in this call; its text as plain text; readiness is never claimed.
+      await details.getByRole('button', { name: 'Open research' }).click();
+      await expect(dialog.getByTestId('research-status')).toHaveText('Collected');
+      await dialog.getByRole('button', { name: 'Read the brief' }).click();
+      await expect(dialog.getByTestId('research-reader-source')).toHaveText('Brief · collected package · verified by the Research Kit');
+      const text = dialog.locator('pre.research-document');
+      await expect(text).toBeVisible();
+      expect(await text.textContent()).toBe(brief);
+      // The brief opens with an HTML comment: shown as text, so it was not rendered as markup.
+      expect(brief.startsWith('<!--')).toBe(true);
+      // "Ready" is checked inside the panel: the window's status bar says "Ready" when the engine is connected.
+      await expect(dialog.getByText(/Ready/)).toHaveCount(0);
+      await app.close(); app = undefined;
+      for (const file of await files(data)) expect((await readFile(file)).includes(TOKEN), file).toBe(false);
+    } finally {
+      await app?.close(); await fake.close();
+      if (producer) await rm(producer, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
