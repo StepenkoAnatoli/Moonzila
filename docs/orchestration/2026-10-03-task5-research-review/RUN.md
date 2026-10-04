@@ -70,7 +70,7 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 |------|------|--------|----------------------|-------|
 | B11 reader | `src/main/` reader, `index.ts` case, tests | BUILDING | - | Opus |
 | B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | BUILDING | - | Opus |
-| B4b card label | `ChangesPanel.tsx`, tests | REVIEWED, FIX IN PROGRESS (S2 stale label; reports `p4-b4b-builder-1.md`, `p4-b4b-reviewer-1.md`; App.tsx `runMode` wiring moved to B4) | `f8972f7` (branch `b0fcc76`) | Opus |
+| B4b card label | `ChangesPanel.tsx`, tests | REVIEWED, P4-1 FIXED (reports `p4-b4b-builder-1.md`, `-2.md`, `p4-b4b-reviewer-1.md`; App.tsx `runMode` wiring with B4) | `f8972f7`, fix `58bafd9` | Opus |
 | B8e policy guard | main route module, `index.ts`, engine re-check, tests | BUILDING | - | Opus |
 | B8 switch | `ResearchPanel.tsx` switch section | BRIEFED (after B4) | - | Opus |
 
@@ -92,7 +92,7 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 ## Findings (Phase 4)
 | ID | Source | Severity | Finding | Disposition |
 |----|--------|----------|---------|-------------|
-| P4-1 | B4b unit review | S2 (proposed S3; raised: it is the mislabel spec section 2 forbids) | `ChangesPanel.tsx:59` labels a stale card from the current `runMode`; when a research run ends the card briefly reads "Review edit" with Approve enabled | FIX BRIEFED to the B4b builder: bind the mode to the card at load, red-first |
+| P4-1 | B4b unit review | S2 (proposed S3; raised: it is the mislabel spec section 2 forbids) | `ChangesPanel.tsx:59` labels a stale card from the current `runMode`; when a research run ends the card briefly reads "Review edit" with Approve enabled | FIXED (`4cfdb3b` on the branch): the card binds its mode at load; red first, lead re-ran 18/18 and the guard removal (new test red) |
 
 ## Kit findings
 - none
@@ -107,3 +107,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: lead-orchestrator re-applied mid-phase. Corrected two gaps: builders now commit to their own branches (the first rules said leave uncommitted; all four told before their first commit), and every Phase 4 brief is written to `briefs/` before launch.
 - 2026-10-04: B4b accepted (key test re-run 6/6; weakening the mode check turns 4 red) and integrated as f8972f7; unit reviewer launched. Its one-line App.tsx wiring went to the B4 builder, who owns App.tsx.
 - 2026-10-04: B4b unit review: activeRun confirmed as the right source; one finding P4-1 (S2), fix sent to the B4b builder.
+- 2026-10-04: P4-1 fixed and integrated; the lead re-ran the tests and the guard removal.
