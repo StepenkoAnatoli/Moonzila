@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Approval, Change, MethodResult, Operation } from '../shared';
+import type { Approval, Change, MethodResult, Operation, Run } from '../shared';
 import type { AppApi } from './App';
 import { RecoveryPanel } from './RecoveryPanel';
 
 type Preview = MethodResult<'approval.read'>;
-export function ChangesPanel({ api, projectId, runId }: { api: AppApi; projectId: string; runId?: string }) {
+// runMode is the mode of the run named by runId: a review edit in a research run targets the private research workspace, never the project.
+export function ChangesPanel({ api, projectId, runId, runMode }: { api: AppApi; projectId: string; runId?: string; runMode?: Run['mode'] }) {
   const [pending, setPending] = useState<Preview>(); const [changes, setChanges] = useState<Change[]>([]);
   const [selected, setSelected] = useState<MethodResult<'changes.read'>>();
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [refresh, setRefresh] = useState(0);
@@ -55,7 +56,7 @@ export function ChangesPanel({ api, projectId, runId }: { api: AppApi; projectId
     <RecoveryPanel api={api} projectId={projectId} runId={runId} changed={update} />
     {error && <p role="alert" className="form-error">{error}</p>}
     {pending?.kind === 'write' && <section ref={review} className="edit-review" aria-label="Edit review">
-      <h2>Review edit · {pending.path}</h2><p>The file will change only after you approve this exact edit.</p>
+      <h2>{runMode === 'research' ? 'Research workspace' : 'Review edit'} · {pending.path}</h2><p>The file will change only after you approve this exact edit.</p>
       <div className="change-columns"><div><h3>Current content</h3><pre tabIndex={0} aria-label="Current content">{pending.before ?? '(new file)'}</pre></div><div><h3>Proposed content</h3><pre tabIndex={0} aria-label="Proposed content">{pending.after ?? '(delete file)'}</pre></div></div>
       <div className="review-actions"><button disabled={busy} onClick={() => void decide('deny')}>Decline edit</button><button disabled={busy} className="primary" onClick={() => void decide('allow')}>Approve edit</button></div>
     </section>}
