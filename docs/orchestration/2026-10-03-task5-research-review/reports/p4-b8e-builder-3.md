@@ -1,0 +1,8 @@
+# B8e builder report 3: BRK-1 / P4-29 fix (saved by the lead; structured sections kept)
+
+- Worktree `/home/user/task5-handoff/wt/p4-brk1`, branch `build/p4-brk1`, one commit `cd7d17c` on `14ef734`.
+- `control.ts`: `PolicyGuardResultSchema` = the lead-frozen `{revision, inference, nonResearchRunActive}`. `store.ts`: `policyGuard` returns the revision in the same read. `policy-route.ts` `updatePolicy`, under the lock, before any stop: (1) replay via `request.lookup` with `canonicalHash(request.params)` (accepted -> forwarded untouched; reused id with other input -> REQUEST_CONFLICT); (2) stale `expectedRevision` -> REQUEST_CONFLICT; (3) RUN_ACTIVE; (4) abort, revoke, hold, forward. Order matches the engine (`acceptRequest` replay first, then revision, then RUN_ACTIVE). ARCHITECTURE updated.
+- Tests, red first: stale revision during a review run and during a Build run (REQUEST_CONFLICT, nothing stopped); replay of an applied update during a newer review run (stored result, nothing stopped); replay with a now-stale revision and a Build run live (stored result); reused id with other input (REQUEST_CONFLICT, nothing stopped); read-count test now expects `request.lookup` then `policy.guard`; guard-control test for a stored revision 7.
+- Guard removals, all red: replay check; revision check; revision before replay; store revision pinned to 1.
+- Commands: typecheck, lint clean; route, guard-control, project-policy-engine, application 44 passed (verified). Full suite untested.
+- Mistakes: route test doubles passed raw engine errors (fixed through `engineFailureCode` with `cause`); lint flagged the missing cause (fixed).
