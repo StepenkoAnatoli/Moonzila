@@ -240,13 +240,30 @@ October 3, integration of the five build teams (import, collector items, small f
       - **Rejected:** none.
     - B6's tests run only on Windows. Its directory-guard gap is recorded in the test file. If Windows CI shows a rename over a destination held open by a Node handle succeeding, revisit the brief's U-07/U-10 decision; do not weaken the test.
   - **Decision D1, needed before B2/B3:** how a review run ends when main's step leaves the review. The spec says `run.failed` carries a public error code, but `ErrorCodeSchema` has none for the review failures. Either map them onto existing codes or add codes to the contract, and name the unit that owns the change. Until this is settled, after a refused freeze or a failed gate the run stays `awaiting_review` until restart.
-  - **Phase 2: Electron fuses (B5).** Branch `build/b5-fuses`, head `858ada4`.
-    - **Decision D2, needed:** turning off `enableNodeCliInspectArguments` stops Playwright from launching the packaged exe. It was reproduced on Linux: the stock exe started in 323 ms; with only that fuse off, the launch timed out after 15 s. So the packaged e2e step would fail on every `workflow_dispatch` run. The options:
-      - (a) keep that fuse on;
-      - (b) drop the packaged e2e step, or make it non-blocking;
-      - (c) build a second, test-only package with the fuse on (needs an ADR, because the e2e step would no longer test the shipped binary).
-    - The rename (PR #31) changed the packaged executable to `release/win-unpacked/Moonzila.exe`; B5's check step and its workflow test still name `MoonAliza.exe`, so the branch must be updated (read the path from `productName`, as its test already does) when it is integrated.
-    - Also open: pinning `eol=lf` for `electron-builder.yml` and the workflows; `grantFileProtocolExtraPrivileges` stays at Electron's default (enabled) because the renderer loads over `file://`.
+  - **Phase 2: Electron fuses and the test-only package (integrated October 4, in review as a PR).**
+    - **Decision D2, made by the user on October 4:** a test-only package, after research the user asked for first. The corpus is `docs/research/2026-10-04-playwright-fused-electron` (8 pages, free transport, gate PASS, re-run by the lead). It is recorded as decision 13.
+      - Playwright's launch waits for the `--inspect` debugger line (U-1).
+      - No fuse controls `--remote-debugging-port` (U-2).
+      - A CDP attach loses the main-process `evaluate` that 8 of the 10 specs use (U-3).
+    - Units:
+      - `343d6af`: the corpus.
+      - `680a8c5`..`966c870`: B5 (fuses, `check-fuses.mjs`, tests).
+      - `e3e55d5`: the test-only package (`package:win-e2e`, `--test-package`, the workflow steps, decision 13, the exe name `Moonzila.exe`).
+      - `48c2a87`: review fixes.
+    - Review on the integrated branch (spec+breaker combined, mutation; both on Opus). Dispositions:
+      - **Fixed in `48c2a87`:**
+        - the docs said the check refuses any other difference, but it reads 5 of 9 fuses and compares nothing else (S2);
+        - `research-journeys.md` named `MoonAliza.exe` (S2);
+        - five mutations went unnoticed: the unknown-byte label, the default path, the signing env, `asar: true`, `continue-on-error`.
+      - **Recorded:**
+        - `package:win-e2e` must run after `package:win`, whose `dist/` and native helper it reuses; decision 13 says so.
+        - `@electron/fuses` is a transitive dependency of electron-builder, not a direct one.
+        - The 35-minute job timeout now covers two packagings and two e2e runs; the first `workflow_dispatch` run measures it.
+        - Defender may lock the synthetic `MZ` files the tests write to `%TEMP%`; no Windows run has shown it.
+        - Embedded asar integrity is checked only on Windows and macOS, so only a `workflow_dispatch` run proves the e2e package loads under it.
+        - No fuse removes `--remote-debugging-port` from the shipped exe; its reach is a day-one check (corpus U-4).
+      - **Rejected:** none.
+    - Still open from B5: pinning `eol=lf` for `electron-builder.yml` and the workflows (the tests normalise CRLF); `grantFileProtocolExtraPrivileges` stays at Electron's default because the renderer loads over `file://`.
   - **Phase 3:** B2 engine review run and B3 main review supervisor, as in the breakdown above.
   - **Phase 4:** B4 renderer review UI and B8 research enable dialog.
   - **Phase 5:** B7 `research.purge`, docs, the four-role review, then `gap-audit` and `break-test`.
