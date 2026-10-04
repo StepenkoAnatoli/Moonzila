@@ -92,9 +92,9 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 Contracts `7e1f4d9`. Briefs: `briefs/p5-common.md`, `p5-b7a-builder.md`, `p5-b7b-builder.md`, `p5-tls-builder.md`. All three in wave 1 (disjoint files).
 | Unit | Owns | Status | Commit on main-axuse | Model |
 |------|------|--------|----------------------|-------|
-| B7a purge | engine `research.retained`, adapter `purgeRetained`, `src/main/research-purge.ts`, index case | BUILDING | - | Opus |
-| B7b panel | Delete stored corpus in `ResearchPanel.tsx` | INTEGRATED (report `p5-b7b-builder-1.md`; lead: `collected` added to the statuses -> red) | branch `36f082f` | Opus |
-| P4-40 TLS | test-time CA and leaf, pkijs devDependency | INTEGRATED (report `p5-tls-builder-1.md`; lead: SAN removed -> red); doctor READY | branch `460b66c`, `5031951`, `dced452` | Opus |
+| B7a purge | engine `research.retained`, adapter `purgeRetained`, `src/main/research-purge.ts`, index case | INTEGRATED, IN UNIT REVIEW (report `p5-b7a-builder-1.md`; lead: deleting shared digests -> red) | branch `2b374f9` | Opus |
+| B7b panel | Delete stored corpus in `ResearchPanel.tsx` | REVIEWED, P5-2 FIXED; INTEGRATED (report `p5-b7b-builder-1.md`; lead: `collected` added to the statuses -> red) | branch `36f082f` | Opus |
+| P4-40 TLS | test-time CA and leaf, pkijs devDependency | REVIEWED, P5-4 FIXED; INTEGRATED (report `p5-tls-builder-1.md`; lead: SAN removed -> red); doctor READY | branch `460b66c`, `5031951`, `dced452` | Opus |
 
 ## Reviews (Phase 3)
 | Scope | Role | Model | Status |
@@ -216,3 +216,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: P4-40 unit review: no S1/S2; P5-4 (three S3) batched to the builder. Pushes batched from now to keep Windows CI from queueing a run per checkpoint.
 - 2026-10-04: P5-4 fixed and integrated (57/57).
 - 2026-10-04: P5-2 fixed and integrated.
+- 2026-10-04: B7a integrated (46/46 with reader and main-kit; shared-digest guard removal red). All Phase 5 units in. Pushed; full Linux gate and Windows CI on this head; B7a unit review and the integration spec and invariant reviewers launched.
