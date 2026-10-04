@@ -95,6 +95,7 @@ async function verified(deps: DocumentDeps, digest: string, binding: ReturnType<
   if (!deps.kit) return fail('RESEARCH_KIT_UNAVAILABLE');
   try { return (await deps.kit.verifyRetained(digest, binding)).bytes; }
   catch (error) {
+    // INSTALLATION_INVALID and VALIDATOR_UNAVAILABLE (a validator that could not finish) are both this machine's.
     if (error instanceof Error && error.message === 'STALE_VERIFICATION') return null;
     return fail('RESEARCH_KIT_UNAVAILABLE');
   }

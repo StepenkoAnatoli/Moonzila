@@ -77,6 +77,24 @@ test('verifyRetained returns the verified bytes of storage/artifacts/<sha>.zip; 
   } finally { await kit.close(); }
 }, 60000);
 
+test('verifyRetained: a validator that cannot finish (timed out) is VALIDATOR_UNAVAILABLE; truncated or unreadable output stays STALE_VERIFICATION', async () => {
+  // Guard: verifyRetained's mapping of TIMEOUT to VALIDATOR_UNAVAILABLE (mutation: map it to STALE_VERIFICATION, as before).
+  const bytes = await readFile(fixture); const sha = digest(bytes);
+  const binding = { projectId: 'p', projectRevision: 1, jobId: 'j', jobRevision: 3, ...provenance.identity };
+  const retain = make('unavailable');
+  try { expect(await retain.validate(fixture, binding)).toMatchObject({ status: 'PASS' }); } finally { await retain.close(); }
+  // The same storage, with a runner whose validator child does not finish: the helper's timeout, its output truncated, or garbage.
+  const faulty = (patch: object): OwnedRunner => async (request, signal, options = {}) => {
+    await options.beforeStart?.(); options.onStarted?.({ pid: 4242, createdAt: '1' });
+    return { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: false, ...patch };
+  };
+  const at = (patch: object) => new ResearchKit({ kitRoot: resolve('.build/research-kit-external/research-kit'), nodePath: process.execPath, nodeSha256, storageRoot: join(root, 'unavailable'), helperPath: resolve('.build/native/MoonAlizaHost.exe') }, faulty(patch));
+  for (const [patch, code] of [[{ timedOut: true }, 'VALIDATOR_UNAVAILABLE'], [{ truncated: true }, 'STALE_VERIFICATION'], [{ code: 0, output: 'not json' }, 'STALE_VERIFICATION']] as const) {
+    const kit = at(patch);
+    try { await expect(kit.verifyRetained(sha, binding), JSON.stringify(patch)).rejects.toThrow(code); } finally { await kit.close(); }
+  }
+}, 60000);
+
 test('discardReview never follows a link out of storage/review: a linked job folder loses only its link, a linked review folder is left alone', async () => {
   // Guard: discardReview's containment (the review folder a real directory under storage; a job folder that is a link is
   // unlinked, never recursed into).

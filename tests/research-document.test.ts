@@ -46,7 +46,7 @@ function cryptor(broken = false) {
   };
 }
 
-interface World { folder: string; store: Store; jobs: ResearchJobs; kit: ResearchKit; storage: string; reviewRoot: string; vault: Vault; id: string; job: string; project: string; runId?: string; verifications: number }
+interface World { folder: string; store: Store; jobs: ResearchJobs; kit: ResearchKit; storage: string; reviewRoot: string; vault: Vault; id: string; job: string; project: string; runId?: string; verifications: number; stalled: boolean }
 let count = 0;
 /** A job collected from collected.zip (retained under the collecting revision's binding), as Task 4's import leaves it. */
 async function world(options: { secrets?: string[]; brokenVault?: boolean; nodeSha256?: string; collect?: boolean } = {}): Promise<World> {
@@ -57,11 +57,17 @@ async function world(options: { secrets?: string[]; brokenVault?: boolean; nodeS
   const id = 'j1';
   store.createResearch({ id, projectId: 'p', topic: 'Fixture topic', inputs: { queries: [], urls: [], preferDomains: [], depth: 'quick', maxPages: 8 }, clientRef: provenance.identity.clientRef, researchLevel: 'public-technical', policyRevision: 1, trustRevision: 1 }, { actor: 'user' });
   const storage = join(folder, 'storage');
-  const kit = new ResearchKit({ kitRoot, nodePath: process.execPath, nodeSha256: options.nodeSha256 ?? nodeSha256, storageRoot: storage, helperPath: resolve('.build/native/MoonAlizaHost.exe') }, runner);
+  // While `stalled`, the validator child never finishes: the helper reports its timeout.
+  const flags = { stalled: false };
+  const kit = new ResearchKit({ kitRoot, nodePath: process.execPath, nodeSha256: options.nodeSha256 ?? nodeSha256, storageRoot: storage, helperPath: resolve('.build/native/MoonAlizaHost.exe') }, async (request, signal, opts = {}) => {
+    if (!flags.stalled) return runner(request, signal, opts);
+    await opts.beforeStart?.(); opts.onStarted?.({ pid: 4242, createdAt: '1' });
+    return { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: true };
+  });
   const vault = new Vault(join(folder, 'vault'), cryptor(options.brokenVault));
   await vault.initialize('epoch-1');
   for (const secret of options.secrets ?? []) { const ref = await vault.saveStaged(secret); await vault.commit(ref); }
-  const w: World = { folder, store, jobs, kit, storage, reviewRoot: join(storage, 'review'), vault, id, job: join(storage, 'review', id), project: join(storage, 'review', id, 'project'), verifications: 0 };
+  const w: World = { folder, store, jobs, kit, storage, reviewRoot: join(storage, 'review'), vault, id, job: join(storage, 'review', id), project: join(storage, 'review', id, 'project'), verifications: 0, get stalled() { return flags.stalled; }, set stalled(value: boolean) { flags.stalled = value; } };
   if (options.collect === false) return w;
   step(w, 'dispatching', 'main', { target: { collectorRevision: 1, repository: provenance.identity.repository, workflow: 'collect.yml', ref: provenance.identity.ref } });
   step(w, 'collecting', 'main', { workflowRunId: '1' });
@@ -403,5 +409,19 @@ test('a validator that cannot run is RESEARCH_KIT_UNAVAILABLE, for collected and
     const kit: DocumentDeps['kit'] = { verifyRetained: () => Promise.reject(new Error('INSTALLATION_INVALID')) };
     expect((await refusal(w, 'brief', { kit })).message).toBe('RESEARCH_KIT_UNAVAILABLE');
     expect((await refusal(w, 'brief', { kit: null })).message).toBe('RESEARCH_KIT_UNAVAILABLE');
+  } finally { await w.kit.close(); }
+}, 60000);
+
+test('a validator that cannot finish (timed out) is RESEARCH_KIT_UNAVAILABLE for approved and collected, never Unverified', async () => {
+  // Guard: the reader maps VALIDATOR_UNAVAILABLE to RESEARCH_KIT_UNAVAILABLE (mutation: treat it as STALE_VERIFICATION).
+  const w = await world();
+  try {
+    w.stalled = true;
+    const collected = await refusal(w);
+    expect(collected.message).toBe('RESEARCH_KIT_UNAVAILABLE'); expect(collected.cause).toBeUndefined();
+    w.stalled = false; await approved(w); w.stalled = true;
+    const reviewed = await refusal(w);
+    expect(reviewed.message).toBe('RESEARCH_KIT_UNAVAILABLE'); expect(reviewed.cause).toBeUndefined();
+    expect(w.verifications).toBe(2);
   } finally { await w.kit.close(); }
 }, 60000);

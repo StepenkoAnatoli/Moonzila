@@ -101,6 +101,17 @@ async function packageContent<T>(read: () => T | Promise<T>): Promise<T> {
   try { return await read(); } catch (error) { throw failureOf(error) ? error : new Error('ARTIFACT_INVALID', { cause: error }); }
 }
 
+/**
+ * verifyRetained's code for a validation without a receipt. TIMEOUT and STORAGE_LIMIT say the validator could not finish
+ * on this machine (VALIDATOR_UNAVAILABLE). OUTPUT_LIMIT and VALIDATOR_OUTPUT stay STALE_VERIFICATION: a tampered retained
+ * ZIP can make the validator print too much or something unparseable, so they are not evidence of this machine's fault.
+ */
+function retainedFailure(error: Result['error']): string {
+  if (error === 'INSTALLATION_INVALID' || error === 'CANCELLED') return error;
+  if (error === 'TIMEOUT' || error === 'STORAGE_LIMIT') return 'VALIDATOR_UNAVAILABLE';
+  return 'STALE_VERIFICATION';
+}
+
 export class ResearchKit {
   private readonly config: ResearchConfig;
   private runtime: string | undefined;
@@ -277,7 +288,10 @@ export class ResearchKit {
   }
   /**
    * The verified bytes of a retained package: a fresh validation of storage/artifacts/<sha256>.zip under the binding,
-   * whose receipt must name that same digest. Throws STALE_VERIFICATION, or INSTALLATION_INVALID for this machine's fault.
+   * whose receipt must name that same digest. Throws:
+   * - STALE_VERIFICATION: the package is missing, does not verify, or is no longer the bytes just verified;
+   * - VALIDATOR_UNAVAILABLE (internal, never public): the validator could not finish on this machine (TIMEOUT, STORAGE_LIMIT);
+   * - INSTALLATION_INVALID for this machine's installation, CANCELLED for the caller's signal or admission.
    */
   async verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<{ receipt: Receipt; bytes: Buffer }> {
     DigestSchema.parse(artifactSha256);
@@ -285,8 +299,12 @@ export class ResearchKit {
     // A retained package that is gone (purged, or never retained here) is a stale verification, not a broken installation.
     try { await lstat(file); } catch (error) { if (missing(error)) throw new Error('STALE_VERIFICATION', { cause: error }); throw new Error('INSTALLATION_INVALID', { cause: error }); }
     const result = await this.validate(file, binding, signal, admit);
-    if (result.status !== 'PASS' || !result.receipt) throw new Error(result.error === 'INSTALLATION_INVALID' ? 'INSTALLATION_INVALID' : result.error === 'CANCELLED' ? 'CANCELLED' : 'STALE_VERIFICATION');
+    if (result.status !== 'PASS' || !result.receipt) throw new Error(retainedFailure(result.error));
     if (result.receipt.artifactSha256 !== artifactSha256) throw new Error('STALE_VERIFICATION');
+    // readVerified turns every failure into STALE_VERIFICATION, and it stays that: right after a PASS under this same
+    // binding, the receipt can only be gone through close() (quit), so what fails is the file under the digest having been
+    // removed, replaced, linked or changed since the validator read it, which is the retained package no longer verifying.
+    // An I/O error reading it is folded in there too; readVerified does not tell the two apart.
     return { receipt: result.receipt, bytes: await this.readVerified(result.receipt.id, binding) };
   }
   /** Removes storage/review/<name> for each name recovery returned, under the same lock as sweep. Plain names only. */
