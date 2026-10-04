@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { constants } from 'node:fs';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
-import { link, mkdir, mkdtemp, readFile, rename, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, mkdtemp, open, readFile, rename, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import provenance from './fixtures/research-kit/provenance.json';
@@ -137,6 +138,9 @@ beforeAll(async () => {
   approvedBrief = await readFile(join(root, 'expected-approved', 'project', 'research', 'BRIEF.md'), 'utf8');
   expect(approvedBrief).not.toBe(collectedBrief);
 });
+/** FIFOs a test planted: a reader blocked on one is released by a non-blocking writer open, so no thread stays stuck. */
+const fifos: string[] = [];
+afterAll(async () => { for (const fifo of fifos) await open(fifo, constants.O_WRONLY | constants.O_NONBLOCK).then(handle => handle.close(), () => {}); });
 afterAll(async () => { if (root) { const rel = relative(resolve(tmpdir()), root); if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error('UNSAFE_TEST_CLEANUP'); await rm(root, { recursive: true, force: true }); } });
 
 // ------------------------------------------------------------------ sources by status
@@ -425,3 +429,17 @@ test('a validator that cannot finish (timed out) is RESEARCH_KIT_UNAVAILABLE for
     expect(w.verifications).toBe(2);
   } finally { await w.kit.close(); }
 }, 60000);
+
+let canMkfifo = process.platform !== 'win32';
+try { if (canMkfifo) execFileSync('mkfifo', ['--version'], { stdio: 'ignore' }); } catch { canMkfifo = false; }
+test.skipIf(!canMkfifo)('a FIFO swapped in for the document between its lstat and its open is DOCUMENT_UNSAFE at once, not a hang', async () => {
+  // Guard: the open is non-blocking (mutation: drop O_NONBLOCK; the open then waits for a writer and the test times out).
+  const w = await world();
+  try {
+    await notReady(w);
+    const file = workspaceFile(w);
+    const plant = async () => { await unlink(file); execFileSync('mkfifo', [file]); fifos.push(file); };
+    await expect(readWorkspace(w.reviewRoot, w.id, ['research', 'BRIEF.md'], { beforeOpen: plant })).rejects.toThrow('DOCUMENT_UNSAFE');
+  } finally { await w.kit.close(); }
+}, 10000);
+

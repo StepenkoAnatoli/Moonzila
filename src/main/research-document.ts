@@ -170,7 +170,9 @@ export async function readWorkspace(reviewRoot: string, researchId: string, file
 
 async function readIdentified(target: string, seen: { dev: bigint; ino: bigint }): Promise<Buffer> {
   let handle;
-  try { handle = await open(target, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)); } catch { return fail('DOCUMENT_UNSAFE'); }
+  // O_NONBLOCK: a FIFO planted under the name opens at once (and fstat refuses it) instead of waiting for a writer while
+  // holding a threadpool thread. Windows defines neither flag; its named pipes are not on the filesystem path.
+  try { handle = await open(target, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)); } catch { return fail('DOCUMENT_UNSAFE'); }
   try {
     const info = await handle.stat({ bigint: true });
     if (!info.isFile() || info.nlink !== 1n || info.dev !== seen.dev || info.ino !== seen.ino) return fail('DOCUMENT_UNSAFE');
