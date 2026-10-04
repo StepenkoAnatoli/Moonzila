@@ -265,6 +265,14 @@ October 3, integration of the five build teams (import, collector items, small f
       - **Rejected:** none.
     - Still open from B5: pinning `eol=lf` for `electron-builder.yml` and the workflows (the tests normalise CRLF); `grantFileProtocolExtraPrivileges` stays at Electron's default because the renderer loads over `file://`.
   - **Phase 3:** B2 engine review run and B3 main review supervisor, as in the breakdown above.
+    - **Reminder for the user (asked October 4):** when Phase 3 is integrated and its four-role review starts, remind the user to run one extra, cross-vendor reviewer (a GPT model). Hand them a self-contained breaker/spec brief to paste in:
+      - the commit range and the spec sections;
+      - the research briefs;
+      - the focus list (concurrency, restart recovery, approved writes, the cancel paths);
+      - the report format (location, reproduction, severity).
+      - Settings: OpenAI's most capable reasoning model, at its highest reasoning effort. The user checks the current model list.
+      - It is read-only, with no keys or tokens. Its findings are triaged like any reviewer's, and every S1 is reproduced before it is fixed.
+      - The second use is Phase 5's gap-audit, as a second opinion.
   - **Phase 4:** B4 renderer review UI and B8 research enable dialog.
   - **Phase 5:** B7 `research.purge`, docs, the four-role review, then `gap-audit` and `break-test`.
   - **Watch:** draft PR #31 (another session) renames the product to Moonzila and specifies Operate mode. Check whether it has merged before each phase starts; merge `main` into `main-axuse` (never rebase) when it moves.
