@@ -88,6 +88,14 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 | B8e policy guard | main route module, `index.ts`, engine re-check, tests | REVIEWED, P4-10 FIXED (reports `p4-b8e-builder-1.md`, `-2.md`, `p4-b8e-reviewer-1.md`) | `805b97d`, `5e5e35e` (branch `581c19a`, `d85fbdd`) | Opus |
 | B8 switch | `ResearchPanel.tsx` switch section | INTEGRATED (report `p4-b8-builder-1.md`); e2e journey owed (P4-20) | branch `2d94a1c`; lead `onProjectChange` wiring `06448f1` | Opus |
 
+## Units (Phase 5)
+Contracts `7e1f4d9`. Briefs: `briefs/p5-common.md`, `p5-b7a-builder.md`, `p5-b7b-builder.md`, `p5-tls-builder.md`. All three in wave 1 (disjoint files).
+| Unit | Owns | Status | Commit on main-axuse | Model |
+|------|------|--------|----------------------|-------|
+| B7a purge | engine `research.retained`, adapter `purgeRetained`, `src/main/research-purge.ts`, index case | BUILDING | - | Opus |
+| B7b panel | Delete stored corpus in `ResearchPanel.tsx` | BUILDING | - | Opus |
+| P4-40 TLS | test-time CA and leaf, pkijs devDependency | BUILDING | - | Opus |
+
 ## Reviews (Phase 3)
 | Scope | Role | Model | Status |
 |-------|------|-------|--------|
@@ -196,3 +204,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: P4-41 integrated (32/32; hash check removed -> red).
 - 2026-10-04: T1 integrated (touched files 107/107; `jobKey` revision removed -> 2 red). All Phase 4 findings now fixed or dispositioned. Final full gate (twice) and Windows CI on the final head next.
 - 2026-10-04: final re-review of P4-37/38/41: HOLD; P4-43 (S4) recorded. Every merge check held on `6a1fe4c` (Windows push and PR runs green, two full Linux gates equal to the baseline, mergeable, no threads, every S1/S2 fixed and re-reviewed). PR #36 merged by the lead as `cb343a2`. main-axuse rebased its two unpushed docs commits onto main. Check-in cancelled, PR unsubscribed.
+- 2026-10-04: auto-build Phase 5 started: stages 0-4 done (research SKIPPED with reason; standing mandate); contracts `7e1f4d9`; B7a, B7b, P4-40 launched.
