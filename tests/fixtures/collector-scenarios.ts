@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { collectorEnvironment, dispatchArgs, watchArgs, type CollectorJob, type CollectorTarget } from '../../src/adapters/research-kit/collector';
 import { validatorEnvironment } from '../../src/adapters/research-kit/adapter';
-import { FAKE_REPOSITORY, TEST_CA, type FakeGitHub, type FakeScenario } from './fake-github';
+import { FAKE_REPOSITORY, type FakeGitHub, type FakeScenario } from './fake-github';
 import { zipFixture } from './zip';
 
 /** Test-only tokens. Neither has the shape of a real GitHub token, so a secret scanner has nothing to match. */
@@ -80,7 +80,7 @@ export async function runScenario(fake: FakeGitHub, scenario: CollectorScenario)
     const out = join(temp, 'out'); await mkdir(out);
     fake.reset(); fake.set({ ...scenario.fake, ...(scenario.zip ? { zip: await packageBytes(scenario.zip, scenario.wrapped) } : {}) });
     const token = scenario.token === undefined ? TEST_TOKEN : scenario.token;
-    const env = { ...(token === null ? validatorEnvironment(temp) : collectorEnvironment(temp, token)), HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: TEST_CA };
+    const env = { ...(token === null ? validatorEnvironment(temp) : collectorEnvironment(temp, token)), HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: fake.caPath };
     const args = scenario.kind === 'dispatch'
       ? dispatchArgs(KIT_SCRIPT, job, target)
       : watchArgs(KIT_SCRIPT, { repository: target.repository, workflowRunId: '1', clientRef: scenario.clientRef ?? FIXTURE_CLIENT_REF }, out, scenario.kitSeconds ?? 60);

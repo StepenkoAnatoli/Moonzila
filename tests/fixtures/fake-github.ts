@@ -1,18 +1,17 @@
 // Test-only. A loopback stand-in for api.github.com, reached by the real Research Kit collector through a
 // CONNECT proxy that tunnels only api.github.com:443 and artifacts.invalid:443 and forwards nothing anywhere.
-// TLS ends here with tests/fixtures/github-tls, trusted only by the child's NODE_EXTRA_CA_CERTS.
+// TLS ends here with a CA and leaf generated for this fake (tests/fixtures/github-tls.ts), trusted only by the child's
+// NODE_EXTRA_CA_CERTS = caPath. The CA file lives in the fake's own temporary folder until close().
 import http from 'node:http';
 import https from 'node:https';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type { AddressInfo, Socket } from 'node:net';
+import { generateTestTls } from './github-tls';
 
 export const FAKE_REPOSITORY = 'o/r';
 export const FAKE_RUN_ID = 1;
 export const FAKE_ARTIFACT_ID = 7;
 /** The run's commit: a journey's package is made with this as its commit, so the import's binding matches it. */
 export const FAKE_HEAD_SHA = 'a'.repeat(40);
-export const TEST_CA = resolve('tests/fixtures/github-tls/ca.pem');
 
 export interface FakeScenario {
   /** The dispatch answer: 'ok' is 200 with the run details, 'reset' closes the socket after reading the body. */
@@ -35,6 +34,8 @@ export interface SeenRequest { host: string; method: string; path: string; autho
 
 export interface FakeGitHub {
   readonly proxyUrl: string;
+  /** Absolute path of this fake's freshly generated test CA; removed by close(). */
+  readonly caPath: string;
   readonly seen: SeenRequest[];
   readonly connects: string[];
   set(scenario: FakeScenario): void;
@@ -47,8 +48,8 @@ const tunnelled = new Set(['api.github.com:443', 'artifacts.invalid:443']);
 export async function startFakeGitHub(token: string): Promise<FakeGitHub> {
   let scenario: FakeScenario = {};
   const seen: SeenRequest[] = []; const connects: string[] = []; const sockets = new Set<Socket>();
-  const tls = { key: readFileSync(resolve('tests/fixtures/github-tls/leaf.key')), cert: readFileSync(resolve('tests/fixtures/github-tls/leaf.pem')) };
-  const api = https.createServer(tls, (request, response) => {
+  const material = await generateTestTls();
+  const api = https.createServer({ key: material.leafKeyPem, cert: material.leafPem }, (request, response) => {
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer) => chunks.push(chunk));
     request.on('end', () => {
@@ -100,15 +101,18 @@ export async function startFakeGitHub(token: string): Promise<FakeGitHub> {
     if (head.length) socket.unshift(head);
     api.emit('connection', socket);
   });
-  await new Promise<void>(done => proxy.listen(0, '127.0.0.1', done));
+  try {
+    await new Promise<void>((done, fail) => { proxy.once('error', fail); proxy.listen(0, '127.0.0.1', done); });
+  } catch (error) { await material.dispose(); throw error; }
   const { port } = proxy.address() as AddressInfo;
   return {
-    proxyUrl: `http://127.0.0.1:${port}`, seen, connects,
+    proxyUrl: `http://127.0.0.1:${port}`, caPath: material.caPath, seen, connects,
     set(next) { scenario = next; },
     reset() { scenario = {}; seen.length = 0; connects.length = 0; },
     async close() {
       for (const socket of sockets) socket.destroy();
       await Promise.all([new Promise<void>(done => proxy.close(() => done())), new Promise<void>(done => api.close(() => done()))]);
+      await material.dispose();
     },
   };
 }

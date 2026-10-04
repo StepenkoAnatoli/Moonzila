@@ -5,7 +5,7 @@ import { PassThrough } from 'node:stream';
 import { spawnOwned } from '../src/tools/commands';
 import { packageImporter } from '../src/main/research-import';
 import type { PackageHandoff } from '../src/main/collector';
-import { FAKE_HEAD_SHA, FAKE_REPOSITORY, TEST_CA, startFakeGitHub } from './fixtures/fake-github';
+import { FAKE_HEAD_SHA, FAKE_REPOSITORY, startFakeGitHub } from './fixtures/fake-github';
 
 // The e2e harness (e2e/fixtures/collector-network.cjs) rewrites the native helper's input. These run it against the
 // real spawnOwned encoder, with the helper replaced by a recording child, so a change to the protocol turns this red
@@ -126,7 +126,7 @@ async function routed(routeRunRead: unknown) {
   const fake = await startFakeGitHub(ROUTE_TOKEN);
   const sent: string[] = [];
   const scope: { fetch: Fetch } = { fetch: async resource => { sent.push(String(resource)); return new Response('{}'); } };
-  const harness = install({ spawn: original }, { HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: TEST_CA, ...(routeRunRead === undefined ? {} : { routeRunRead }) }, scope);
+  const harness = install({ spawn: original }, { HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: fake.caPath, ...(routeRunRead === undefined ? {} : { routeRunRead }) }, scope);
   return { fake, sent, scope, harness };
 }
 const auth = { Authorization: `Bearer ${ROUTE_TOKEN}`, Accept: 'application/vnd.github+json' };
