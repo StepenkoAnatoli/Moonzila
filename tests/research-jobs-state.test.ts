@@ -190,6 +190,17 @@ describe('database constraints', () => {
     db.exec('DROP TRIGGER research_events_step');
     journal(db, 2, 'queued', 'approved');
     expect(() => db.prepare("UPDATE research SET revision=2,status='approved' WHERE id='j'").run()).toThrow('RESEARCH_READINESS_UNVERIFIED');
+    // The source status alone: a queued job that meets every other readiness condition (an unchanged frozen digest, a new
+    // package that is not the collected one, main's KIT_APPROVED row at the new revision) is still refused.
+    const digest = digestOf('1'); const sha = digestOf('e');
+    insert(db, { id: 'k', project_id: 'p2', client_ref: 'mz-k', review_digest: digest });
+    db.exec('DROP TRIGGER research_update_journaled');
+    db.prepare("INSERT INTO research_events VALUES ('k',9,'collecting','collected','main',NULL,'FORGED',?,'e',0)").run(JSON.stringify({ verification: { artifactSha256: digestOf('a') } }));
+    db.prepare("INSERT INTO research_events VALUES ('k',2,'packaging','approved','main',NULL,'KIT_APPROVED',?,'e',0)").run(JSON.stringify({ reviewedPackage: { sha256: sha } }));
+    const before = db.prepare("SELECT * FROM research WHERE id='k'").get();
+    expect(() => db.prepare(`UPDATE research SET revision=2,status='approved',collector_revision=1,repository='o/c',workflow='collect.yml',ref='main',dispatched_at='${at}',workflow_run_id='77',
+      reviewed_package_sha256=?,reviewed_validator_revision=?,reviewed_bound_revision=1 WHERE id='k'`).run(sha, 'f'.repeat(40))).toThrow('RESEARCH_READINESS_UNVERIFIED');
+    expect(db.prepare("SELECT * FROM research WHERE id='k'").get()).toEqual(before);
     db.close();
   });
 });
@@ -546,6 +557,23 @@ describe('schema v4 migration', () => {
     check.close();
   });
 
+  test('a v3 database holding a row whose parent is gone is refused and left at v3 untouched', () => {
+    const { path, db } = v3Database('moon-v3-orphan-');
+    // A journal row whose job does not exist: written with foreign keys and the journal step rule set aside.
+    db.pragma('foreign_keys = OFF'); db.exec('DROP TRIGGER research_events_step');
+    db.prepare("INSERT INTO research_events VALUES ('ghost',2,'queued','cancelled','user',NULL,'V3_STEP','{}','e',2)").run();
+    const before = snapshot(db); const v3Objects = objects(db);
+    expect(db.pragma('foreign_key_check')).toHaveLength(1);
+    db.close();
+    expect(() => new Store(path)).toThrow('MIGRATION_FOREIGN_KEY_FAILURE');
+    const check = raw(path);
+    expect(check.pragma('user_version', { simple: true })).toBe(3);
+    expect(snapshot(check)).toEqual(before);
+    expect(objects(check)).toEqual(v3Objects);
+    expect(check.prepare("SELECT name FROM pragma_table_info('research') WHERE name='review_digest'").get()).toBeUndefined();
+    check.close();
+  });
+
   test('a v3 row in reviewing or approved is refused rather than mapped', () => {
     for (const state of ['reviewing', 'approved'] as const) {
       const { path, db, move } = v3Database(`moon-v3-${state}-`);
@@ -704,6 +732,83 @@ describe('schema v4 constraints', () => {
     expect(() => startReview(store, 'j1', 'r2', 'continued')).not.toThrow();
     expect(() => startReview(store, 'j3', 'r3')).toThrow(/^RUN_ACTIVE$/);
   });
+
+  test('the research_active index itself refuses a second queued job beside a packaging one', () => {
+    // The store answers RUN_ACTIVE first; a raw write past it must still meet the unique index.
+    const db = packagingDb(['j']);
+    const queued = (id: string, projectId: string) => db.prepare(`INSERT INTO research (id,project_id,revision,status,topic,inputs,client_ref,research_level,policy_revision,trust_revision,created_at,updated_at) VALUES (?,?,1,'queued','t','{}',?,'public-technical',1,1,'${at}','${at}')`).run(id, projectId, `mz-${id}`);
+    expect(() => queued('k', 'p-j')).toThrow(/UNIQUE constraint failed: research\.project_id/);
+    expect(db.prepare("SELECT id,status FROM research WHERE project_id='p-j'").all()).toEqual([{ id: 'j', status: 'packaging' }]);
+    // The positive control: the same row in a project with no active job is accepted.
+    db.prepare(`INSERT INTO projects SELECT 'p-other',name,root_path,path_label,trusted,trust_revision,policy,missing,created_at FROM projects WHERE id='p-j'`).run();
+    queued('k', 'p-other');
+    expect(db.prepare("SELECT status FROM research WHERE id='k'").get()).toEqual({ status: 'queued' });
+    db.close();
+  });
+
+  test('the readiness rule needs main\'s KIT_APPROVED row at the new revision, not at another one', () => {
+    const db = packagingDb(['j']);
+    // Revision 7 (the new one) is journaled by the engine, so it fails the actor condition; revision 9 is a forged
+    // KIT_APPROVED row by main naming the same package, written with the journal step rule set aside.
+    db.prepare('INSERT INTO research_events VALUES (?,7,?,?,?,NULL,?,?,?,0)').run('j', 'packaging', 'approved', 'engine', 'KIT_APPROVED', JSON.stringify({ reviewedPackage: { sha256: digestOf('e') } }), 'e');
+    db.exec('DROP TRIGGER research_events_step');
+    db.prepare('INSERT INTO research_events VALUES (?,9,?,?,?,NULL,?,?,?,0)').run('j', 'packaging', 'approved', 'main', 'KIT_APPROVED', JSON.stringify({ reviewedPackage: { sha256: digestOf('e') } }), 'e');
+    const before = db.prepare("SELECT * FROM research WHERE id='j'").get();
+    expect(() => db.prepare("UPDATE research SET revision=7,status='approved',reviewed_package_sha256=?,reviewed_validator_revision=?,reviewed_bound_revision=6 WHERE id='j'").run(digestOf('e'), 'f'.repeat(40)))
+      .toThrow('RESEARCH_READINESS_UNVERIFIED');
+    expect(db.prepare("SELECT * FROM research WHERE id='j'").get()).toEqual(before);
+    db.close();
+  });
+
+  test('the table checks refuse a dispatch row with a run id, a packaging row without one, and a failure outside a failed state', () => {
+    const { store, path } = open(); project(store); collectedJob(store, 'c', 'p2'); store.close();
+    const db = raw(path); db.pragma('foreign_keys = ON');
+    // Only the CHECK constraints answer here: the journal and readiness triggers are set aside.
+    for (const trigger of ['research_update_journaled', 'research_readiness_digest']) db.exec(`DROP TRIGGER ${trigger}`);
+    db.prepare(`INSERT INTO research (id,project_id,revision,status,topic,inputs,client_ref,research_level,policy_revision,trust_revision,created_at,updated_at) VALUES ('j','p',1,'queued','t','{}','mz-j','public-technical',1,1,'${at}','${at}')`).run();
+    const dispatched = `collector_revision=1,repository='o/c',workflow='collect.yml',ref='main',dispatched_at='${at}'`;
+    const review = `review_run_id='r',review_session_id='s',review_digest='${D1}'`;
+    const update = (id: string, set: string) => () => db.prepare(`UPDATE research SET ${set} WHERE id=?`).run(id);
+    expect(update('j', `status='dispatching',${dispatched},workflow_run_id='77'`)).toThrow(/CHECK constraint failed: status <> 'dispatching' OR workflow_run_id IS NULL/);
+    expect(update('j', `status='packaging',${dispatched},${review}`)).toThrow(/CHECK constraint failed: status NOT IN \('collecting','collected','reviewing','packaging','approved','not_ready'\) OR workflow_run_id IS NOT NULL/);
+    expect(update('c', "failure='X_CODE'")).toThrow(/CHECK constraint failed: failure IS NULL OR status IN/);
+    expect(db.prepare('SELECT id,status,workflow_run_id,failure FROM research ORDER BY id').all()).toEqual([
+      { id: 'c', status: 'collected', workflow_run_id: '5', failure: null }, { id: 'j', status: 'queued', workflow_run_id: null, failure: null }]);
+    // The positive controls: the same rows with a run id where one is due, and the failure in a state that may hold one.
+    update('j', `status='packaging',${dispatched},${review},workflow_run_id='77'`)();
+    update('c', "status='not_ready',failure='X_CODE'")();
+    expect(db.prepare('SELECT id,status,failure FROM research ORDER BY id').all()).toEqual([{ id: 'c', status: 'not_ready', failure: 'X_CODE' }, { id: 'j', status: 'packaging', failure: null }]);
+    db.close();
+  });
+
+  test('the journal rule refuses an update whose journal row names another target status', () => {
+    const { store, path } = open(); collectedJob(store); store.close();
+    const db = raw(path); db.pragma('foreign_keys = ON');
+    db.prepare("INSERT INTO research_events VALUES ('j1',5,'collected','reviewing','user',NULL,'X_STEP','{}','e',0)").run();
+    const before = db.prepare("SELECT * FROM research WHERE id='j1'").get();
+    expect(() => db.prepare("UPDATE research SET revision=5,status='not_ready',failure='X_CODE' WHERE id='j1'").run()).toThrow('RESEARCH_TRANSITION_UNJOURNALED');
+    expect(db.prepare("SELECT * FROM research WHERE id='j1'").get()).toEqual(before);
+    // The positive control: the status the row names is accepted.
+    db.prepare("UPDATE research SET revision=5,status='reviewing',review_run_id='r',review_session_id='s' WHERE id='j1'").run();
+    expect(db.prepare("SELECT status FROM research WHERE id='j1'").get()).toEqual({ status: 'reviewing' });
+    db.close();
+  });
+
+  test('the table checks bound the review run id and require a hex reviewed package digest', () => {
+    const { store, path } = open(); collectedJob(store); store.close();
+    const db = raw(path); db.pragma('foreign_keys = ON');
+    for (const trigger of ['research_update_journaled', 'research_readiness_digest']) db.exec(`DROP TRIGGER ${trigger}`);
+    const update = (set: string, ...values: unknown[]) => () => db.prepare(`UPDATE research SET ${set} WHERE id='j1'`).run(...values);
+    expect(update("status='reviewing',review_run_id=?,review_session_id='s'", 'r'.repeat(129))).toThrow(/CHECK constraint failed: length\(review_run_id\) BETWEEN 1 AND 128/);
+    const reviewed = "status='not_ready',failure='X_CODE',reviewed_package_sha256=?,reviewed_validator_revision=?,reviewed_bound_revision=5";
+    expect(update(reviewed, 'g'.repeat(64), 'f'.repeat(40))).toThrow(/CHECK constraint failed: length\(reviewed_package_sha256\) = 64/);
+    expect(db.prepare("SELECT status,review_run_id,reviewed_package_sha256 FROM research WHERE id='j1'").get()).toEqual({ status: 'collected', review_run_id: null, reviewed_package_sha256: null });
+    // The positive controls at the boundary: a 128-character run id and a lowercase hex digest.
+    update("status='reviewing',review_run_id=?,review_session_id='s'", 'r'.repeat(128))();
+    update(`${reviewed},review_digest=?`, D2, 'f'.repeat(40), D1)();
+    expect(db.prepare("SELECT status,length(review_run_id) AS runId,reviewed_package_sha256 FROM research WHERE id='j1'").get()).toEqual({ status: 'not_ready', runId: 128, reviewed_package_sha256: D2 });
+    db.close();
+  });
 });
 
 describe('schema v4 store transitions', () => {
@@ -763,6 +868,13 @@ describe('schema v4 store transitions', () => {
     // approved has no outgoing edge.
     for (const to of ResearchStatusSchema.options) for (const actor of ['user', 'main', 'recovery', 'engine'] as const)
       expect(() => store.transitionResearch({ researchId: 'j1', expectedRevision: 7, to, actor, cause: 'MATRIX', patch: minimalPatch(to, 0, 7) }), `${to} by ${actor}`).toThrow(/RESEARCH_TRANSITION_INVALID/);
+  });
+
+  test('packaging -> approved without a reviewed package is not an edge', () => {
+    const { store } = open(); collectedJob(store); startReview(store, 'j1', 'r1'); step(store, 'j1', 'packaging', 'main', { reviewDigest: D1 });
+    const before = { job: store.getResearch('j1'), journal: store.researchEvents('j1') };
+    expect(() => step(store, 'j1', 'approved', 'main')).toThrow(/^RESEARCH_TRANSITION_INVALID$/);
+    expect({ job: store.getResearch('j1'), journal: store.researchEvents('j1') }).toEqual(before);
   });
 
   test('a retry records the new review conversation, not the previous one', () => {
@@ -993,6 +1105,31 @@ describe('schema v4 engine review controls', () => {
     expect(published.map(r => [r.id, r.status])).toEqual([['interrupted', 'not_ready']]);
     // Idempotent: nothing more to interrupt; the lists that need main's work are offered again.
     expect(research.recover(['owned'])).toMatchObject({ reviewing: [], freeze: ['freeze'], packaging: ['packaging'], reviewDiscard: [] });
+  });
+
+  test('research.recover interrupts an unowned reviewing job whose review run is absent or cancelled', () => {
+    const { store } = open();
+    collectedJob(store, 'absent', 'p1', '31'); startReview(store, 'absent', 'r-absent');
+    collectedJob(store, 'cancelled', 'p2', '32'); reviewRun(store, 'r-cancelled', 'cancelled', 'p2'); startReview(store, 'cancelled', 'r-cancelled');
+    expect(store.getRun('r-absent')).toBeUndefined();
+    for (const id of ['absent', 'cancelled']) expect(store.getResearch(id), id).toMatchObject({ status: 'reviewing' });
+    const { jobs: research, published } = jobs(store);
+    const result = research.recover([]);
+    expect(result.reviewing.slice().sort()).toEqual(['absent', 'cancelled']);
+    expect(result).toMatchObject({ freeze: [], packaging: [], unreadable: [] });
+    for (const id of ['absent', 'cancelled']) {
+      expect(store.getResearch(id), id).toMatchObject({ status: 'not_ready', failure: 'REVIEW_INTERRUPTED' });
+      expect(store.researchEvents(id).events.at(-1), id).toMatchObject({ from: 'reviewing', to: 'not_ready', actor: 'recovery', cause: 'RECOVERED' });
+    }
+    expect(published.map(r => [r.id, r.status]).sort()).toEqual([['absent', 'not_ready'], ['cancelled', 'not_ready']]);
+  });
+
+  test('research.review.context reports the live admission after a trust change', () => {
+    const { store } = open(); collectedJob(store); reviewRun(store, 'r1'); startReview(store, 'j1', 'r1');
+    const research = jobs(store).jobs;
+    expect(research.reviewContext('j1').admission).toBeNull();
+    store.putProject({ ...store.getProject('p')!, trustRevision: 2 });
+    expect(ResearchReviewContextSchema.parse(structuredClone(research.reviewContext('j1'))).admission).toBe('TRUST_CHANGED');
   });
 
   test('research.recover names only plain folder names, never a path that leaves the review folder', () => {
