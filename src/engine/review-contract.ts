@@ -53,7 +53,7 @@ export const ResearchReviewContextSchema = z.object({
   reviewDigest: DigestSchema.nullable(), reviewedPackage: ReviewedPackageSchema.nullable(),
   /** The verification journaled on `collecting -> collected` (Task 4): main's only source for the job's binding. Null before collection. */
   verification: z.lazy(() => ResearchVerificationSchema).nullable(),
-  /** Completed review writes since the latest `fresh` edge, in creation order. */
+  /** Completed and `unknown` review writes since the latest `fresh` edge, in creation order, each with its `status`. */
   changes: z.array(ReviewChangeSchema).max(100_000),
 }).strict();
 export type ResearchReviewContext = z.infer<typeof ResearchReviewContextSchema>;

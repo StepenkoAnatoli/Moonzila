@@ -264,7 +264,22 @@ October 3, integration of the five build teams (import, collector items, small f
         - No fuse removes `--remote-debugging-port` from the shipped exe; its reach is a day-one check (corpus U-4).
       - **Rejected:** none.
     - Still open from B5: pinning `eol=lf` for `electron-builder.yml` and the workflows (the tests normalise CRLF); `grantFileProtocolExtraPrivileges` stays at Electron's default because the renderer loads over `file://`.
-  - **Phase 3:** B2 engine review run and B3 main review supervisor, as in the breakdown above.
+  - **Phase 3: the review run, integrated October 4, in review as a PR.**
+    - Commits:
+      - D1 `255d6e3`;
+      - contract amendments `d68eb57` (verification) and `364bc55` (change status);
+      - B2 `df64924`; B3 `4eeab35`, `c24ff40`; B10 `b156c88`;
+      - fix round: engine `8bef5cf`, `74fda0f`, `6335563`, `527bb55`; main ten commits `ba08b72`..`b87dad8` as integrated; `301177a`.
+    - Review: spec, breaker, mutation, invariant (all Opus) and one cross-vendor reviewer (GPT).
+    - Every S1 is fixed with a test that fails with its guard removed:
+      - edits lost on retry;
+      - a stuck start after an engine restart;
+      - a kit child after cancel or trust change;
+      - the untested approval guard;
+      - the brief file locked on Windows (cross-vendor);
+      - a junction at or above the workspace (cross-vendor).
+    - S2 vocabulary and project-scoped `RUN_ACTIVE` are fixed. Every other disposition is in the spec's "Phase 3 as built".
+    - Only Windows CI can verify: real NTFS junctions, the native helper's lock share mode, `rm` of a junction, short-name realpath.
     - **Reminder for the user (asked October 4):** when Phase 3 is integrated and its four-role review starts, remind the user to run one extra, cross-vendor reviewer (a GPT model). Hand them a self-contained breaker/spec brief to paste in:
       - the commit range and the spec sections;
       - the research briefs;
