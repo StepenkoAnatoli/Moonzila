@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, expect, test } from 'vitest';
 import type { Research } from '../src/shared';
 import { ApprovedCheck, ResearchPanel } from '../src/renderer/ResearchPanel';
-import { RESEARCH_FAILURES, RUN_ACTIVE_MESSAGE, failureText } from '../src/renderer/research-text';
+import { RESEARCH_FAILURES, RESEARCH_STATUS, RUN_ACTIVE_MESSAGE, failureText } from '../src/renderer/research-text';
 import { REVIEW_FAILURES } from '../src/engine/review-contract';
 
 afterEach(cleanup);
@@ -514,4 +514,118 @@ test('a check reply for an earlier reviewed digest at the same revision is disca
   expect(screen.getByTestId('research-status').textContent).toBe('Checking the reviewed package');
   await act(async () => replies[1]!.resolve({ text: '', truncated: false, source: 'reviewed', verified: true }));
   expect(screen.getByTestId('research-status').textContent).toBe(`Ready: approved by the Research Kit gate · package ${'e'.repeat(12)}`);
+});
+
+// Mutation audit P4-38: DocumentReader's stale-reply guards, the revision in jobKey, the reviewed-and-unverified branch,
+// `approved` in READABLE_RESEARCH and the switch's revision-wins rule, each with an input that only that guard catches.
+const workspaceReply = (text: string) => ({ text, truncated: false, source: 'workspace', verified: false });
+function queuedReads() {
+  const replies: Array<ReturnType<typeof deferred<unknown>>> = [];
+  return { replies, route: () => { const reply = deferred<unknown>(); replies.push(reply); return reply.promise; } };
+}
+
+test('a brief reply or refusal arriving after the evidence table was requested is not shown (the reader\'s request-id guard)', async () => {
+  const reads = queuedReads();
+  const { api } = bridge({ jobs: [job({ status: 'reviewing', revision: 3, reviewSessionId: 's-review' })], routes: { 'research.document.read': reads.route } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Read the brief' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Read the evidence table' }));
+  await waitFor(() => expect(reads.replies).toHaveLength(2));
+  const reader = screen.getByTestId('research-reader');
+  // The brief answers while the evidence table is still being read: nothing of it is shown.
+  await act(async () => reads.replies[0]!.resolve(workspaceReply('BRIEF TEXT')));
+  expect(within(reader).getByText('Reading the evidence table…')).toBeTruthy();
+  expect(reader.textContent).not.toContain('BRIEF TEXT'); expect(reader.querySelector('pre')).toBeNull();
+  await act(async () => reads.replies[1]!.resolve(workspaceReply('EVIDENCE TEXT')));
+  expect(screen.getByTestId('research-reader-source').textContent).toBe('Evidence table · review workspace · not verified');
+  expect(reader.querySelector('pre')!.textContent).toBe('EVIDENCE TEXT');
+  // The same order with a refusal: the brief's refusal does not replace the evidence table being read.
+  fireEvent.click(screen.getByRole('button', { name: 'Read the brief' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Read the evidence table' }));
+  await waitFor(() => expect(reads.replies).toHaveLength(4));
+  await act(async () => reads.replies[2]!.reject(new Error('The review workspace changed in a way Moonzila will not read through. Start the review again.')));
+  expect(within(reader).queryByRole('alert')).toBeNull();
+  expect(within(reader).getByText('Reading the evidence table…')).toBeTruthy();
+  await act(async () => reads.replies[3]!.resolve(workspaceReply('EVIDENCE AGAIN')));
+  expect(screen.getByTestId('research-reader-source').textContent).toBe('Evidence table · review workspace · not verified');
+  expect(reader.querySelector('pre')!.textContent).toBe('EVIDENCE AGAIN');
+});
+
+test('reader text is shown only at the job revision it was read at (the reader\'s shown-key guard), and a reply after a revision change is discarded', async () => {
+  // The reply handler's own `latest.current === sent` check is layered behind the shown-key guard: a reply it lets through
+  // is stored under the revision it was read at, which the panel never returns to (it keeps only higher revisions), and a
+  // newer read is answered first by the request-id guard. So this input is red with the shown-key guard removed, alone or
+  // with that check; with only that check removed nothing visible changes (mutation audit P4-38, reported).
+  const reads = queuedReads();
+  const { api, notify } = bridge({ jobs: [job({ status: 'reviewing', revision: 3, reviewSessionId: 's-review' })], routes: { 'research.document.read': reads.route } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Read the brief' }));
+  await waitFor(() => expect(reads.replies).toHaveLength(1));
+  const reader = screen.getByTestId('research-reader');
+  await act(async () => reads.replies[0]!.resolve(workspaceReply('DRAFT AT 3')));
+  expect(reader.querySelector('pre')!.textContent).toBe('DRAFT AT 3');
+  // The job moves on: the text read at revision 3 is no longer shown.
+  notify(job({ status: 'packaging', revision: 4, reviewSessionId: 's-review' }));
+  expect(screen.getByTestId('research-status').textContent).toBe('Packaging the review');
+  expect(reader.querySelector('pre')).toBeNull(); expect(reader.textContent).not.toContain('DRAFT AT 3');
+  expect(screen.queryByTestId('research-reader-source')).toBeNull();
+  // A read sent at revision 4 and answered after revision 5: neither its pending state nor its reply is shown.
+  fireEvent.click(screen.getByRole('button', { name: 'Read the brief' }));
+  await waitFor(() => expect(reads.replies).toHaveLength(2));
+  expect(within(reader).getByText('Reading the brief…')).toBeTruthy();
+  notify(job({ status: 'not_ready', failure: 'REVIEW_GATE_FAILED', revision: 5, reviewSessionId: 's-review' }));
+  expect(screen.getByTestId('research-status').textContent).toBe(RESEARCH_STATUS.not_ready);
+  expect(within(reader).queryByText('Reading the brief…')).toBeNull();
+  await act(async () => reads.replies[1]!.resolve(workspaceReply('DRAFT AT 4')));
+  expect(reader.querySelector('pre')).toBeNull(); expect(reader.textContent).not.toContain('DRAFT AT 4');
+  expect(screen.queryByTestId('research-reader-source')).toBeNull();
+});
+
+test('an approved job whose revision changes with the same digest is checked again, and its old Ready is not kept (the revision in jobKey)', async () => {
+  const reads = queuedReads();
+  const { api, notify } = bridge({ jobs: [approved()], routes: { 'research.document.read': reads.route } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(reads.replies).toHaveLength(1));
+  await act(async () => reads.replies[0]!.resolve({ text: 'brief', truncated: false, source: 'reviewed', verified: true }));
+  expect(screen.getByTestId('research-status').textContent).toBe(`Ready: approved by the Research Kit gate · package ${DIGEST.slice(0, 12)}`);
+  notify(approved({ revision: 8 }));
+  await waitFor(() => expect(reads.replies).toHaveLength(2));
+  expect(screen.getByTestId('research-status').textContent).toBe('Checking the reviewed package');
+  await act(async () => reads.replies[1]!.resolve({ text: '', truncated: false, source: 'reviewed', verified: false }));
+  expect(screen.getByTestId('research-status').textContent).toBe('Unverified: the reviewed package is missing or no longer matches');
+});
+
+test('a reviewed package that does not verify shows the reader\'s Unverified explanation, not an empty text (the reviewed-and-unverified branch)', async () => {
+  const { api } = bridge({ jobs: [approved()], routes: { 'research.document.read': () => ({ text: '', truncated: false, source: 'reviewed', verified: false }) } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toMatch(/^Unverified/));
+  fireEvent.click(screen.getByRole('button', { name: 'Read the brief' }));
+  await waitFor(() => expect(screen.getByTestId('research-reader-source').textContent).toBe('Brief · reviewed package · not verified'));
+  const reader = screen.getByTestId('research-reader');
+  expect(within(reader).getByText('Unverified: the reviewed package is missing or no longer matches, so nothing is shown.')).toBeTruthy();
+  expect(reader.querySelector('pre')).toBeNull();
+});
+
+test('an approved job keeps the reader, which shows the verified reviewed text (approved in READABLE_RESEARCH)', async () => {
+  const { api } = bridge({ jobs: [approved()], routes: { 'research.document.read': params => ({ text: params.document === 'brief' ? 'REVIEWED BRIEF' : 'REVIEWED EVIDENCE', truncated: false, source: 'reviewed', verified: true }) } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toMatch(/^Ready/));
+  fireEvent.click(screen.getByRole('button', { name: 'Read the evidence table' }));
+  await waitFor(() => expect(screen.getByTestId('research-reader').querySelector('pre')?.textContent).toBe('REVIEWED EVIDENCE'));
+  expect(screen.getByTestId('research-reader-source').textContent).toBe('Evidence table · reviewed package · verified by the Research Kit');
+});
+
+test('a newer policy revision from the workbench is not masked by an older switch reply (the switch\'s revision-wins rule)', async () => {
+  const { api } = bridge({ routes: { 'project.policy.update': () => ({ project: { ...offProject, policy: { revision: 4, inference: 'cloud-allowed', research: 'public-technical' } } }) } });
+  const { rerender } = render(<ResearchPanel api={api} project={offProject} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Allow research' }));
+  fireEvent.click(within(screen.getByRole('group', { name: 'Allow public research?' })).getByRole('button', { name: 'Allow public research' }));
+  expect(await screen.findByRole('button', { name: 'Turn research off' })).toBeTruthy();
+  // The workbench has not caught up yet: its older project (revision 3, off) does not undo the switch.
+  rerender(<ResearchPanel api={api} project={offProject} />);
+  expect(screen.getByRole('button', { name: 'Turn research off' })).toBeTruthy();
+  // Research was turned off elsewhere at revision 5: the newer revision wins over the switch's reply.
+  rerender(<ResearchPanel api={api} project={{ ...offProject, policy: { revision: 5, inference: 'cloud-allowed', research: 'off' } }} />);
+  expect(screen.getByRole('button', { name: 'Allow research' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Turn research off' })).toBeNull();
 });

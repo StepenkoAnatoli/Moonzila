@@ -308,6 +308,20 @@ test('the ancestor walk: a dangling link at storage/review is DOCUMENT_UNSAFE, n
   } finally { await w.kit.close(); }
 }, 60000);
 
+test('the ancestor walk\'s directory check: a dangling link at the job folder is DOCUMENT_UNSAFE, not DOCUMENT_NOT_AVAILABLE, never a fallback', async () => {
+  // Guard: the job folder itself must be a real directory (mutation: let a link through the walk's check, or skip the
+  // walk). Through the dangling link project/ is "not found", which would read DOCUMENT_NOT_AVAILABLE.
+  const w = await world();
+  try {
+    await notReady(w, false);
+    await mkdir(w.reviewRoot, { recursive: true });
+    const gone = join(w.folder, 'gone-job'); await mkdir(gone);
+    await symlink(gone, w.job, 'junction'); await rm(gone, { recursive: true });
+    expect((await refusal(w)).message).toBe('DOCUMENT_UNSAFE');
+    expect(w.verifications).toBe(0);
+  } finally { await w.kit.close(); }
+}, 60000);
+
 test('a workspace document replaced between its lstat and its open is DOCUMENT_UNSAFE', async () => {
   // Guard: the fstat identity must equal the lstat's (mutation: drop the dev/ino comparison).
   const w = await world();

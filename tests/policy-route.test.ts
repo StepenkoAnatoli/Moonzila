@@ -222,3 +222,24 @@ test('BRK-1b: an id reused with a different input is REQUEST_CONFLICT with nothi
   expect(signal.aborted).toBe(false); expect(revoked).toEqual([]); expect(held).toEqual([]);
   expect(store.getProject('p1')?.policy.research).toBe('public-technical');
 });
+
+// Mutation audit P4-38: the stop loop is filtered to the updated project.
+test('an update in project p1 never aborts, revokes or holds a run in project p2 (the route\'s project filter)', async () => {
+  const { store, route, active, revoked, held, released, liveRun, update } = fixture();
+  const otherRoot = mkdtempSync(join(tmpdir(), 'moonzila-route-p2-')); roots.push(otherRoot);
+  const otherPolicy = { revision: 1, inference: 'cloud-allowed' as const, research: 'public-technical' as const };
+  store.putProject({ id: 'p2', rootPath: otherRoot, pathLabel: otherRoot, name: 'Other', trusted: true, trustRevision: 1, policy: otherPolicy, missing: false, createdAt: at });
+  store.putSession({ id: 's3', projectId: 'p2', policy: { revision: 0, inference: 'cloud-allowed' }, title: 'Other work', createdAt: at, updatedAt: at });
+  const other: Run = { id: 'build2', projectId: 'p2', sessionId: 's3', sessionPolicyRevision: 0, mode: 'build', status: 'running', profileId: 'profile1', profileRevisionId: 'v1', policyRevision: 1, trustRevision: 1, createdAt: at };
+  store.putRun(other); const otherStop = new AbortController(); active.set(other.id, { run: other, stop: otherStop });
+  const own = liveRun('review1', 's2', 'research');
+  // An inference change stops every run in p1, and nothing in p2.
+  await route.updatePolicy(update('local-only', 'off'));
+  expect(store.getProject('p1')?.policy).toEqual({ revision: 2, inference: 'local-only', research: 'off' });
+  expect(own.aborted).toBe(true);
+  expect(otherStop.signal.aborted).toBe(false);
+  expect(revoked).toEqual(['review1']);
+  expect(held).toEqual(['collector:p1', 'review:p1']); expect(released).toEqual(['collector:p1', 'review:p1']);
+  expect(store.getRun('build2')?.status).toBe('running');
+  expect(store.getProject('p2')?.policy).toEqual(otherPolicy);
+});
