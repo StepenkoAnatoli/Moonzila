@@ -1,0 +1,165 @@
+diff --git a/tests/research-document.test.ts b/tests/research-document.test.ts
+index 516b7e3..a596b69 100644
+--- a/tests/research-document.test.ts
++++ b/tests/research-document.test.ts
+@@ -50,8 +50,11 @@ function cryptor(broken = false) {
+ interface World { folder: string; store: Store; jobs: ResearchJobs; kit: ResearchKit; storage: string; reviewRoot: string; vault: Vault; id: string; job: string; project: string; runId?: string; verifications: number; stalled: boolean }
+ let count = 0;
+ /** A job collected from collected.zip (retained under the collecting revision's binding), as Task 4's import leaves it. */
+-async function world(options: { secrets?: string[]; brokenVault?: boolean; nodeSha256?: string; collect?: boolean } = {}): Promise<World> {
+-  const folder = join(root, `w${++count}`); await mkdir(folder);
++async function world(options: { secrets?: string[]; brokenVault?: boolean; nodeSha256?: string; collect?: boolean; linkedParent?: boolean } = {}): Promise<World> {
++  const name = `w${++count}`; let folder = join(root, name);
++  // linkedParent: the data folder sits under a link (as /home -> var/home does), inside this file's own root.
++  if (options.linkedParent) { await mkdir(join(root, `${name}-real`, 'data'), { recursive: true }); await symlink(join(root, `${name}-real`), join(root, `${name}-link`), 'junction'); folder = join(root, `${name}-link`, 'data'); }
++  else await mkdir(folder);
+   const store = new Store(join(folder, 'state.sqlite')); const jobs = new ResearchJobs(store, () => {});
+   store.putProject({ id: 'p', name: 'p', rootPath: join(folder, 'project-root'), pathLabel: 'p', trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'public-technical' }, missing: false, createdAt: at });
+   store.putProfile({ id: 'm', name: 'Local', kind: 'ollama', endpoint: 'http://localhost:11434', model: 'test', contextTokens: 8192, outputTokens: 512, locality: 'local', revision: 1, revisionId: 'pv', createdAt: at, updatedAt: at });
+@@ -114,7 +117,7 @@ function deps(w: World, overrides: Partial<DocumentDeps> = {}): DocumentDeps {
+       if (control.method === 'research.review.context') return w.jobs.reviewContext(control.researchId);
+       throw new Error('NOT_IMPLEMENTED');
+     },
+-    kit, reviewRoot: w.reviewRoot, redact: text => w.vault.redact(text), ...overrides,
++    kit, dataDirectory: w.folder, reviewRoot: w.reviewRoot, redact: text => w.vault.redact(text), ...overrides,
+   };
+ }
+ const read = async (w: World, document: DocumentName = 'brief', overrides: Partial<DocumentDeps> = {}) => ResearchDocumentSchema.parse(await readResearchDocument(deps(w, overrides), w.id, document));
+@@ -454,3 +457,15 @@ test('the job folder swapped for a link to itself between the lstat and the open
+     await expect(readWorkspace(w.reviewRoot, w.id, ['research', 'BRIEF.md'], { beforeOpen: swap })).rejects.toThrow('DOCUMENT_UNSAFE');
+   } finally { await w.kit.close(); }
+ }, 60000);
++
++test('a data folder reached through a link above it reads the workspace; a link at storage/ below it is still DOCUMENT_UNSAFE', async () => {
++  // Guard: the reader's walk and containedFolder start at the data folder (mutation: walk from the filesystem root).
++  const w = await world({ linkedParent: true });
++  try {
++    await notReady(w);
++    expect(await read(w)).toEqual({ text: collectedBrief, truncated: false, source: 'workspace', verified: false });
++    const aside = join(root, `aside-${randomUUID()}`);
++    await rename(w.storage, aside); await symlink(aside, w.storage, 'junction');
++    expect((await refusal(w)).message).toBe('DOCUMENT_UNSAFE');
++  } finally { await w.kit.close(); }
++}, 60000);
+diff --git a/tests/research-review-e2e.test.ts b/tests/research-review-e2e.test.ts
+index ece69d0..985a29a 100644
+--- a/tests/research-review-e2e.test.ts
++++ b/tests/research-review-e2e.test.ts
+@@ -189,7 +189,7 @@ async function boot(data: string): Promise<World> {
+   };
+   world.review = new ReviewSupervisor({
+     control: async control => { world.sent.push(control); return world.engine.control(control); },
+-    kit, runSignal: signalOf, redact: async text => text, retryDelayMs: 10,
++    kit, dataDirectory: data, runSignal: signalOf, redact: async text => text, retryDelayMs: 10,
+   });
+   const fork = engineProcess(world.sides);
+   world.engine = new Engine('engine.cjs', join(data, 'state.sqlite'), {
+diff --git a/tests/research-review-main.test.ts b/tests/research-review-main.test.ts
+index 307abcb..c4f0c96 100644
+--- a/tests/research-review-main.test.ts
++++ b/tests/research-review-main.test.ts
+@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
+ import { createHash, randomUUID } from 'node:crypto';
+ import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+ import { tmpdir } from 'node:os';
+-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
++import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+ import { crc32 } from 'node:zlib';
+ import provenance from './fixtures/research-kit/provenance.json';
+ import { ResearchKit } from '../src/adapters/research-kit/adapter';
+@@ -89,8 +89,11 @@ const harnesses: Harness[] = [];
+ let count = 0;
+ /** The reviewed package's validation, given the real one to call and the binding main passed; the collected package's is always real. */
+ type Reviewed = (real: () => Promise<Result>, binding: Binding) => Promise<Result> | Result;
+-async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: Reviewed; busy?: (projectId: string) => boolean } = {}): Promise<Harness> {
+-  const name = `h${++count}`; const folder = join(root, name); await mkdir(folder);
++async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: Reviewed; busy?: (projectId: string) => boolean; linkedParent?: boolean } = {}): Promise<Harness> {
++  const name = `h${++count}`; let folder = join(root, name);
++  // linkedParent: the data folder sits under a link (as /home -> var/home does), inside this file's own root.
++  if (options.linkedParent) { await mkdir(join(root, `${name}-real`, 'data'), { recursive: true }); await symlink(join(root, `${name}-real`), join(root, `${name}-link`), 'junction'); folder = join(root, `${name}-link`, 'data'); }
++  else await mkdir(folder);
+   const store = new Store(join(folder, 'state.sqlite'));
+   const notices: Research[] = []; const jobs = new ResearchJobs(store, research => notices.push(research));
+   store.putProject({ id: 'p', name: 'p', rootPath: join(folder, 'project-root'), pathLabel: 'p', trusted: options.trusted ?? true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'public-technical' }, missing: false, createdAt: at });
+@@ -114,7 +117,7 @@ async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: R
+   h.review = new ReviewSupervisor({
+     control: async control => engine(h, control), kit: options.kit === false ? null : options.reviewed ? reviewedBy(kit, options.reviewed) : kit, redact: async text => text.replaceAll(SENTINEL, '[redacted]'),
+     runSignal: runId => { const signal = signals.get(runId)?.signal; if (!signal || signal.aborted) throw new Error('RUN_CANCELLED'); return signal; },
+-    retryDelayMs: 10, ...(options.busy ? { projectBusy: options.busy } : {}),
++    retryDelayMs: 10, dataDirectory: folder, ...(options.busy ? { projectBusy: options.busy } : {}),
+   });
+   harnesses.push(h); return h;
+ }
+@@ -531,7 +534,7 @@ test('restart: a job found in packaging re-verifies the stored digest and packag
+   h.kit = new ResearchKit({ kitRoot, nodePath: process.execPath, nodeSha256, storageRoot: h.storage, helperPath: resolve('.build/native/MoonAlizaHost.exe') }, runner(h.seen, h.hooks));
+   await h.kit.sweep();
+   expect(await readdir(join(h.storage, 'review', h.id))).toEqual(['project']);
+-  const fresh = new ReviewSupervisor({ control: c => engine(h, c), kit: h.kit, redact: async t => t, runSignal: () => { throw new Error('RUN_CANCELLED'); }, retryDelayMs: 10 });
++  const fresh = new ReviewSupervisor({ control: c => engine(h, c), kit: h.kit, dataDirectory: dirname(h.storage), redact: async t => t, runSignal: () => { throw new Error('RUN_CANCELLED'); }, retryDelayMs: 10 });
+   h.review = fresh;
+   await fresh.recovered(h.jobs.recover([], ['j1', 'gone-job']));
+   expect(await until(h, settled)).toMatchObject({ status: 'approved' });
+@@ -718,6 +721,19 @@ test('a re-validation of the collected package that times out is RESEARCH_KIT_UN
+   expect(p.seen.some(item => item.kind === 'create')).toBe(false);
+ }, 180000);
+ 
++test('a data folder under a link above it starts a review; a link at storage/ below it is still PATH_OUTSIDE_PROJECT', async () => {
++  // Guard: containedFolder walks only below the data folder (mutation: walk from the filesystem root again).
++  const h = await harness({ linkedParent: true });
++  const { research } = await h.review.start(h.id, 'm');
++  expect(research.status).toBe('reviewing');
++  expect(h.begins).toHaveLength(1);
++  const below = await harness({ linkedParent: true });
++  const aside = join(root, `aside-${randomUUID()}`);
++  await rename(below.storage, aside); await symlink(aside, below.storage, 'junction');
++  await expect(below.review.start(below.id, 'm')).rejects.toThrow('PATH_OUTSIDE_PROJECT');
++  expect(below.begins).toEqual([]);
++}, 180000);
++
+ test('start refuses with RUN_ACTIVE only while a command or kit tool runs in the job\'s own project', async () => {
+   // Guard: start's per-project busy check (spec review 6), before any kit child or begin.
+   const asked: string[] = [];
+diff --git a/tests/review-workspace.test.ts b/tests/review-workspace.test.ts
+index f6290ad..65be2d3 100644
+--- a/tests/review-workspace.test.ts
++++ b/tests/review-workspace.test.ts
+@@ -1,10 +1,10 @@
+ import { afterAll, beforeAll, expect, test } from 'vitest';
+ import { createHash } from 'node:crypto';
+-import { link, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
++import { link, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+ import { tmpdir } from 'node:os';
+ import { isAbsolute, join, relative, resolve } from 'node:path';
+ import { crc32 } from 'node:zlib';
+-import { acceptsTree, copyWorkspace, excludedByCreate, foldAccepted, foldExpected, listReviewFolders, materialise, projectInventory, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type FoldChange } from '../src/main/review-workspace';
++import { acceptsTree, containedFolder, copyWorkspace, excludedByCreate, foldAccepted, foldExpected, listReviewFolders, materialise, projectInventory, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type FoldChange } from '../src/main/review-workspace';
+ 
+ // The private review workspace (spec "The private workspace"). Every path stays inside this test's own mkdtemp root.
+ let root: string;
+@@ -182,3 +182,26 @@ test('only plain names are job folders, and the listing is bounded', async () =>
+   expect(() => reviewFolder(reviewRoot, '..')).toThrow('REVIEW_NOT_AVAILABLE');
+   expect(reviewFolder(reviewRoot, 'job-a')).toEqual({ job: join(reviewRoot, 'job-a'), project: join(reviewRoot, 'job-a', 'project') });
+ });
++
++test('containedFolder walks only below the data folder: a link above it is accepted, a link at any folder below it is refused', async () => {
++  // Guard: the walk starts at the data folder, as the engine's containedReviewWorkspace does (mutation: walk from the
++  // filesystem root again, which refuses the linked parent).
++  const base = await fresh(); const real = join(base, 'real-parent'); const linked = join(base, 'linked-parent');
++  await mkdir(join(real, 'data', 'research-kit', 'storage', 'review', 'job-1', 'project'), { recursive: true });
++  await symlink(real, linked, 'junction');
++  // The data folder is reached through a link above it, as /home -> var/home or a C:\Users junction would be.
++  const data = join(linked, 'data'); const reviewRoot = join(data, 'research-kit', 'storage', 'review');
++  expect(await containedFolder(data, reviewRoot, 'job-1', { project: true })).toEqual({ job: join(reviewRoot, 'job-1'), project: join(reviewRoot, 'job-1', 'project') });
++  expect(await containedFolder(data, reviewRoot, 'job-1', { project: false })).toMatchObject({ job: join(reviewRoot, 'job-1') });
++  // A review root outside the data folder is never contained.
++  await expect(containedFolder(join(data, 'research-kit'), join(base, 'review'), 'job-1', { project: false })).rejects.toThrow('PATH_OUTSIDE_PROJECT');
++  // A link at each folder below the data folder: that folder moved aside and linked back, so realpath alone would agree.
++  const realData = join(real, 'data');
++  for (const below of ['research-kit', 'research-kit/storage', 'research-kit/storage/review', 'research-kit/storage/review/job-1', 'research-kit/storage/review/job-1/project']) {
++    const folder = join(realData, ...below.split('/')); const aside = join(base, `aside-${below.replaceAll('/', '-')}`);
++    await rename(folder, aside); await symlink(aside, folder, 'junction');
++    await expect(containedFolder(data, reviewRoot, 'job-1', { project: true }), below).rejects.toThrow('PATH_OUTSIDE_PROJECT');
++    await unlink(folder); await rename(aside, folder);
++    expect(await containedFolder(data, reviewRoot, 'job-1', { project: true }), below).toMatchObject({ job: join(reviewRoot, 'job-1') });
++  }
++});

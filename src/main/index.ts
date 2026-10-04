@@ -18,10 +18,12 @@ import { CollectorSupervisor } from './collector';
 import { packageImporter } from './research-import';
 import { ReviewSupervisor } from './review';
 import { listReviewFolders } from './review-workspace';
+import { readResearchDocument } from './research-document';
 import { ResearchRecoverySchema } from '../engine/research';
 import { ResearchKit, readResearchInstallation } from '../adapters/research-kit/adapter';
 import { ProjectTickets } from './projects';
 import { createBridge } from './bridge';
+import { createPolicyRoute } from './policy-route';
 import { complete, validateEndpoint, type InferenceMessage } from './inference';
 import { probeHardware } from '../models/hardware';
 import { inspectLocalRuntime } from '../models/local-runtime';
@@ -179,14 +181,25 @@ if (ownsInstance) void app.whenReady().then(async () => {
   await vault.reconcile(new Set([...references, ...collectorSettings.references()]));
   await collectorSettings.finishStartup();
   void supervisor.attach();
+  // project.policy.update and run.start share a per-project lock; the research switch refuses before stopping anything.
+  const policyRoute = createPolicyRoute({
+    request: request => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.request(request); },
+    control: control => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.control(control); },
+    active, revokeContext: runId => vault.revokeContext(runId),
+    holdCollector: projectId => supervisor.hold(projectId), holdReview: projectId => reviewSupervisor.hold(projectId),
+    commandsExecuting: () => executingCommands.size > 0,
+    admit: run => { active.set(run.id, { run, stop: new AbortController(), github: new GitHubReader() }); },
+  });
 
   async function handle(request: Request): Promise<unknown> {
     if (!engine || !window) throw new Error('ENGINE_UNAVAILABLE');
     if (MethodSpec[request.method].owner === 'engine') {
-      if (['run.start', 'changes.undo', 'recovery.inspect', 'recovery.acknowledge'].includes(request.method) && executingCommands.size) throw new Error('RUN_ACTIVE');
+      if (request.method === 'project.policy.update') return policyRoute.updatePolicy(request);
+      if (request.method === 'run.start') return policyRoute.startRun(request);
+      if (['changes.undo', 'recovery.inspect', 'recovery.acknowledge'].includes(request.method) && executingCommands.size) throw new Error('RUN_ACTIVE');
       if (request.method === 'run.cancel') { active.get(request.params.runId)?.stop.abort(); vault.revokeContext(request.params.runId); }
       let release: (() => void) | undefined;
-      if (request.method === 'project.revokeTrust' || request.method === 'project.policy.update') {
+      if (request.method === 'project.revokeTrust') {
         for (const [id, item] of active) if (item.run.projectId === request.params.projectId) { item.stop.abort(); vault.revokeContext(id); }
         // Collectors stop and launch nothing until the change is applied; on release each job re-reads its admission.
         const releaseCollector = supervisor.hold(request.params.projectId); const releaseReview = reviewSupervisor.hold(request.params.projectId);
@@ -200,10 +213,6 @@ if (ownsInstance) void app.whenReady().then(async () => {
       if (request.method === 'research.start' || request.method === 'research.cancel') {
         const { research } = z.object({ research: ResearchSchema }).parse(result);
         supervisor.observe(research); reviewSupervisor.observe(research);
-      }
-      if (request.method === 'run.start') {
-        const { run } = z.object({ run: RunSchema }).parse(result);
-        if (!active.has(run.id) && ['queued', 'running'].includes(run.status)) active.set(run.id, { run, stop: new AbortController(), github: new GitHubReader() });
       }
       return result;
     }
@@ -280,6 +289,8 @@ if (ownsInstance) void app.whenReady().then(async () => {
         if (!active.has(run.id) && ['queued', 'running'].includes(run.status)) active.set(run.id, { run, stop: new AbortController(), github: new GitHubReader() });
         return { research };
       }
+      // The renderer names a document, never a path; the job's status picks the source, validated in this call (B11).
+      case 'research.document.read': return readResearchDocument({ control: control => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.control(control); }, kit: researchKit, reviewRoot, redact: text => vault.redact(text) }, request.params.researchId, request.params.document);
       case 'external.open': await shell.openExternal(request.params.url); return { opened: true };
       default: throw new Error('NOT_IMPLEMENTED');
     }

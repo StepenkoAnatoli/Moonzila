@@ -172,6 +172,11 @@ export class Store {
 
   putRun(run: Omit<StoreRun, 'sessionPolicyRevision'> & Partial<Pick<StoreRun, 'sessionPolicyRevision'>>): void { this.write('runs', runColumns, { ...run, sessionPolicyRevision: run.sessionPolicyRevision ?? 0 }); }
   getRun(id: string): StoreRun | undefined { return this.one('runs', runColumns, id); }
+  /** One read for main's policy route: the project's stored policy revision and inference, and whether a run not in `research` mode is unfinished; undefined for no project. */
+  policyGuard(projectId: string): { revision: number; inference: StoreProject['policy']['inference']; nonResearchRunActive: boolean } | undefined {
+    const row = this.db.prepare(`SELECT json_extract(p.policy,'$.revision') AS revision, json_extract(p.policy,'$.inference') AS inference, EXISTS(SELECT 1 FROM sessions s JOIN runs r ON r.session_id=s.id WHERE s.project_id=p.id AND r.mode<>'research' AND r.status NOT IN ('completed','failed','cancelled','interrupted')) AS active FROM projects p WHERE p.id=?`).get(projectId) as { revision: number; inference: StoreProject['policy']['inference']; active: number } | undefined;
+    return row && { revision: row.revision, inference: row.inference, nonResearchRunActive: row.active === 1 };
+  }
   listRuns(sessionId: string): StoreRun[] { return this.many('SELECT * FROM runs WHERE session_id=? ORDER BY created_at,id', runColumns, sessionId); }
   appendEvent(runId: string, type: string, payload: unknown, patch?: { status?: StoreRunStatus; finishedAt?: string }): StoreEvent {
     return this.transaction(() => {

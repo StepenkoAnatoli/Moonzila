@@ -702,6 +702,22 @@ test('a validation fault of this machine is never blamed on the package: REVIEW_
   }
 }, 300000);
 
+test('a re-validation of the collected package that times out is RESEARCH_KIT_UNAVAILABLE, at start and in packaging, never a stale corpus', async () => {
+  // Guards: review start's and packaging's mapping of VALIDATOR_UNAVAILABLE (mutation: map it as STALE_VERIFICATION).
+  const timedOut = { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: true } as const;
+  const h = await harness();
+  h.hooks.fake = (_request, kind) => (kind === 'validate' ? timedOut : undefined);
+  await expect(h.review.start(h.id, 'm')).rejects.toThrow('RESEARCH_KIT_UNAVAILABLE');
+  expect(h.begins).toEqual([]);
+  const p = await harness();
+  // Only once the job is packaging: begin's own start validates for real; packaging re-validates before create.
+  p.hooks.fake = (_request, kind) => (kind === 'validate' && p.store.getResearch(p.id)!.status === 'packaging' ? timedOut : undefined);
+  await packagingNow(p);
+  expect(await until(p, settled)).toMatchObject({ status: 'not_ready', failure: 'RESEARCH_KIT_UNAVAILABLE' });
+  expect(p.store.researchEvents(p.id).events.at(-1)).toMatchObject({ from: 'packaging', to: 'not_ready', cause: 'VALIDATOR_UNAVAILABLE' });
+  expect(p.seen.some(item => item.kind === 'create')).toBe(false);
+}, 180000);
+
 test('start refuses with RUN_ACTIVE only while a command or kit tool runs in the job\'s own project', async () => {
   // Guard: start's per-project busy check (spec review 6), before any kit child or begin.
   const asked: string[] = [];

@@ -77,6 +77,46 @@ test('verifyRetained returns the verified bytes of storage/artifacts/<sha>.zip; 
   } finally { await kit.close(); }
 }, 60000);
 
+test('verifyRetained classifies by the bytes the validator read: intact without a verdict is VALIDATOR_UNAVAILABLE, changed bytes or a real verdict STALE_VERIFICATION', async () => {
+  // Guards: verifyRetained's hash-first classification (mutations: classify by the error code alone, as P4-14 did; or
+  // ignore the hash). This test replaces P4-14's, which expected STALE_VERIFICATION for truncated or garbage output from an
+  // intact package: that encoded the wrong rule, since such output says nothing about the package.
+  const bytes = await readFile(fixture); const sha = digest(bytes);
+  const binding = { projectId: 'p', projectRevision: 1, jobId: 'j', jobRevision: 3, ...provenance.identity };
+  const retain = make('unavailable');
+  try { expect(await retain.validate(fixture, binding)).toMatchObject({ status: 'PASS' }); } finally { await retain.close(); }
+  const retained = join(root, 'unavailable', 'artifacts', `${sha}.zip`);
+  // The same storage, with a runner whose validator child gives no verdict: the helper's timeout, truncated output, garbage.
+  const faulty = (patch: object): OwnedRunner => async (request, signal, options = {}) => {
+    await options.beforeStart?.(); options.onStarted?.({ pid: 4242, createdAt: '1' });
+    return { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: false, ...patch };
+  };
+  const at = (patch: object) => new ResearchKit({ kitRoot: resolve('.build/research-kit-external/research-kit'), nodePath: process.execPath, nodeSha256, storageRoot: join(root, 'unavailable'), helperPath: resolve('.build/native/MoonAlizaHost.exe') }, faulty(patch));
+  const noVerdict = [{ timedOut: true }, { truncated: true }, { code: 0, output: 'not json' }, { status: 'unknown' }];
+  for (const patch of noVerdict) {
+    const kit = at(patch);
+    try { await expect(kit.verifyRetained(sha, binding), `intact ${JSON.stringify(patch)}`).rejects.toThrow('VALIDATOR_UNAVAILABLE'); } finally { await kit.close(); }
+  }
+  // Changed bytes under the digest's name: stale, whatever the validator did, a timeout included. Another well-formed
+  // package, so the archive reads and the child does run (a corrupt ZIP would be refused before it, as ARTIFACT_INVALID).
+  await writeFile(retained, await readFile(resolve('tests/fixtures/research-kit/approved.zip')));
+  for (const patch of noVerdict) {
+    const kit = at(patch);
+    try { await expect(kit.verifyRetained(sha, binding), `changed ${JSON.stringify(patch)}`).rejects.toThrow('STALE_VERIFICATION'); } finally { await kit.close(); }
+  }
+  await writeFile(retained, bytes);
+  // Intact bytes and a real verdict that is not PASS: the real validator on a package that fails its gate, filed under its own digest.
+  const failing = await readFile(resolve('tests/fixtures/research-kit/tampered.zip')); const failingSha = digest(failing);
+  await writeFile(join(root, 'unavailable', 'artifacts', `${failingSha}.zip`), failing);
+  const real = make('unavailable');
+  try {
+    await expect(real.verifyRetained(failingSha, binding)).rejects.toThrow('STALE_VERIFICATION');
+    // And a real identity mismatch on the intact retained package.
+    await expect(real.verifyRetained(sha, { ...binding, commit: 'f'.repeat(40) })).rejects.toThrow('STALE_VERIFICATION');
+    expect((await real.verifyRetained(sha, binding)).bytes.equals(bytes)).toBe(true);
+  } finally { await real.close(); }
+}, 120000);
+
 test('discardReview never follows a link out of storage/review: a linked job folder loses only its link, a linked review folder is left alone', async () => {
   // Guard: discardReview's containment (the review folder a real directory under storage; a job folder that is a link is
   // unlinked, never recursed into).

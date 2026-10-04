@@ -16,7 +16,7 @@ Run `node scripts/check-handoff.mjs` to verify snapshot identities and the main 
 
 ## Delivery workflow
 
-At the end of every completed project step or phase, verify the work, push its branch, and open a pull request. The PR is opened as a draft. The user signals approval by marking it "Ready for review" (user instruction, 2026-10-04); the agent then merges it, but only when the Windows CI run on that exact head commit is green and the PR is mergeable. If either fails, fix it or tell the user what holds it. Never merge a draft PR, and never merge without that signal. Context recovery was delivered in merged PR #11. The attached integration proposal is reference material, reviewed in [the integration review](docs/specification/research-kit-integration-review.md); current backend behavior is in [offline validation](docs/specification/research-kit-offline.md).
+At the end of every completed project step or phase, verify the work, push its branch, and open a pull request. The PR is opened as a draft. The agent decides when to merge it (user instruction, 2026-10-04, superseding "the user marks it Ready for review"), and merges only when all of these hold, checked on the PR's exact head commit: every S1 and S2 finding fixed and re-reviewed, the rest dispositioned in the run ledger; the full Linux gate with no failure outside the recorded baseline; the Windows CI run green; the PR mergeable with no conflict and no open review thread waiting on the agent; for packaging changes, a green `workflow_dispatch` run. The agent then marks it ready, merges with a merge commit, and reports the merge to the user. If any check fails, it fixes the cause or tells the user what holds the PR. Never merge while a check is red or unknown. Context recovery was delivered in merged PR #11. The attached integration proposal is reference material, reviewed in [the integration review](docs/specification/research-kit-integration-review.md); current backend behavior is in [offline validation](docs/specification/research-kit-offline.md).
 
 ## Project skills
 
@@ -42,6 +42,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 | Acceptance        | GitHub Actions `Windows verification` (`.github/workflows/windows.yml`, job `desktop`, `windows-latest`): native helper build, typecheck, lint, `npm test`, build, runtime check, `npm run test:e2e` |
 | Not runnable here | The whole Windows leg: the native helper (`MoonAlizaHost.exe`) and every test that needs it, Windows-only tests (`tests/guarded-fs-semantics.test.ts`), e2e journeys and the packaged-build steps. Hold a merge until that run is green on the exact head. |
 
+- Run folder: `docs/orchestration/<YYYY-MM-DD>-<task-slug>/` with `RUN.md` (lead-orchestrator 2.0 run ledger), committed with the work. A resumed session reads `RUN.md`'s Next action first. Current run: `docs/orchestration/2026-10-03-task5-research-review/`.
 - Filesystem guard: none as a helper. The convention in every test that makes a link (`paths`, `file-read`, `command-broker`, `guarded-process`, `model-store`) is `symlink(target, alias, 'junction')` with both ends inside the test's own `mkdtemp` root, asserted by the product's refusal or by `realpath`/`lstat`, never by the link's stored text. No test makes a file symlink, and none targets a fixed host path.
 
 ### Quality gate (run in order)
@@ -68,7 +69,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 
 ### Conventions
 - Commit body: "What changed / Why / What it touched / What you verified / What you got wrong and fixed"; the got-wrong line is never omitted; docs-only commits may use one line per part. Identity: the account's GitHub no-reply address.
-- Branching: work on `main-axuse`, fast-forwarded to `main` after each merge; one PR per step, opened as a draft; once the user marks it "Ready for review", the agent merges it after a green Windows run on the head. No force-push, no reset of shared branches.
+- Branching: work on `main-axuse`, fast-forwarded to `main` after each merge; one PR per step, opened as a draft; the agent decides the merge (user, 2026-10-04) under the merge checks above. No force-push, no reset of shared branches.
 - Standing rule: fix what is needed now, or record it under "Recorded for later" in the plan.
 
 ### Invariants
@@ -79,6 +80,9 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 | `approved` only through the kit's gate and fresh validation of exact bytes | `research_readiness_reserved` trigger tests in `tests/research-jobs-state.test.ts` |
 | Journal before effect; owned-process Stop | `tests/commands.test.ts`, `tests/guarded-process.test.ts`, `e2e/recovery.spec.ts` |
 | Imported research is untrusted data | offline validator tests in `tests/research-kit.test.ts` |
+| The research document reader returns only redacted text, and its refusals carry no document text | `tests/research-document.test.ts` (a vault secret redacted in the result and absent from a refusal of the same document; a secret straddling the 262,144-byte cut; redaction unavailable returns no text) |
+| A reader result is `verified: true`, and the panel shows Ready, only for bytes validated in that call | `tests/research-document.test.ts` (every call validates again; a package replaced after validation still yields the verified buffer; deleted or tampered is `verified: false`), `tests/research-panel.test.tsx` (Ready only on `verified: true`) |
+| A research-only policy change during a non-research run is refused before any run is stopped | `tests/policy-route.test.ts` (no signal aborted, context revoked, supervisor held; `run.start` serialized by the lock), `tests/project-policy-engine.test.ts` (the engine re-check) |
 
 ### Research-Kit
 | Item | Value |

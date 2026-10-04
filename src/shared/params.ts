@@ -58,6 +58,13 @@ export const ResearchCollectorSaveParams = ResearchCollectorSchema.omit({ revisi
   expectedRevision: RevisionSchema.optional(), token: z.string().min(1).max(16384).regex(/^[\x21-\x7E]+$/).optional(), clearToken: z.boolean().optional(),
 }).strict().refine(value => !(value.token && value.clearToken), 'Cannot save and clear a token together');
 const researchResult = z.object({ research: ResearchSchema }).strict();
+const ResearchDocumentReadParams = z.object({ researchId: IdSchema, document: z.enum(['brief', 'evidence']) }).strict();
+/** At most 262,144 UTF-8 bytes, cut at a character boundary after redaction; `verified` only for a package validated in this call. */
+export const ResearchDocumentSchema = z.object({
+  text: z.string().refine(text => new TextEncoder().encode(text).length <= 262_144, 'document text over 262,144 bytes'),
+  truncated: z.boolean(), source: z.enum(['collected', 'workspace', 'reviewed']), verified: z.boolean(),
+}).strict().refine(document => !(document.verified && document.source === 'workspace'), 'workspace text is never verified');
+
 export const MissionTaskSchema = z.object({ id: IdSchema, title: z.string().min(1).max(256), instructions: z.string().min(1).max(32768), dependencies: z.array(IdSchema).max(128), status: z.enum(['pending', 'running', 'produced', 'verifying', 'completed', 'failed', 'cancelled']), runId: IdSchema.optional(), outputManifestDigest: DigestSchema.optional(), verificationRunId: IdSchema.optional() }).strict();
 export const MissionSchema = z.object({ id: IdSchema, projectId: IdSchema, title: z.string().min(1).max(256), instructions: z.string().min(1).max(65536), status: z.enum(['queued', 'running', 'paused', 'verifying', 'completed', 'failed', 'cancelling', 'cancelled']), profileId: IdSchema, modelStepBudget: z.number().int().min(1).max(1000), maxAgents: z.number().int().min(1).max(5), tasks: z.array(MissionTaskSchema).max(128), createdAt: DateTimeSchema, updatedAt: DateTimeSchema }).strict();
 export type Mission = z.infer<typeof MissionSchema>;
@@ -123,6 +130,8 @@ export const MethodSpec = {
   'research.cancel': method(ResearchId, researchResult, 'engine', 'lifecycle', 'project-member'),
   // Main-owned (Task 5 decision Q2): the workspace must exist before the engine admits a run that edits it.
   'research.review.start': method(z.object({ researchId: IdSchema, profileId: IdSchema }).strict(), researchResult, 'main', 'write', 'trusted-project'),
+  // Redacted text of a job's brief or evidence table; the renderer never names a path (spec research-review-ui.md, section 3).
+  'research.document.read': method(ResearchDocumentReadParams, ResearchDocumentSchema, 'main', 'read', 'project-member'),
   'research.purge': method(ResearchId, Deleted, 'engine', 'write', 'project-member'),
   'skill.list': method(ProjectId, z.object({ skills: z.array(SkillSchema).max(1000) }).strict(), 'engine', 'read', 'project-member'),
   'mission.create': method(z.object({ projectId: IdSchema, profileId: IdSchema, title: z.string().trim().min(1).max(256), instructions: z.string().trim().min(1).max(65536), modelStepBudget: z.number().int().min(1).max(1000).default(120), maxAgents: z.number().int().min(1).max(5).default(5) }).strict(), missionResult, 'engine', 'write', 'trusted-project'),

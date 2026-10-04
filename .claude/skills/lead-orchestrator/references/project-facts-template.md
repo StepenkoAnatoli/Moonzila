@@ -43,6 +43,9 @@ _Last verified: <date>, branch <name> at <commit>_
 - Commit format: <project format, or "see lead-orchestrator report templates">
 - Branching and pull requests: <rules>
 - Standing rules: <e.g. fix now or record under "Recorded for later" in the plan>
+- Run folder: <e.g. docs/orchestration/<YYYY-MM-DD>-<task-slug>/>; ledger committed
+  <on the working branch, riding along with unit commits / in separate chore commits / not
+  committed - kept in <ignored path>>
 
 ### Invariants
 | Invariant     | Evidence (test or check) |

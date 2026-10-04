@@ -98,6 +98,8 @@ export function notReadyFailure(state: Result['state']): string {
   return 'REVIEW_PACKAGE_INVALID';
 }
 
+/** verifyRetained's codes for this machine's kit: an invalid installation, or a validator that could not finish. */
+const KIT_FAULTS: ReadonlySet<string> = new Set(['INSTALLATION_INVALID', 'VALIDATOR_UNAVAILABLE']);
 /** Validation errors that are this machine's (storage, bounds, the validator's own output), never a verdict on the package. */
 const MACHINE_FAULTS: ReadonlySet<string> = new Set(['STORAGE_LIMIT', 'TIMEOUT', 'OUTPUT_LIMIT', 'VALIDATOR_OUTPUT', 'STALE_VERIFICATION']);
 /**
@@ -162,7 +164,7 @@ export class ReviewSupervisor {
     if (this.deps.projectBusy?.(projectId)) throw new Error('RUN_ACTIVE');
     let bytes: Buffer;
     try { ({ bytes } = await kit.verifyRetained(ctx.verification.artifactSha256, reviewBinding(projectId, researchId, ctx.verification, ctx.verification.jobRevision))); }
-    catch (error) { throw new Error(message(error) === 'INSTALLATION_INVALID' ? 'RESEARCH_KIT_UNAVAILABLE' : 'STALE_VERIFICATION', { cause: error }); }
+    catch (error) { throw new Error(KIT_FAULTS.has(message(error)) ? 'RESEARCH_KIT_UNAVAILABLE' : 'STALE_VERIFICATION', { cause: error }); }
     let base: Inventory;
     try { ({ base } = await readPackage(bytes)); } catch { throw new Error('STALE_VERIFICATION'); }
     let launch: ReviewLaunch;
@@ -435,7 +437,7 @@ export class ReviewSupervisor {
     catch (error) {
       const code = message(error);
       if (code === 'CANCELLED' || signal.aborted) return null;
-      return code === 'INSTALLATION_INVALID' ? { failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'INSTALLATION_INVALID' } : { failure: 'REVIEW_PACKAGING_FAILED', cause: 'STALE_VERIFICATION' };
+      return KIT_FAULTS.has(code) ? { failure: 'RESEARCH_KIT_UNAVAILABLE', cause: code } : { failure: 'REVIEW_PACKAGING_FAILED', cause: 'STALE_VERIFICATION' };
     }
     try {
       const view = await readPackage(bytes);

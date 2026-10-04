@@ -47,12 +47,15 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `chore`.
 
 ## Open items
 - <recorded findings, assumptions, decisions required>
+
+## Run ledger
+<path to RUN.md>; run was <fresh / resumed at "<checkpoint>">
 ```
 
 ## Final report to the user
 
 ```
-Summary:          <one or two sentences>
+Summary:          <one or two sentences>; run <fresh / resumed at "<checkpoint>">
 Changes:          <one line per commit or unit, with role and model used>
 Verification:     <commands, counts, repetitions, mutations, baseline comparison,
                   research gate result>
@@ -60,5 +63,16 @@ Not verified:     <item> - to be confirmed by <environment or check>
 Defects fixed:    <list>
 Open items:       <recorded findings, known unknowns, assumptions, decisions needed,
                   kit findings>
+Run ledger:       <path to RUN.md>, status <COMPLETE / BLOCKED (reason)>
 Next step:        <recommendation>
+```
+
+Every sub-agent report, whatever the role, ends with the status-words block from
+`careful-execution.md` section 4:
+
+```
+Verified:      [tests and commands run, with results]
+Untested:      [what was not or could not be run, and how to run it]
+Mistakes:      [mistake reports, or "none found"]
+Open risks:    [assumptions made, edge cases left, follow-ups]
 ```

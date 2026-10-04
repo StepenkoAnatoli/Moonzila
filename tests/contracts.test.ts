@@ -45,7 +45,7 @@ describe('public renderer contracts', () => {
       'session.create', 'session.list', 'session.read', 'session.delete', 'session.branch', 'session.policy.update', 'run.start', 'run.cancel', 'run.events',
       'approval.decide', 'approval.list', 'approval.read', 'profile.list', 'profile.save', 'profile.test', 'profile.delete',
       'model.list', 'model.enable', 'model.cancel', 'model.import', 'model.remove', 'model.storage.change',
-      'research.collector.read', 'research.collector.save', 'research.list', 'research.start', 'research.read', 'research.cancel', 'research.review.start', 'research.purge',
+      'research.collector.read', 'research.collector.save', 'research.list', 'research.start', 'research.read', 'research.cancel', 'research.review.start', 'research.document.read', 'research.purge',
       'skill.list', 'mission.create', 'mission.read', 'mission.pause', 'mission.resume', 'mission.cancel',
       'settings.read', 'settings.save', 'diagnostics.export', 'external.open', 'changes.list', 'changes.read', 'changes.undo',
       'storage.read', 'recovery.list', 'recovery.inspect', 'recovery.acknowledge',

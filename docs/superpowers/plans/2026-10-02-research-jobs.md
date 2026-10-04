@@ -204,7 +204,7 @@ October 3, integration of the five build teams (import, collector items, small f
     - **B7 `research.purge`** (retained ZIPs only);
     - docs;
     - Phase 4 review (spec, breaker, mutation, invariant) on the integrated branch.
-- **Resume here (October 4 handoff; the conversation was cleared).** The rest of Task 5 ships in phases. Each phase is one draft PR from `main-axuse`; when the user marks it "Ready for review", the lead merges it once Windows CI is green on that head (user instruction, October 4), then `main-axuse` is fast-forwarded to `main`, and the lead asks before starting the next phase.
+- **Resume here (October 4 handoff; the conversation was cleared).** The run ledger `docs/orchestration/2026-10-03-task5-research-review/RUN.md` is now the first thing to read; its Next action line says what to do. The rest of Task 5 ships in phases. Each phase is one draft PR from `main-axuse`; when the user marks it "Ready for review", the lead merges it once Windows CI is green on that head (user instruction, October 4), then `main-axuse` is fast-forwarded to `main`, and the lead asks before starting the next phase.
   - Skills, every phase:
     - `lead-orchestrator`, with each sub-agent on the model most likely to succeed at its role;
     - `careful-coding` in the lead's own work and in every brief;
@@ -288,7 +288,38 @@ October 3, integration of the five build teams (import, collector items, small f
       - Settings: OpenAI's most capable reasoning model, at its highest reasoning effort. The user checks the current model list.
       - It is read-only, with no keys or tokens. Its findings are triaged like any reviewer's, and every S1 is reproduced before it is fixed.
       - The second use is Phase 5's gap-audit, as a second opinion.
-  - **Phase 4:** B4 renderer review UI and B8 research enable dialog.
+  - **Phase 4: the review UI, reader and research switch, integrated October 4, in review as draft PR #36.**
+    - Commits on `main-axuse` (cherry-picked from the unit branches):
+      - frozen contracts `7bc04e6` (`research.document.read`, the `DOCUMENT_*` codes) and `c5fcd54` (internal controls `policy.guard`, `session.project`);
+      - B4b card label `f8972f7`, fix `58bafd9`; lead wiring of `runMode` `792e68e`;
+      - B4 panel `6019045`; B8e policy guard `805b97d` (engine), `5e5e35e` (main route);
+      - B11 reader `1465f12`; B8 switch `62a3738`, with B4's fixes `fb96e40`, `f64bf4a`, `d4c44d6` and the lead's `onProjectChange` wiring `06448f1`;
+      - P4-10 fix `8a98676`, `5e8eb63`; B12 e2e journey `9bd469f`, `e5d5385`, `b06bef8`;
+      - B11 fixes `622c57d` (P4-14), `a111b29` (P4-16), `cd2f077` (P4-18).
+    - Built:
+      - `src/main/research-document.ts` (`readResearchDocument`): the brief and evidence reader, validated in each call, redacted before the cut;
+      - `src/main/policy-route.ts` (`createPolicyRoute`): one per-project lock for `project.policy.update` and `run.start`; a research-only change refused `RUN_ACTIVE` before anything is stopped, re-checked by the engine;
+      - `src/renderer/ResearchPanel.tsx`: Start review with a model picker, Open review, Cancel review, the live readiness check (`ApprovedCheck`), the reader (`DocumentReader`) and the research switch (`ResearchSwitch`); `src/renderer/ChangesPanel.tsx`: the "Research workspace" card label;
+      - e2e journey 4 in `e2e/research-journeys.spec.ts`: allow research, collect, read the collected brief (Windows only).
+    - Review: a unit reviewer per unit (Opus), then the integration spec review and invariant audit (Opus). The invariant audit found every Phase 4 invariant holding at `ab97386`. Every disposition, and every place the build differs from the design, is in the UI spec's [Phase 4 as built](../../specification/research-review-ui.md#phase-4-as-built-october-4).
+    - **Fixed**, each red first or with the guard removal turning its test red:
+      - P4-1 (S2): a stale approval card relabelled from the current run's mode;
+      - P4-6 (S2): Open review switched conversation during an active run, and a late conversation list could overwrite a project switch;
+      - P4-10 (S2): the route read sessions through `session.read`, capped at 10000 runs; it now uses `policy.guard` and `session.project`;
+      - P4-14 (S2): a validator that could not finish read as "Unverified"; it is now the internal `VALIDATOR_UNAVAILABLE`, shown as `RESEARCH_KIT_UNAVAILABLE`;
+      - P4-7, P4-8, P4-16, P4-18 (S3): missing tests for Start review's conditions and the digest in the reply key, a FIFO hanging the read, and the untested post-read containment check;
+      - P4-20 (owed e2e journey): written (B12); its first real run is Windows CI.
+    - **Accepted:** P4-4 (the builder's decisions: the history label, the reader in more statuses, review wording for shared codes); P4-15 (the reader written before its tests, accepted with 15 guard removals as the red proof).
+    - **Recorded, not changed:**
+      - P4-2, P4-3: the original route read every session (removed by P4-10); a replayed `project.policy.update` can be answered `RUN_ACTIVE` when a Build run started since (no side effect);
+      - P4-11: `RUN_ACTIVE` is answered before the engine's `REQUEST_CONFLICT`;
+      - P4-21: the panel recognises `RUN_ACTIVE` by its public message, pinned to `src/main/bridge.ts` by a test;
+      - for Phase 5: P4-12 (a replayed `run.start` re-admits a capability for a finished run, pre-existing), P4-17 (any non-ENOENT I/O error reads as `DOCUMENT_UNSAFE`), P4-19 (`project-member` authorization is declarative, pre-existing), P4-24 ("Cannot check" for a verifying package whose brief is refused);
+      - P4-27: a run created outside `run.start` must take the project lock; recorded under missions below.
+    - **Moved out:** P4-23 (S2, pre-existing): main's folder guards walk from the filesystem root, so a linked parent of the data folder disables reviews. Its own task below, [Linked parent above the data folder](#linked-parent-above-the-data-folder-found-october-4-as-p4-23-its-own-task).
+    - **Process:** P4-5 and P4-13 were permission refusals (a cherry-pick and a reset), neither worked around; P4-22 was a wrong fact in the B12 brief, corrected by widening its scope.
+    - **Rejected:** P4-9 (Start review after a trust change: the engine refuses `TRUST_CHANGED`).
+    - Only Windows CI can verify: e2e journey 4, real junctions in the reader tests, and the reader's open flags on Windows.
   - **Phase 5:** B7 `research.purge`, docs, the four-role review, then `gap-audit` and `break-test`.
   - **Watch:** draft PR #31 (another session) renames the product to Moonzila and specifies Operate mode. Check whether it has merged before each phase starts; merge `main` into `main-axuse` (never rebase) when it moves.
 - **Open after the October 3 integration (owner: the next research cycle unless the user decides otherwise).**
@@ -329,6 +360,29 @@ User direction, October 2: the mission should decide from the machine's resource
 - **Concurrency is measured, never guessed.** Today's receipts measure one model at a time. Running N agents on one loaded model needs receipts measured at each concurrency level (each extra agent adds its own context memory). Without such a receipt the planner runs agents sequentially, or offers a short monitored probe first.
 - **The planner fills the approval card; the user still approves** (agent count, model per agent, parallel or sequential, local or cloud, step budget). Resources are rechecked under the lease before each agent starts; if they drop, the mission falls back to sequential instead of failing.
 - On the current PC (about 1.15 GiB free, below the reserve) the planner must report that no local agent fits and offer only policy-permitted cloud agents.
+- **Project lock (P4-27, recorded October 4).** Main's policy route (`src/main/policy-route.ts`) locks only `run.start`. Any mission path that creates a non-research run outside `run.start` must take the same per-project lock; otherwise a research-only policy change can pass main's check, so main aborts and holds before the engine's re-check refuses it.
+
+## Linked parent above the data folder (found October 4 as P4-23; its own task)
+
+Main's folder guards refuse every storage path when any folder above Moonzila's data folder is a link (Fedora Atomic's `/home -> var/home`, a `C:\Users` junction): `privateDirectory` (`src/models/artifact-files.ts:16`, used by the model store, downloads, archives, the runtime, managed Ollama and the Research Kit store), `containedFolder` (`src/main/review-workspace.ts`) and the reader's walk all lstat from the filesystem root. The engine's `containedReviewWorkspace` checks only below the data folder and compares realpaths, which is what both specs say. Pre-existing since before Task 5; taken out of Phase 4 because the fix changes a security guard used across the app. To do: anchor each guard explicitly (models, downloads, runtime, research-kit storage), lstat only below the anchor, keep the realpath equality check, record the rule as a decision, and test both directions. Red tests: `docs/orchestration/2026-10-03-task5-research-review/reports/p4-23-red-tests.patch`.
+
+## Self-unblocking with research (user request, October 4; its own task after Task 5)
+
+User request, October 4: when a Moonzila run is blocked, it first tries to resolve the blocker itself. If it cannot, it uses the research tool to find out how, applies the findings to the project, and pushes a pull request without merging. The user chose to make it its own task after Task 5 (not part of Phases 4-5). Its order relative to project memory and missions is decided when it is brainstormed.
+
+What is fixed by the request:
+- Moonzila tries its own fix first; research only when that fails.
+- The fix rests on the research findings: the reviewed, research-ready package from Task 5, never an unreviewed corpus.
+- The result is a pull request on the project's repository. **Moonzila never merges**; the user does.
+- **If research with the kit cannot solve it, Moonzila notifies the user** (user, October 4): it says what blocked the run, what it tried, and what the research did and did not establish, and opens no pull request.
+
+Open for the brainstorm (not decided):
+- How the notification reaches the user (the run's conversation, a notice in the workbench, both) and what counts as "cannot solve": a research job that ends `not_ready`, findings that do not cover the blocker, or a fix that still fails.
+- What "blocked" means: a failed command or test, an unknown API, a refused tool, a budget ended; and how many self-attempts come first.
+- Disclosure: a collection's topic and queries are readable in the user's collector repository on GitHub. A blocker description built from project code could leak private content. The research query must be public-technical only and shown to the user before dispatch, as the research switch requires today.
+- Approval: whether starting the research, and opening the PR, each need the user's confirmation (missions already require approval for multi-agent work).
+- GitHub write access: Moonzila has a collector token and read-only GitHub URL reading; pushing a branch and opening a PR needs a write path, a token scope and its own vault handling.
+- Budgets: the research page budget and the run's step budget across both attempts.
 
 ## Project memory (proposed for after this phase, before missions)
 

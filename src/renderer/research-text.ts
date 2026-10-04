@@ -31,12 +31,43 @@ export const RESEARCH_FAILURES: Readonly<Record<string, { title: string; action:
   RUN_IDENTITY_MISMATCH: { title: 'Run did not match the request', action: 'The GitHub run Moonzila found is not the one it started (a different run, repository, workflow, branch or trigger), so its corpus was not used. Check the Actions page of the collector repository, then start a new collection.' },
   PACKAGE_IDENTITY_MISMATCH: { title: 'Corpus from another run', action: 'The downloaded corpus belongs to a different run, attempt or commit than the one this collection started, so it was not used. Start a new collection.' },
   COLLECTION_EXPIRED: { title: 'Collection timed out', action: 'The collection did not finish within 7 days of starting, so Moonzila stopped following it. Start a new collection.' },
+  // Review failures (`not_ready`), one per REVIEW_FAILURES member in src/engine/review-contract.ts; a test keeps them in step.
+  REVIEW_INTERRUPTED: { title: 'Review interrupted', action: 'Moonzila stopped while the review was running. Start the review again; it continues with the edits you already approved.' },
+  REVIEW_STOPPED: { title: 'Review stopped', action: 'The review run was stopped before the Research Kit gate checked it. Start the review again when you are ready; it continues with the edits you already approved.' },
+  REVIEW_RUN_FAILED: { title: 'Review run failed', action: 'The review run ended with an error; its conversation shows where. Check the model profile, then start the review again.' },
+  REVIEW_BUDGET_EXCEEDED: { title: 'Review out of steps or time', action: 'The review run used its step or time budget before it finished. Start the review again to continue, or raise the run limits in settings first.' },
+  REVIEW_CONTEXT_LIMIT: { title: 'Review out of context', action: 'The review no longer fits the model\'s context window. Start the review again with a model profile that has a larger context window.' },
+  REVIEW_WORKSPACE_CHANGED: { title: 'Review workspace changed', action: 'The review workspace no longer matched the edits recorded for it, so it was not packaged. Start the review again; Moonzila rebuilds the workspace from the collected corpus.' },
+  REVIEW_PACKAGE_BLOCKED: { title: 'Review package blocked', action: 'The Research Kit refused to package the reviewed workspace. Open the review conversation to see what it holds, then start the review again.' },
+  REVIEW_PACKAGE_INVALID: { title: 'Review package invalid', action: 'The package built from the review failed the Research Kit\'s validation and was not used. Start the review again; if this repeats, check the Research Kit installation.' },
+  REVIEW_PACKAGE_MISMATCH: { title: 'Review package did not match', action: 'The package built from the review did not match the reviewed workspace, so it was not used. Start the review again.' },
+  REVIEW_PACKAGING_FAILED: { title: 'Review packaging failed', action: 'Moonzila could not package the reviewed workspace. Start the review again; if this repeats, restart Moonzila first.' },
+  REVIEW_GATE_FAILED: { title: 'Research Kit gate failed', action: 'The Research Kit gate found open questions or unsupported claims in the reviewed workspace. Start the review again and resolve them in the review conversation.' },
+  REVIEW_INCOMPLETE: { title: 'Review incomplete', action: 'The Research Kit found review steps not yet done, such as findings not rewritten or the brief\'s open sections. Start the review again and finish them in the review conversation.' },
+};
+
+/**
+ * Codes a review shares with collection, worded for a review: a `not_ready` job failed in review, never in collection
+ * (review spec "Vocabulary": the admission codes and RESEARCH_KIT_UNAVAILABLE).
+ */
+export const REVIEW_PHASE_FAILURES: Readonly<Record<string, { title: string; action: string }>> = {
+  PROJECT_NOT_FOUND: { title: 'Project no longer available', action: 'This project is no longer registered, so the review stopped. Open its folder again, then start the review again.' },
+  PROJECT_UNTRUSTED: { title: 'Project not trusted', action: 'The project was not trusted while the review ran, so it stopped. Trust the project again, then start the review again.' },
+  RESEARCH_NOT_ALLOWED: { title: 'Research turned off', action: 'Research was turned off for this project, so the review stopped. Allow research for this project, then start the review again.' },
+  POLICY_CHANGED: { title: 'Research setting changed', action: 'The project\'s research setting changed while the review ran, so Moonzila stopped it. Start the review again under the current setting.' },
+  TRUST_CHANGED: { title: 'Project trust changed', action: 'The project trust changed while the review ran, so Moonzila stopped it. Start the review again once the project is trusted.' },
+  RESEARCH_KIT_UNAVAILABLE: { title: 'Research Kit unavailable', action: 'The Research Kit is not installed or failed its integrity check, so the review could not be packaged. Install or repair the Research Kit, restart Moonzila, then start the review again.' },
 };
 
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
-/** An unlisted failure is still actionable; its code is shown only when it has the code shape. */
-export function failureText(code: string): { title: string; action: string } {
-  return RESEARCH_FAILURES[code] ?? { title: 'Collection failed', action: `The collection stopped${CODE.test(code) ? ` (${code})` : ''}. Check Collector settings, then start a new collection.` };
+/**
+ * An unlisted failure is still actionable; its code is shown only when it has the code shape. A `not_ready` job failed
+ * in review, so codes shared with collection get their review wording there.
+ */
+export function failureText(code: string, status?: Research['status']): { title: string; action: string } {
+  const shown = CODE.test(code) ? ` (${code})` : '';
+  if (status === 'not_ready') return REVIEW_PHASE_FAILURES[code] ?? RESEARCH_FAILURES[code] ?? { title: 'Review not ready', action: `The review stopped${shown}. Start the review again.` };
+  return RESEARCH_FAILURES[code] ?? { title: 'Collection failed', action: `The collection stopped${shown}. Check Collector settings, then start a new collection.` };
 }
 
 export const RESEARCH_STATUS: Readonly<Record<Research['status'], string>> = {
@@ -46,7 +77,8 @@ export const RESEARCH_STATUS: Readonly<Record<Research['status'], string>> = {
   collected: 'Collected',
   reviewing: 'Under review',
   packaging: 'Packaging the review',
-  approved: 'Ready: approved by the Research Kit gate',
+  // Never "Ready" from the status alone: the panel shows readiness only from a live check (research-review-ui spec 1).
+  approved: 'Approved review, not checked here',
   not_ready: 'Not ready: the Research Kit gate did not approve the review',
   failed: 'Failed',
   cancelling: 'Stopping',
@@ -54,6 +86,11 @@ export const RESEARCH_STATUS: Readonly<Record<Research['status'], string>> = {
 };
 export const ACTIVE_RESEARCH: readonly Research['status'][] = ['queued', 'dispatching', 'collecting', 'reviewing', 'packaging', 'cancelling'];
 export const CANCELLABLE_RESEARCH: readonly Research['status'][] = ['queued', 'dispatching', 'collecting', 'reviewing', 'packaging'];
+/** Statuses the engine admits `research.review.start` from (review spec, "Start"). */
+export const REVIEWABLE_RESEARCH: readonly Research['status'][] = ['collected', 'not_ready'];
+/** Statuses main's `research.document.read` has a source for (research-review-ui spec 3). */
+export const READABLE_RESEARCH: readonly Research['status'][] = ['collected', 'reviewing', 'packaging', 'approved', 'not_ready'];
+export const cancelLabel = (status: Research['status']) => status === 'reviewing' || status === 'packaging' ? 'Cancel review' : 'Cancel collection';
 
 // Bidirectional overrides and isolates can make untrusted text read differently from what it contains.
 const BIDI = /[‪-‮⁦-⁩]/g;
@@ -62,3 +99,24 @@ export function displayText(value: string, max: number): string {
   const text = value.replace(BIDI, '');
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
+
+const GITHUB_KEEPS_RUNNING = 'A collection already started on GitHub keeps running there; Moonzila stops following it and does not use its result.';
+/** The research switch's confirmations (research-review-ui spec 4). `private-connected` is never offered. */
+export const SWITCH_TEXT = {
+  on: { open: 'Allow research', title: 'Allow public research?', confirm: 'Allow public research', points: [
+    'The topic, search queries and URLs of a collection are sent to your collector repository on GitHub and are readable there.',
+    'Only public web pages are fetched.',
+    'No project files are sent.',
+    GITHUB_KEEPS_RUNNING,
+  ] },
+  off: { open: 'Turn research off', title: 'Turn research off?', confirm: 'Turn research off', points: [
+    'Waiting and running research jobs, collections and reviews, stop.',
+    GITHUB_KEEPS_RUNNING,
+  ] },
+} as const;
+/**
+ * The bridge's public RUN_ACTIVE message (src/main/bridge.ts; the preload passes only the message, not the code). A test
+ * keeps the two equal. Main refuses a research-only change while another task runs; the panel says so and never retries.
+ */
+export const RUN_ACTIVE_MESSAGE = 'Wait for the active run to finish, or stop it first.';
+export const switchRefusal = (text: string) => text === RUN_ACTIVE_MESSAGE ? 'Finish or stop the running task first.' : text;

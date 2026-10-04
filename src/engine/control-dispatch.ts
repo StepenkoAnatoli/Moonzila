@@ -43,6 +43,9 @@ export function createControl(store: Store, app: Application): (command: Control
       case 'research.recover': return app.research.recover(command.owned, command.reviewFolders ?? []);
       case 'research.review.context': return app.research.reviewContext(command.researchId);
       case 'research.review.begin': return app.beginReview({ requestId: command.requestId, researchId: command.researchId, profileId: command.profileId, workspace: command.workspace });
+      // Main's policy route (research-review-ui spec section 4): one read each, never a run list or history.
+      case 'policy.guard': return store.policyGuard(command.projectId) ?? null;
+      case 'session.project': { const session = store.getSession(command.sessionId); return session ? { projectId: session.projectId } : null; }
       case 'vault.references': return store.listSecretRefs();
       case 'request.lookup': return store.lookupAcceptedRequest({ method: command.requestMethod, clientRequestId: command.requestId, canonicalInputHash: command.inputHash }) ?? null;
       case 'shutdown': await app.shutdown(); store.close(); return { closed: true };

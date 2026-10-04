@@ -10,9 +10,14 @@
 const ENV = 'MOONALIZA_E2E_COLLECTOR_NETWORK';
 const KEYS = ['HTTPS_PROXY', 'NODE_EXTRA_CA_CERTS'];
 
+/** Opt-in, off by default: main's run read for the verified import is routed to the loopback fake instead of refused. */
+const ROUTE = 'routeRunRead';
+
 /** Refuses anything but a loopback proxy and an absolute CA file, so the harness can never route a child elsewhere. */
 function checkNetwork(network) {
-  if (!network || typeof network !== 'object' || Object.keys(network).sort().join() !== KEYS.join()) throw new Error('E2E_NETWORK_INVALID');
+  if (!network || typeof network !== 'object') throw new Error('E2E_NETWORK_INVALID');
+  const keys = Object.keys(network).filter(key => key !== ROUTE).sort();
+  if (keys.join() !== KEYS.join() || (ROUTE in network && network[ROUTE] !== true)) throw new Error('E2E_NETWORK_INVALID');
   if (!/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(network.HTTPS_PROXY)) throw new Error('E2E_NETWORK_INVALID');
   if (typeof network.NODE_EXTRA_CA_CERTS !== 'string' || !require('node:path').isAbsolute(network.NODE_EXTRA_CA_CERTS) || /[\0=]/.test(network.NODE_EXTRA_CA_CERTS)) throw new Error('E2E_NETWORK_INVALID');
   return network;
@@ -25,6 +30,61 @@ function checkNetwork(network) {
  * Each collector launch's end is recorded in `outcomes`: the helper's exit code and, from the kit's last stdout line,
  * only `status`, `clientRef` and `state`, so a journey can tell which classification the supervisor received.
  */
+/** Only a GET of one run, `https://api.github.com/repos/<owner>/<repo>/actions/runs/<id>`, given as a string or URL. */
+function isRunRead(resource, init) {
+  if (typeof resource !== 'string' && !(resource instanceof URL)) return false;
+  let url; try { url = new URL(String(resource)); } catch { return false; }
+  const method = String(init?.method ?? 'GET').toUpperCase();
+  return method === 'GET' && init?.body == null && url.protocol === 'https:' && url.host === 'api.github.com' && !url.search && !url.username && !url.password
+    && /^\/repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d{1,20}$/.test(url.pathname);
+}
+
+/**
+ * Sends the run read through the loopback CONNECT proxy (the same tunnel the collector child uses) and trusts only the
+ * test CA for it: `ca` replaces the root store, so no real certificate verifies. The proxy tunnels only to the fake, so
+ * the request and its exact bearer header never leave the machine. The answer is bounded and returned as a Response.
+ */
+function routeRunRead(network, url, init) {
+  const http = require('node:http'); const https = require('node:https'); const tls = require('node:tls'); const { readFileSync } = require('node:fs');
+  const proxy = new URL(network.HTTPS_PROXY); const signal = init?.signal;
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(signal.reason); return; }
+    const sockets = [];
+    let settled = false;
+    const finish = (error, response) => {
+      if (settled) return; settled = true;
+      signal?.removeEventListener('abort', aborted);
+      for (const socket of sockets) socket.destroy();
+      if (error) reject(error); else resolve(response);
+    };
+    const aborted = () => finish(signal.reason);
+    signal?.addEventListener('abort', aborted, { once: true });
+    const connect = http.request({ host: proxy.hostname, port: Number(proxy.port), method: 'CONNECT', path: 'api.github.com:443', headers: { host: 'api.github.com:443' } });
+    connect.once('error', error => finish(error));
+    connect.once('connect', (answer, socket) => {
+      sockets.push(socket);
+      if (answer.statusCode !== 200) { finish(new TypeError('E2E_ROUTE_REFUSED')); return; }
+      const secure = tls.connect({ socket, servername: 'api.github.com', ca: readFileSync(network.NODE_EXTRA_CA_CERTS) });
+      sockets.push(secure);
+      const headers = {}; new globalThis.Headers(init?.headers).forEach((value, name) => { headers[name] = value; });
+      const request = https.request({ host: 'api.github.com', port: 443, defaultPort: 443, path: url.pathname, method: 'GET', headers, createConnection: () => secure });
+      request.once('error', error => finish(error));
+      request.once('response', incoming => {
+        const chunks = []; let length = 0;
+        incoming.on('data', chunk => { length += chunk.length; if (length > 1024 * 1024) finish(new TypeError('E2E_ROUTE_TOO_LARGE')); else chunks.push(chunk); });
+        incoming.once('error', error => finish(error));
+        incoming.once('end', () => {
+          const answerHeaders = new globalThis.Headers();
+          for (const [name, value] of Object.entries(incoming.headers)) if (typeof value === 'string') answerHeaders.set(name, value);
+          finish(null, new globalThis.Response(Buffer.concat(chunks), { status: incoming.statusCode, headers: answerHeaders }));
+        });
+      });
+      request.end();
+    });
+    connect.end();
+  });
+}
+
 function install(childProcess, input, scope = globalThis) {
   const network = checkNetwork(input);
   const state = { collectors: 0, rewritten: 0, outcomes: [], refusedFetches: [] };
@@ -36,6 +96,7 @@ function install(childProcess, input, scope = globalThis) {
       let host = null;
       try { host = new URL(typeof resource === 'string' ? resource : resource instanceof URL ? resource.href : resource.url).hostname; } catch { /* refused below */ }
       if (host === '127.0.0.1' || host === 'localhost' || host === '[::1]') return originalFetch.call(this, resource, ...rest);
+      if (network[ROUTE] === true && isRunRead(resource, rest[0])) return routeRunRead(network, new URL(String(resource)), rest[0]);
       state.refusedFetches.push(host ?? 'unparseable');
       return Promise.reject(new TypeError('E2E_NETWORK_REFUSED'));
     };
