@@ -338,8 +338,10 @@ What is fixed by the request:
 - Moonzila tries its own fix first; research only when that fails.
 - The fix rests on the research findings: the reviewed, research-ready package from Task 5, never an unreviewed corpus.
 - The result is a pull request on the project's repository. **Moonzila never merges**; the user does.
+- **If research with the kit cannot solve it, Moonzila notifies the user** (user, October 4): it says what blocked the run, what it tried, and what the research did and did not establish, and opens no pull request.
 
 Open for the brainstorm (not decided):
+- How the notification reaches the user (the run's conversation, a notice in the workbench, both) and what counts as "cannot solve": a research job that ends `not_ready`, findings that do not cover the blocker, or a fix that still fails.
 - What "blocked" means: a failed command or test, an unknown API, a refused tool, a budget ended; and how many self-attempts come first.
 - Disclosure: a collection's topic and queries are readable in the user's collector repository on GitHub. A blocker description built from project code could leak private content. The research query must be public-technical only and shown to the user before dispatch, as the research switch requires today.
 - Approval: whether starting the research, and opening the PR, each need the user's confirmation (missions already require approval for multi-agent work).
