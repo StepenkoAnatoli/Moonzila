@@ -1,0 +1,8 @@
+# Phase 4 final re-review of P4-37, P4-38, P4-41 (saved by the lead; structured sections kept)
+
+- Reviewed `6a1fe4c` in `/home/user/task5-handoff/wt/p4-rereview2`; tree clean.
+- P4-41 HOLDS: `seen.sha256 = hash(bytes)` hashes the buffer `capturedFile` returned; `inspectOwned` writes that buffer and re-hashes it before the child, so verdict and hash cover the same bytes. Public `validate()` unchanged apart from the one assignment. Original reproduction now VALIDATOR_UNAVAILABLE. Red alone: hash check removed; code-only rule; hash not recorded; verdicts not stale.
+- Finding P4-43 (proposed S4): a race where the retained file changes after the capture and before the store's intact check (reproduced through the `admit` hook): other bytes plus a sparse 129 MiB file -> STORAGE_LIMIT -> VALIDATOR_UNAVAILABLE; replaced by a hard link -> INSTALLATION_INVALID passed through before the hash check (pre-existing). The bytes the validator read were intact; nothing untrusted is accepted. A file tampered before the call is always STALE.
+- P4-37/P4-38 HOLD: 11 guards mutated, each named test red alone (jobKey revision, approved in READABLE, switch revision-wins, reviewed-unverified branch, request-id both handlers, shown-key, verified flag, route project filter, any-other-status refusal, walk directory check). The equivalent mutant is truly unkillable (`mergeResearch` accepts only higher revisions; the reader stays mounted per job id); keeping it is justified.
+- Robustness HOLDS: stores and kits closed; calls awaited on their own counts; junctions inside mkdtemp, absolute.
+- Verified: the mutations, the race reproduction, the four files 112/112. Untested: Windows, `readRetained` fault branches, Playwright.

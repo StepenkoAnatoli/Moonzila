@@ -10,7 +10,7 @@
 | Skill           | lead-orchestrator 2.0 (`.claude/skills/lead-orchestrator/references/changelog.md`) |
 
 ## Next action
-Wait for the B11, B4, B4b and B8e builder reports (worktrees `/home/user/task5-handoff/wt/p4-*`, branches `build/p4-*`). On each: save it verbatim to `reports/p4-<unit>-builder-1.md`, check it against the acceptance rules, re-run its key test, cherry-pick onto `main-axuse`, launch its unit reviewer (`briefs/p4-<unit>-reviewer.md`). When B4 lands, continue the B4 builder with `briefs/p4-b8-builder.md`. Then the integration review (`briefs/p4-integration-reviewers.md`), docs (`briefs/p4-docs.md`), offer the GPT reviewer, gate, draft PR.
+Phase 5: freeze the contracts from `docs/specification/research-purge.md` (main-owned `research.purge`, `research.retained` control, `PURGE_NOT_ALLOWED`), write the B7 builder, P4-40 and reviewer briefs, launch, then the four-role review, gap-audit and break-test over Task 5.
 
 ## Task statement
 - Goal: plan Task 5, the research review (`docs/specification/research-review.md`). A collected corpus is reviewed by a model run with user-approved edits, packaged by the kit's own `create`, and is research-ready only when the validator confirms the new package's exact bytes.
@@ -52,7 +52,7 @@ All four re-gated with Research-Kit `d00be07` on 2026-10-04: preflight 0, handof
 | 1 | schema v4 (B0), Windows guard tests (B6), Moonzila spelling | #33 | MERGED |
 | 2 | Electron fuses (B5), test-only package for packaged e2e (D2) | #34 | MERGED |
 | 3 | engine review run (B2), main supervisor (B3), e2e scenarios (B10), fix round | #35 | MERGED (710e083) |
-| 4 | review UI (B4, B4b), reader (B11), research switch (B8, B8e), e2e journey (B12) | [#36](https://github.com/StepenkoAnatoli/Moonzila/pull/36) (draft, opened early for Windows CI) | DESIGN APPROVED 2026-10-04; spec revised after cross-vendor review, second review folded in; BUILDING |
+| 4 | review UI (B4, B4b), reader (B11), research switch (B8, B8e), e2e journey (B12) | [#36](https://github.com/StepenkoAnatoli/Moonzila/pull/36) | MERGED (`cb343a2`) by the lead under the merge checks |
 | 5 | `research.purge` (B7), docs, four-role review, gap-audit, break-test | - | PLANNED (offer the GPT reviewer for gap-audit) |
 
 ## Units (Phase 3)
@@ -129,6 +129,7 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P4-40 | kit 0.9.5 doctor | process | `doctor` in MoonAliza reports 1 blocker: secret scan `private-key-block` on `tests/fixtures/github-tls/leaf.key`, a documented loopback test fixture (README: protects nothing outside the fake; CA key discarded); kit 0.9.5 has no exemption and is feature-frozen | Phase 5: generate the test CA and leaf at test time instead of committing a key, proven on Windows CI. Not a Phase 4 merge check: Phase 4 collects nothing |
 | P4-41 | re-review | S2 (proposed S3; raised: the P4-14 defect class) | `verifyRetained` classifies by error code, not by whether the bytes still hash to the digest: an intact package with a crashing or truncating validator reads "Unverified"; a tampered file that times the validator out reads as a machine fault | FIXED (branch `654cf98`): `retainedFailure` classifies by the single capture's hash; lead re-ran 32/32, removing the hash check turns the main-kit test red. `readRetained`'s machine-fault branches untested (recorded) |
 | P4-42 | re-review | S4 | a missing project takes and releases both holds before PROJECT_NOT_FOUND; `research-open-review-guards.test.tsx:78` asserts a non-call right after a click | RECORDED; no runs are affected |
+| P4-43 | final re-review | S4 | a tamper race between the capture and the store's intact check can read as VALIDATOR_UNAVAILABLE (STORAGE_LIMIT) or INSTALLATION_INVALID; the validator's bytes were intact, nothing untrusted accepted | RECORDED for Phase 5's break-test |
 | P4-5 | B4 builder | process | the permission system refused the builder's `git cherry-pick f8972f7` ("Logging/Audit Tampering") | NOT worked around by the builder; the lead wired `runMode` itself at integration, as planned before the refusal; reported to the user |
 | P4-6 | B4 unit review | S2 (proposed S3; raised: it bypasses the conversation list's own guard) | `App.tsx:180` `openConversation`: no alive/project check on the `session.list` reply (a project switch can be overwritten by the old list), and no `busy`/`scopeLoading`/`activeRun` guard, so Open review can switch conversation during an active run | FIXED (branch `05689af`): list applied only for the same project; Open review disabled with the reason while busy, loading or a run is active; red-first; lead re-ran 82/82 |
 | P4-7 | B4 unit review | S3 | no test for Start review hidden when untrusted or research off (`ResearchPanel.tsx:122`) | FIXED (branch `b467f7b`): tests added, each red with its condition removed |
@@ -180,3 +181,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: re-review of the fixes at `49da553`: P4-10, P4-29 and the test fixes HOLD; P4-41 (S2) to the B11 builder; P4-42 recorded. T1 launched for P4-37/P4-38.
 - 2026-10-04: P4-41 integrated (32/32; hash check removed -> red).
 - 2026-10-04: T1 integrated (touched files 107/107; `jobKey` revision removed -> 2 red). All Phase 4 findings now fixed or dispositioned. Final full gate (twice) and Windows CI on the final head next.
+- 2026-10-04: final re-review of P4-37/38/41: HOLD; P4-43 (S4) recorded. Every merge check held on `6a1fe4c` (Windows push and PR runs green, two full Linux gates equal to the baseline, mergeable, no threads, every S1/S2 fixed and re-reviewed). PR #36 merged by the lead as `cb343a2`. main-axuse rebased its two unpushed docs commits onto main. Check-in cancelled, PR unsubscribed.
