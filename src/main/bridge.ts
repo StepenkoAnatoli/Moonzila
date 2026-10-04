@@ -23,6 +23,7 @@ const publicMessages: Record<string, string> = {
   DOCUMENT_UNVERIFIED: 'This document no longer matches what was collected, so it is not shown. Start a new collection.',
   DOCUMENT_UNSAFE: 'The review workspace changed in a way Moonzila will not read through. Start the review again.',
   DOCUMENT_REDACTION_UNAVAILABLE: 'Moonzila cannot check this document for saved keys right now, so it is not shown. Try again after restarting Moonzila.',
+  PURGE_NOT_ALLOWED: 'Only finished research can have its stored corpus deleted: approved, failed or cancelled.',
   DOCUMENT_TOO_LARGE: 'This document is too large to show safely.',
   REVIEW_WORKSPACE_TOO_LARGE: 'This corpus has too many files to review safely on this computer.',
   STALE_VERIFICATION: 'The collected corpus could not be verified again. Start a new collection.',

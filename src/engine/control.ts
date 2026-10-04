@@ -1,6 +1,6 @@
 import { GitHubInputSchema, GitHubErrorCodeSchema } from '../shared/github';
 import { z } from 'zod';
-import { RequestSchema, ProfileSchema, ProjectPolicySchema, EventSchema, IdSchema, ResearchSchema, ToolCallSchema, ToolSpecSchema } from '../shared';
+import { RequestSchema, ProfileSchema, ProjectPolicySchema, EventSchema, IdSchema, ResearchSchema, ResearchStatusSchema, ToolCallSchema, ToolSpecSchema } from '../shared';
 import { ResearchCodeSchema, ResearchTargetSchema, ResearchVerificationSchema, WorkflowRunIdSchema } from './research';
 import { CommandInputSchema, CommandPlanSchema, CommandResultSchema } from '../shared/commands';
 import { TokenUsageSchema } from '../shared/context';
@@ -32,6 +32,8 @@ export const ControlSchema = z.discriminatedUnion('method', [
   // Main's policy route (research-review-ui spec section 4) reads only what its guard needs, never a session's history.
   z.object({ method: z.literal('policy.guard'), projectId: id }).strict(),
   z.object({ method: z.literal('session.project'), sessionId: id }).strict(),
+  // Main's purge (docs/specification/research-purge.md) reads every job's retained digests in one read.
+  z.object({ method: z.literal('research.retained') }).strict(),
   z.object({ method: z.literal('shutdown') }).strict(),
 ]);
 export type Control = z.infer<typeof ControlSchema>;
@@ -41,6 +43,8 @@ export type Control = z.infer<typeof ControlSchema>;
  */
 export const PolicyGuardResultSchema = z.object({ revision: ProjectPolicySchema.shape.revision, inference: ProjectPolicySchema.shape.inference, nonResearchRunActive: z.boolean() }).strict().nullable();
 /** `session.project`: the session's project (null for a folder-free chat); the whole result is null when there is no such session. */
+/** `research.retained`: every job's id, project, status, collected digest (from the collected verification) and reviewed package digest. */
+export const ResearchRetainedResultSchema = z.object({ jobs: z.array(z.object({ id, projectId: id, status: ResearchStatusSchema, collected: z.string().regex(/^[0-9a-f]{64}$/).nullable(), reviewed: z.string().regex(/^[0-9a-f]{64}$/).nullable() }).strict()).max(100000) }).strict();
 export const SessionProjectResultSchema = z.object({ projectId: id.nullable() }).strict().nullable();
 /** The bare code an engine failure crosses the process boundary as. Main's collector maps errors the same way. */
 export function engineFailureCode(error: unknown): string {

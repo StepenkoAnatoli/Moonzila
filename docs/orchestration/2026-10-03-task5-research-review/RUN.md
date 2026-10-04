@@ -9,6 +9,20 @@
 | Working branch  | `main-axuse`, from `main` @ `6d51dbb` (Phase 2 merge) |
 | Skill           | lead-orchestrator 2.0 (`.claude/skills/lead-orchestrator/references/changelog.md`) |
 
+## Auto-build stages (Phase 5)
+| Stage | Status | Artifact | Checkpoint |
+|-------|--------|----------|------------|
+| 0 Orient | DONE | RUN.md; baseline 74 (Linux); kit 0.9.5, doctor 1 blocker = P4-40 (fixed by this phase) | 2026-10-04 18:00 |
+| 1 Research | SKIPPED (the Windows delete behaviour is in the 2026-10-03-windows-file-semantics corpus; certificate generation uses installed pkijs 3.4.1) | - | 18:00 |
+| 2 Requirements | DONE | REQUIREMENTS-P5.md | 18:00 |
+| 3 Design | DONE | docs/specification/research-purge.md | 18:00 |
+| 4 Mandate | DONE (standing mandate) | MANDATE-P5.md | 18:00 |
+| 5 Build | ACTIVE | - | - |
+| 6 Harden | PENDING | - | - |
+| 7 Audit | PENDING | - | - |
+| 8 Deliver and merge | PENDING | - | - |
+| 9 Validate and report | PENDING | - | - |
+
 ## Next action
 Phase 5: freeze the contracts from `docs/specification/research-purge.md` (main-owned `research.purge`, `research.retained` control, `PURGE_NOT_ALLOWED`), write the B7 builder, P4-40 and reviewer briefs, launch, then the four-role review, gap-audit and break-test over Task 5.
 

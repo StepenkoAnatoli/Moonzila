@@ -58,6 +58,8 @@ export const ResearchCollectorSaveParams = ResearchCollectorSchema.omit({ revisi
   expectedRevision: RevisionSchema.optional(), token: z.string().min(1).max(16384).regex(/^[\x21-\x7E]+$/).optional(), clearToken: z.boolean().optional(),
 }).strict().refine(value => !(value.token && value.clearToken), 'Cannot save and clear a token together');
 const researchResult = z.object({ research: ResearchSchema }).strict();
+/** `removed`: ZIPs deleted; `keptShared`: the job's digests kept because another job references them; `keptBusy`: unreferenced ZIPs kept because a job was active. */
+export const ResearchPurgeResultSchema = z.object({ removed: z.number().int().min(0).max(100000), keptShared: z.number().int().min(0).max(100000), keptBusy: z.boolean() }).strict();
 const ResearchDocumentReadParams = z.object({ researchId: IdSchema, document: z.enum(['brief', 'evidence']) }).strict();
 /** At most 262,144 UTF-8 bytes, cut at a character boundary after redaction; `verified` only for a package validated in this call. */
 export const ResearchDocumentSchema = z.object({
@@ -132,7 +134,8 @@ export const MethodSpec = {
   'research.review.start': method(z.object({ researchId: IdSchema, profileId: IdSchema }).strict(), researchResult, 'main', 'write', 'trusted-project'),
   // Redacted text of a job's brief or evidence table; the renderer never names a path (spec research-review-ui.md, section 3).
   'research.document.read': method(ResearchDocumentReadParams, ResearchDocumentSchema, 'main', 'read', 'project-member'),
-  'research.purge': method(ResearchId, Deleted, 'engine', 'write', 'project-member'),
+  // Deletes a finished job's retained package bytes; the job and its journal stay (docs/specification/research-purge.md).
+  'research.purge': method(ResearchId, ResearchPurgeResultSchema, 'main', 'write', 'project-member'),
   'skill.list': method(ProjectId, z.object({ skills: z.array(SkillSchema).max(1000) }).strict(), 'engine', 'read', 'project-member'),
   'mission.create': method(z.object({ projectId: IdSchema, profileId: IdSchema, title: z.string().trim().min(1).max(256), instructions: z.string().trim().min(1).max(65536), modelStepBudget: z.number().int().min(1).max(1000).default(120), maxAgents: z.number().int().min(1).max(5).default(5) }).strict(), missionResult, 'engine', 'write', 'trusted-project'),
   'mission.read': method(MissionId, missionResult, 'engine', 'read', 'mission-owner'),
