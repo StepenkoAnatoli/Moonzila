@@ -33,13 +33,16 @@ The working methods this project uses live in `.claude/skills/`, copied verbatim
 Next cycle (user instruction, 2026-10-03): run it with `lead-orchestrator` and `careful-coding`. Research the external facts through Research-Kit before designing anything, with 20 pages in total.
 
 ## Orchestrator facts
-_Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`)._
+_Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environments and filesystem guard re-checked 2026-10-04 at `4627d8d`._
 
 ### Environments
-| Purpose     | Platform and versions |
-|-------------|-----------------------|
-| Development | Linux container, Node 24.21.0 (`/versions/node/v24.21.0/bin`), vitest 5, Electron 44.4.5 (not runnable for e2e here: root needs `--no-sandbox`, and `safeStorage` stalls without a keyring) |
-| Acceptance  | GitHub Actions `Windows verification` (`.github/workflows/windows.yml`, job `desktop`, `windows-latest`): native helper build, typecheck, lint, `npm test`, build, runtime check, `npm run test:e2e` |
+| Purpose           | Platform and versions |
+|-------------------|-----------------------|
+| Development       | Linux container, Node 24.21.0 (`/versions/node/v24.21.0/bin`), vitest 5, Electron 44.4.5 (not runnable for e2e here: root needs `--no-sandbox`, and `safeStorage` stalls without a keyring) |
+| Acceptance        | GitHub Actions `Windows verification` (`.github/workflows/windows.yml`, job `desktop`, `windows-latest`): native helper build, typecheck, lint, `npm test`, build, runtime check, `npm run test:e2e` |
+| Not runnable here | The whole Windows leg: the native helper (`MoonAlizaHost.exe`) and every test that needs it, Windows-only tests (`tests/guarded-fs-semantics.test.ts`), e2e journeys and the packaged-build steps. Hold a merge until that run is green on the exact head. |
+
+- Filesystem guard: none as a helper. The convention in every test that makes a link (`paths`, `file-read`, `command-broker`, `guarded-process`, `model-store`) is `symlink(target, alias, 'junction')` with both ends inside the test's own `mkdtemp` root, asserted by the product's refusal or by `realpath`/`lstat`, never by the link's stored text. No test makes a file symlink, and none targets a fixed host path.
 
 ### Quality gate (run in order)
 | Step           | Command |
