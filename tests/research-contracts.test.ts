@@ -40,11 +40,26 @@ describe('research contracts', () => {
     expect(start.safeParse({ ...validStart, preferDomains: ['github.com/actions/upload-artifact'] }).success).toBe(true);
   });
 
+  test('research.document.read names a document, never a path, and caps its text at 262,144 UTF-8 bytes', () => {
+    const { params, result, owner } = MethodSpec['research.document.read'];
+    expect(owner).toBe('main');
+    expect(params.safeParse({ researchId: 'r1', document: 'evidence' }).success).toBe(true);
+    expect(params.safeParse({ researchId: 'r1', document: 'research/BRIEF.md' }).success).toBe(false);
+    expect(params.safeParse({ researchId: 'r1', document: 'brief', path: 'x' }).success).toBe(false);
+    const ok = { text: 'é'.repeat(131_072), truncated: true, source: 'reviewed', verified: true };
+    expect(result.safeParse(ok).success).toBe(true);
+    // One more two-byte character crosses the cap, though the string has fewer than 262,144 code units.
+    expect(result.safeParse({ ...ok, text: ok.text + 'é' }).success).toBe(false);
+    expect(result.safeParse({ ...ok, source: 'workspace', verified: true }).success).toBe(false);
+    expect(result.safeParse({ ...ok, source: 'workspace', verified: false }).success).toBe(true);
+  });
+
   test('no research payload accepts a credential field', () => {
     // Start from a valid input for each method, so a rejection can only come from the added field.
     const valid: Record<string, object> = {
       'research.collector.read': {}, 'research.list': { projectId: 'p1' }, 'research.start': validStart, 'research.read': { researchId: 'r1' },
       'research.cancel': { researchId: 'r1' }, 'research.review.start': { researchId: 'r1', profileId: 'pr1' }, 'research.purge': { researchId: 'r1' },
+      'research.document.read': { researchId: 'r1', document: 'brief' },
     };
     const names = Object.keys(MethodSpec).filter(key => key.startsWith('research.') && key !== 'research.collector.save');
     expect(names.sort()).toEqual(Object.keys(valid).sort());
