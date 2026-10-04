@@ -171,11 +171,61 @@ test('the Windows workflow runs the fuse check on the packaged exe, under the sa
   const config = await readFile(resolve('electron-builder.yml'), 'utf8');
   const productName = /^productName:\s*(\S+)\s*$/m.exec(config)?.[1];
   const output = /^directories:\s*\r?\n(?: {2}.*\r?\n)*? {2}output:\s*(\S+)\s*$/m.exec(config)?.[1];
-  expect([productName, output]).toEqual(['MoonAliza', 'release']);
+  expect([productName, output]).toEqual(['Moonzila', 'release']);
   const packaging = steps.findIndex(step => step.run === 'npm run package:win');
   const fuseCheck = steps.findIndex(step => step.run?.startsWith('node scripts/check-fuses.mjs'));
   expect(packaging).toBeGreaterThanOrEqual(0);
   expect(fuseCheck).toBe(packaging + 1);
   expect(steps[fuseCheck]?.if).toBe(steps[packaging]?.if);
   expect(steps[fuseCheck]?.run).toBe(`node scripts/check-fuses.mjs ${output}/win-unpacked/${productName}.exe`);
+});
+
+// Decision 13 (docs/specification/decisions.md): the packaged e2e runs on a test-only package that differs from the
+// shipped one only in EnableNodeCliInspectArguments, because Playwright's launcher needs --inspect
+// (docs/research/2026-10-04-playwright-fused-electron, U-1).
+test('--test-package accepts only a package whose inspect fuse alone is on', async () => {
+  const inspectOn = flip(HARDENED, 3);
+  const { stdout, stderr } = await check('--test-package', await executable(inspectOn));
+  expect(stderr).toBe('');
+  expect(JSON.parse(stdout).fuses).toMatchObject({ EnableNodeCliInspectArguments: 'enabled', RunAsNode: 'disabled', OnlyLoadAppFromAsar: 'enabled' });
+  // The shipped package is not a test package, and a test package that loosens any other fuse is refused.
+  const shipped = await check('--test-package', await executable(HARDENED)).then(() => undefined, (error: { code: number; stderr: string }) => error);
+  expect(shipped).toMatchObject({ code: 1 }); expect(shipped?.stderr).toContain('EnableNodeCliInspectArguments expected enabled, found disabled');
+  for (const { name, index } of REQUIRED.filter(fuse => fuse.index !== 3)) {
+    const failure = await check('--test-package', await executable(flip(inspectOn, index))).then(() => undefined, (error: { code: number; stderr: string }) => error);
+    expect(failure, name).toMatchObject({ code: 1 }); expect(failure?.stderr, name).toContain(`FUSES_MISMATCH`); expect(failure?.stderr, name).toContain(name);
+  }
+  // Without the flag the same test package fails as a shipped one.
+  await expect(check(await executable(inspectOn))).rejects.toMatchObject({ code: 1 });
+});
+
+test('an unknown option is refused rather than read as the executable path', async () => {
+  // A lone misspelled option would otherwise be read as the path and fail as an unreadable file, hiding the typo.
+  const failure = await check('--test-pakage').then(() => undefined, (error: { code: number; stderr: string }) => error);
+  expect(failure).toMatchObject({ code: 2 }); expect(failure?.stderr).toContain('USAGE');
+  const extra = await check(await executable(HARDENED), 'second').then(() => undefined, (error: { code: number; stderr: string }) => error);
+  expect(extra).toMatchObject({ code: 2 }); expect(extra?.stderr).toContain('USAGE');
+});
+
+test('the test-only package overrides the inspect fuse and nothing else, in its own output folder', async () => {
+  const scripts = JSON.parse(await readFile(resolve('package.json'), 'utf8')).scripts as Record<string, string>;
+  const script = scripts['package:win-e2e'] ?? '';
+  expect(script).toMatch(/^electron-builder --win --dir /);
+  expect(script.match(/-c\.electronFuses\.[\w.]+=\S+/g)).toEqual(['-c.electronFuses.enableNodeCliInspectArguments=true']);
+  expect(script).toContain('-c.directories.output=release-e2e');
+  expect(await readFile(resolve('.gitignore'), 'utf8')).toMatch(/^release-e2e\/$/m);
+});
+
+test('the Windows workflow checks the test-only package and runs the packaged e2e on it, never on the shipped exe', async () => {
+  const text = await readFile(resolve('.github/workflows/windows.yml'), 'utf8');
+  const steps = workflowSteps(text);
+  const productName = /^productName:\s*(\S+)\s*$/m.exec(await readFile(resolve('electron-builder.yml'), 'utf8'))?.[1];
+  const shippedCheck = steps.findIndex(step => step.run === `node scripts/check-fuses.mjs release/win-unpacked/${productName}.exe`);
+  const build = steps.findIndex(step => step.run === 'npm run package:win-e2e');
+  const testCheck = steps.findIndex(step => step.run === `node scripts/check-fuses.mjs --test-package release-e2e/win-unpacked/${productName}.exe`);
+  const e2e = steps.findIndex((step, index) => index > testCheck && step.run === 'npm run test:e2e');
+  expect([shippedCheck >= 0, build, testCheck, e2e]).toEqual([true, shippedCheck + 1, shippedCheck + 2, shippedCheck + 3]);
+  for (const index of [build, testCheck, e2e]) expect(steps[index]?.if).toBe(steps[shippedCheck]?.if);
+  const executables = [...text.matchAll(/MOONALIZA_TEST_EXECUTABLE:\s*'([^']*)'/g)].map(match => match[1]);
+  expect(executables).toEqual([`\${{ github.workspace }}/release-e2e/win-unpacked/${productName}.exe`]);
 });

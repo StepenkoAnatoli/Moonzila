@@ -367,6 +367,7 @@ Corrections from the code maps and the research, which this design must honour:
 Added to this cycle (user, October 3): packaged builds turn off Electron's code-loading fuses, per the [Electron fuses](../research/2026-10-03-electron-fuses/research/BRIEF.md) corpus.
 - Fuses set: `runAsNode`, `enableNodeOptionsEnvironmentVariable` and `enableNodeCliInspectArguments` off; `onlyLoadAppFromAsar` and `enableEmbeddedAsarIntegrityValidation` on. Source: E-01 to E-05.
 - A packaged-build check reads them back.
+- The packaged e2e runs on a test-only package that differs only in `enableNodeCliInspectArguments`, because Playwright's launcher needs `--inspect` (user decision D2, October 4; [decisions](decisions.md) 13, [Playwright and fused Electron](../research/2026-10-04-playwright-fused-electron/research/BRIEF.md)).
 - With these fuses, the e2e `-r` preload cannot be active in a packaged build: `-r` is not an Electron switch (E-03), and `NODE_OPTIONS` is refused (E-01, E-02).
 
 ## Schema v4 as built (unit B0, October 3)

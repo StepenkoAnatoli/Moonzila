@@ -1,8 +1,11 @@
 import fuses from '@electron/fuses';
 
-// Reads the fuse wire of a packaged MoonAliza executable and exits 1 unless the five
+// Reads the fuse wire of a packaged Moonzila executable and exits 1 unless the five
 // code-loading fuses are as electron-builder.yml `electronFuses` sets them. Read-only.
-// Usage: node scripts/check-fuses.mjs [path-to-exe]  (default release/win-unpacked/MoonAliza.exe)
+// Usage: node scripts/check-fuses.mjs [--test-package] [path-to-exe]  (default release/win-unpacked/Moonzila.exe)
+// --test-package checks the test-only package (`npm run package:win-e2e`): identical except that
+// EnableNodeCliInspectArguments is on, because Playwright's launcher needs --inspect (decision 13;
+// docs/research/2026-10-04-playwright-fused-electron, U-1). Any other difference fails it.
 // Evidence: docs/research/2026-10-03-electron-fuses/research/BRIEF.md ("Decision").
 const { getCurrentFuseWire, FuseV1Options, FuseVersion } = fuses;
 // Fuse byte values from Electron's documented wire format ('0', '1', 'r'); @electron/fuses does not export them.
@@ -16,7 +19,15 @@ const REQUIRED = [
 ];
 const label = state => state === FuseState.DISABLE ? 'disabled' : state === FuseState.ENABLE ? 'enabled' : state === FuseState.REMOVED ? 'removed' : state === undefined ? 'missing' : `unknown byte ${state}`;
 
-const path = process.argv[2] ?? 'release/win-unpacked/MoonAliza.exe';
+const args = process.argv.slice(2);
+const testPackage = args[0] === '--test-package';
+if (testPackage) args.shift();
+if (args.length > 1 || args[0]?.startsWith('--')) {
+  process.stderr.write('USAGE: node scripts/check-fuses.mjs [--test-package] [path-to-exe]\n');
+  process.exit(2);
+}
+if (testPackage) REQUIRED.find(([name]) => name === 'EnableNodeCliInspectArguments')[1] = FuseState.ENABLE;
+const path = args[0] ?? 'release/win-unpacked/Moonzila.exe';
 let wire;
 try {
   wire = await getCurrentFuseWire(path);

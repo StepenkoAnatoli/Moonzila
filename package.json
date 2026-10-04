@@ -21,6 +21,7 @@
     "test:e2e": "playwright test",
     "native:build": "node scripts/build-native.mjs",
     "package:win": "npm run native:build && npm run build && electron-builder --win nsis",
+    "package:win-e2e": "electron-builder --win --dir -c.directories.output=release-e2e -c.electronFuses.enableNodeCliInspectArguments=true",
     "package:release": "npm run native:build && npm run build && electron-builder --win nsis -c.forceCodeSigning=true"
   },
   "dependencies": {
