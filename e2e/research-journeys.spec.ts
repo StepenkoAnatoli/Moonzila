@@ -180,4 +180,51 @@ test.describe('research journeys', () => {
       for (const file of await files(data)) expect((await readFile(file)).includes(TOKEN), file).toBe(false);
     } finally { await app?.close(); await fake.close(); await rm(root, { recursive: true, force: true }); }
   });
+
+  // research-review-ui spec 4 and 5 (P4-20), the switch half: research is turned on through the panel's confirmation,
+  // never through the bridge. Reading a collected job's brief is not here: a job reaches `collected` only after the
+  // verified import reads the run from api.github.com, which the harness refuses (journey 2's import park), and the
+  // fake's run answer lacks the fields the importer verifies. Trusting the project needs the native helper too.
+  test('Allow research through the confirmation turns public research on and leaves inference unchanged', async () => {
+    test.setTimeout(120_000);
+    const { root, project, fake, launch } = await journey('journey-switch');
+    let app: ElectronApplication | undefined;
+    type Listed = { projects: { id: string; policy: { revision: number; inference: string; research: string } }[] };
+    try {
+      app = await launch(); const page = await app.firstWindow();
+      await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, project);
+      await page.getByRole('button', { name: 'Open project' }).click();
+      await page.getByRole('button', { name: 'Trust and open' }).click();
+      await expect(page.getByRole('heading', { name: 'Research project' })).toBeVisible();
+      const details = page.getByRole('complementary', { name: 'Project details' });
+      await expect(details.getByText('Research is off for this project.')).toBeVisible();
+      const before = (await invoke<Listed>(page, 'project.list')).projects[0]!;
+      expect(before.policy.research).toBe('off');
+
+      await details.getByRole('button', { name: 'Open research' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Research' });
+      await dialog.getByRole('button', { name: 'Allow research', exact: true }).click();
+      const confirm = dialog.getByRole('group', { name: 'Allow public research?' });
+      await expect(confirm.getByText('The topic, search queries and URLs of a collection are sent to your collector repository on GitHub and are readable there.')).toBeVisible();
+      await expect(confirm.getByText('Only public web pages are fetched.')).toBeVisible();
+      await expect(confirm.getByText('No project files are sent.')).toBeVisible();
+      await expect(confirm.getByText('A collection already started on GitHub keeps running there; Moonzila stops following it and does not use its result.')).toBeVisible();
+      await confirm.getByRole('button', { name: 'Allow public research' }).click();
+
+      await expect(dialog.getByText('Research is on for this project: public web pages only.')).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Turn research off' })).toBeVisible();
+      await expect(dialog.getByRole('form', { name: 'Start research' })).toBeVisible();
+      await expect(confirm).toHaveCount(0);
+      // The details pane is read after the modal closes, so no locator depends on how aria-modal hides the page behind it.
+      await dialog.getByRole('button', { name: 'Close dialog' }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(details.getByText('Collections send only the fields you review to your GitHub collector.')).toBeVisible();
+      await expect(details.getByText('Research is off for this project.')).toHaveCount(0);
+      const after = (await invoke<Listed>(page, 'project.list')).projects[0]!;
+      expect(after.policy).toEqual({ revision: before.policy.revision + 1, inference: before.policy.inference, research: 'public-technical' });
+      // Turning research on reaches nothing outside the machine: no collector was launched and nothing reached the fake.
+      expect(fake.seen).toEqual([]);
+      expect(await network(app)).toEqual({ collectors: 0, rewritten: 0, outcomes: [], refusedFetches: [] });
+    } finally { await app?.close(); await fake.close(); await rm(root, { recursive: true, force: true }); }
+  });
 });
