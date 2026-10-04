@@ -505,6 +505,57 @@ describe('review operations stay out of Build changes and recovery', () => {
     await expect(h.begin('fresh')).resolves.toMatchObject({ research: { status: 'reviewing' } });
   });
 
+  test('research.review.context lists unknown review writes beside completed ones, each with its status, in creation order (Phase 3 F1)', async () => {
+    const h = harness();
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), () => call('w2', 'write_file', { path: 'research/DISCOVERY.md', content: 'intent\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const { run } = await h.begin();
+    const first = await h.decide(run.id);
+    await until(async () => (await h.pending(run.id)).length === 1 && (await h.pending(run.id))[0]!.id !== first.id, 'the second approval');
+    const second = await h.decide(run.id);
+    await finished(h, run.id);
+    // A crash between the second rename and its completed record leaves it unknown; its edit is on disk.
+    h.store.updateOperation(second.id, { status: 'unknown' });
+    const context = ResearchReviewContextSchema.parse(h.app.research.reviewContext('j1'));
+    expect(context.changes).toEqual([
+      { operationId: first.id, runId: run.id, path: 'research/MAP.md', beforeHash: sha(FILES['research/MAP.md']!), afterHash: sha('classified\n'), status: 'completed' },
+      { operationId: second.id, runId: run.id, path: 'research/DISCOVERY.md', beforeHash: sha(FILES['research/DISCOVERY.md']!), afterHash: sha('intent\n'), status: 'unknown' },
+    ]);
+    // A failed write is never listed: it changed nothing the expected tree depends on.
+    h.store.updateOperation(second.id, { status: 'failed' });
+    expect(h.app.research.reviewContext('j1').changes.map(change => change.operationId)).toEqual([first.id]);
+  });
+
+  test('a fresh begin closes earlier unknown review writes as superseded, so they never poison a later continued begin (Phase 3 F1)', async () => {
+    const h = harness();
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'one\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const first = await h.begin();
+    const stale = await h.decide(first.run.id); await finished(h, first.run.id);
+    h.store.updateOperation(stale.id, { status: 'unknown' });
+    // Main rebuilds the workspace fresh: none of the earlier edits are kept.
+    writeFileSync(join(h.workspace, 'research/MAP.md'), FILES['research/MAP.md']!);
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'two\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const second = await h.begin('fresh', 'fresh-begin');
+    expect(h.store.getOperation(stale.id)).toMatchObject({ status: 'failed', result: { superseded: { by: 'fresh', requestId: 'fresh-begin', reviewRunId: second.run.id } } });
+    const kept = await h.decide(second.run.id); await finished(h, second.run.id);
+    // research/MAP.md now holds neither the stale write's before nor its after bytes; observing it would be a conflict.
+    const retry = await h.begin('continued');
+    expect(retry.research.status).toBe('reviewing');
+    expect(h.app.research.reviewContext('j1').changes).toEqual([expect.objectContaining({ operationId: kept.id, status: 'completed' })]);
+    expect(h.store.getOperation(stale.id)!.status).toBe('failed');
+  });
+
+  test('a refused fresh begin closes nothing', async () => {
+    const h = harness();
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'one\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const first = await h.begin();
+    const stale = await h.decide(first.run.id); await finished(h, first.run.id);
+    h.store.updateOperation(stale.id, { status: 'unknown' });
+    h.store.deleteProfile('profile1');
+    await expect(h.begin('fresh')).rejects.toThrow('PROFILE_NOT_FOUND');
+    expect(h.store.getOperation(stale.id)).toMatchObject({ status: 'unknown' });
+    expect(h.store.getOperation(stale.id)!.result).not.toHaveProperty('superseded');
+  });
+
   test('review writes are left out of changes.list, recovery.list and requiresReview, and are never undone', async () => {
     const h = harness();
     h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), () => { throw new Error('PROVIDER_ERROR'); });

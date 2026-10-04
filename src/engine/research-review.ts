@@ -130,6 +130,7 @@ export interface ReviewBeginDeps {
   /** Observe an unknown review write against its workspace (FileJournal.observeRecovery). */
   observe(operationId: string): Promise<'applied' | 'not-applied' | 'conflict'>;
 }
+const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const TERMINAL_RUN = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const REVIEWABLE = new Set(['collected', 'not_ready']);
 
@@ -137,7 +138,8 @@ const REVIEWABLE = new Set(['collected', 'not_ready']);
  * Control `research.review.begin`, sent by main once the workspace exists (spec "Starting a review", step 4). A
  * `continued` workspace first reconciles the unknown writes of the job's earlier review runs against the workspace:
  * `applied` becomes completed, `not-applied` failed, and a `conflict` refuses with REVIEW_WORKSPACE_CHANGED (main then
- * rebuilds `fresh`, which keeps none of those edits, so nothing is reconciled for it). Then one acceptance transaction.
+ * rebuilds `fresh`, which keeps none of those edits, so nothing is reconciled for it). Then one acceptance transaction;
+ * a `fresh` one also closes every still-unknown write of the job's earlier review runs (failed, superseded).
  */
 export async function beginReview(store: Store, command: ReviewBeginCommand, deps: ReviewBeginDeps): Promise<{ response: { research: ReturnType<typeof researchDto>; run: Run }; events: StoreEvent[]; replayed: boolean }> {
   const { requestId, ...input } = command;
@@ -151,7 +153,7 @@ export async function beginReview(store: Store, command: ReviewBeginCommand, dep
       .flatMap(run => store.listOperations(run.id)).filter(op => op.kind === 'write' && op.status === 'unknown');
     for (const op of unknown) {
       const observation = await deps.observe(op.id);
-      const result = { ...(op.result && typeof op.result === 'object' && !Array.isArray(op.result) ? op.result as Record<string, unknown> : {}), recovery: { observation, inspectedAt: new Date().toISOString() } };
+      const result = { ...record(op.result), recovery: { observation, inspectedAt: new Date().toISOString() } };
       if (observation === 'conflict') { store.updateOperation(op.id, { result }); throw new Error('REVIEW_WORKSPACE_CHANGED'); }
       store.updateOperation(op.id, { status: observation === 'applied' ? 'completed' : 'failed', result });
     }
@@ -169,8 +171,13 @@ export async function beginReview(store: Store, command: ReviewBeginCommand, dep
     assertConversationPolicy(session, project!, profile.locality);
     if (deps.isBusy(project!.id) || store.listSessions(project!.id).some(item => store.listRuns(item.id).some(run => !TERMINAL_RUN.has(run.status)))) throw new Error('RUN_ACTIVE');
     if (!existing) store.putSession(session);
+    // A fresh workspace keeps none of the earlier edits: an earlier run's still-unknown write is closed here, failed and
+    // recorded as superseded, so no later continued begin observes it against bytes it never wrote (Phase 3 F1).
+    const superseded = command.workspace === 'fresh' && existing ? store.listRuns(existing.id).filter(item => item.mode === 'research')
+      .flatMap(item => store.listOperations(item.id)).filter(op => op.kind === 'write' && op.status === 'unknown') : [];
     const run: Run = { id: randomUUID(), projectId: project!.id, sessionId: session.id, sessionPolicyRevision: session.policy.revision, mode: 'research', status: 'queued', profileId: profile.id, profileRevisionId: profile.revisionId, policyRevision: project!.policy.revision, trustRevision: project!.trustRevision, createdAt: now };
     store.putRun(run);
+    for (const op of superseded) store.updateOperation(op.id, { status: 'failed', result: { ...record(op.result), superseded: { by: 'fresh', requestId, reviewRunId: run.id, at: now } } });
     const message: Message = { id: randomUUID(), sessionId: session.id, runId: run.id, role: 'user', content: reviewInstruction(job.topic), createdAt: now };
     store.appendMessage(message);
     assertFreshReviewRun(store, job, run.id, session.id);
