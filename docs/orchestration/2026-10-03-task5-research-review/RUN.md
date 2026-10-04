@@ -71,7 +71,7 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 | B11 reader | `src/main/` reader, `index.ts` case, tests | BUILDING | - | Opus |
 | B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | REVIEWED, FIXES QUEUED after B8 (reports `p4-b4-builder-1.md`, `p4-b4-reviewer-1.md`) | `6019045` (branch `a8a5b42`); lead `runMode` wiring `792e68e` | Opus |
 | B4b card label | `ChangesPanel.tsx`, tests | REVIEWED, P4-1 FIXED (reports `p4-b4b-builder-1.md`, `-2.md`, `p4-b4b-reviewer-1.md`; App.tsx `runMode` wiring with B4) | `f8972f7`, fix `58bafd9` | Opus |
-| B8e policy guard | main route module, `index.ts`, engine re-check, tests | INTEGRATED, IN UNIT REVIEW (report `p4-b8e-builder-1.md`) | `805b97d`, `5e5e35e` (branch `581c19a`, `d85fbdd`) | Opus |
+| B8e policy guard | main route module, `index.ts`, engine re-check, tests | REVIEWED, FIX IN PROGRESS (reports `p4-b8e-builder-1.md`, `p4-b8e-reviewer-1.md`) | `805b97d`, `5e5e35e` (branch `581c19a`, `d85fbdd`) | Opus |
 | B8 switch | `ResearchPanel.tsx` switch section | BUILDING (B4 builder continued) | - | Opus |
 
 ## Reviews (Phase 3)
@@ -101,6 +101,9 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P4-7 | B4 unit review | S3 | no test for Start review hidden when untrusted or research off (`ResearchPanel.tsx:122`) | FIX QUEUED: add the tests, guard removal shown |
 | P4-8 | B4 unit review | S3 | the digest part of `jobKey` (`ResearchPanel.tsx:31`) is untested (the stale test also bumps the revision) | FIX QUEUED: a stale reply with only the digest changed |
 | P4-9 | B4 unit review | Rejected | Start review offered after a trust change | the engine refuses `TRUST_CHANGED`; the renderer cannot see `trustRevision` |
+| P4-10 | B8e unit review | S2 (proposed S3; raised: a regression of `run.start`) | the route learns a session's project and a project's active runs through the renderer's `session.read`, capped at 10000 runs: over the cap `run.start` and the research switch fail with INTERNAL_ERROR; one read per session, messages included, under the lock | FIX: lead adds internal engine controls `policy.guard {projectId}` and `session.project {sessionId}` (contract); the B8e builder implements them and moves the route onto them, red-first with the 10001-run case |
+| P4-11 | B8e unit review | S3 | main refuses `RUN_ACTIVE` before the engine's `REQUEST_CONFLICT` for a stale `expectedRevision` during a Build run | RECORDED: code differs only; nothing is stopped; the spec's "as built" says so |
+| P4-12 | B8e unit review | S3, pre-existing | a replayed `run.start` re-admits a capability for a run that already finished, never removed | RECORDED for Phase 5's gap-audit (present before Phase 4) |
 
 ## Kit findings
 
@@ -120,3 +123,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: P4-1 fixed and integrated; the lead re-ran the tests and the guard removal.
 - 2026-10-04: B4 and B8e accepted and integrated (lead re-ran their tests: 81/81 and 42/42; guard removals: Ready on any reply -> 2 red; main's check removed -> 2 red). Lead wired `runMode` in App.tsx (792e68e) after the B4 builder's cherry-pick was refused. B4 and B8e unit reviewers launched; B4 builder continued with B8.
 - 2026-10-04: B4 unit review: decisions confirmed; P4-6 (S2), P4-7, P4-8 queued to the B4 builder after B8; P4-9 rejected.
+- 2026-10-04: B8e unit review: lock coverage, read side effects and failure paths held; P4-10 (S2) fixed through a lead contract (two internal engine controls); P4-11, P4-12 recorded.

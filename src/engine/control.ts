@@ -1,6 +1,6 @@
 import { GitHubInputSchema, GitHubErrorCodeSchema } from '../shared/github';
 import { z } from 'zod';
-import { RequestSchema, ProfileSchema, EventSchema, IdSchema, ResearchSchema, ToolCallSchema, ToolSpecSchema } from '../shared';
+import { RequestSchema, ProfileSchema, ProjectPolicySchema, EventSchema, IdSchema, ResearchSchema, ToolCallSchema, ToolSpecSchema } from '../shared';
 import { ResearchCodeSchema, ResearchTargetSchema, ResearchVerificationSchema, WorkflowRunIdSchema } from './research';
 import { CommandInputSchema, CommandPlanSchema, CommandResultSchema } from '../shared/commands';
 import { TokenUsageSchema } from '../shared/context';
@@ -29,9 +29,16 @@ export const ControlSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('research.recover'), owned: z.array(id).max(1000), reviewFolders: z.array(id).max(1000).optional() }).strict(),
   ResearchReviewBeginSchema,
   ResearchReviewContextRequestSchema,
+  // Main's policy route (research-review-ui spec section 4) reads only what its guard needs, never a session's history.
+  z.object({ method: z.literal('policy.guard'), projectId: id }).strict(),
+  z.object({ method: z.literal('session.project'), sessionId: id }).strict(),
   z.object({ method: z.literal('shutdown') }).strict(),
 ]);
 export type Control = z.infer<typeof ControlSchema>;
+/** `policy.guard`: the project's stored inference level, and whether a run not in `research` mode is unfinished; null for no project. */
+export const PolicyGuardResultSchema = z.object({ inference: ProjectPolicySchema.shape.inference, nonResearchRunActive: z.boolean() }).strict().nullable();
+/** `session.project`: the session's project (null for a folder-free chat); the whole result is null when there is no such session. */
+export const SessionProjectResultSchema = z.object({ projectId: id.nullable() }).strict().nullable();
 /** The bare code an engine failure crosses the process boundary as. Main's collector maps errors the same way. */
 export function engineFailureCode(error: unknown): string {
   const raw = error instanceof Error ? error.message : '';
