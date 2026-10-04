@@ -3,6 +3,9 @@ import { EventEmitter } from 'node:events';
 import { createRequire, syncBuiltinESMExports } from 'node:module';
 import { PassThrough } from 'node:stream';
 import { spawnOwned } from '../src/tools/commands';
+import { packageImporter } from '../src/main/research-import';
+import type { PackageHandoff } from '../src/main/collector';
+import { FAKE_HEAD_SHA, FAKE_REPOSITORY, TEST_CA, startFakeGitHub } from './fixtures/fake-github';
 
 // The e2e harness (e2e/fixtures/collector-network.cjs) rewrites the native helper's input. These run it against the
 // real spawnOwned encoder, with the helper replaced by a recording child, so a change to the protocol turns this red
@@ -112,4 +115,65 @@ test('main\'s own fetch reaches only loopback: a GitHub request is refused befor
   expect(local.status).toBe(200); expect(sent).toEqual(['http://127.0.0.1:43123/repos/o/r/actions/runs/1']);
   expect(harness.refusedFetches).toEqual(['api.github.com', 'example.com', 'unparseable']);
   expect(JSON.stringify(harness)).not.toContain('github_pat');
+});
+
+// The opt-in run-read route (docs/specification/research-journeys.md): the journey that ends `collected` needs the
+// verified import's GitHub run read answered, and only by the loopback fake, through its proxy, trusting only the test CA.
+const RUN_URL = `https://api.github.com/repos/${FAKE_REPOSITORY}/actions/runs/1`;
+const ROUTE_TOKEN = 'github_pat_route-only-0123456789abcdef';
+type Fetch = (resource: string | URL, init?: RequestInit) => Promise<Response>;
+async function routed(routeRunRead: unknown) {
+  const fake = await startFakeGitHub(ROUTE_TOKEN);
+  const sent: string[] = [];
+  const scope: { fetch: Fetch } = { fetch: async resource => { sent.push(String(resource)); return new Response('{}'); } };
+  const harness = install({ spawn: original }, { HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: TEST_CA, ...(routeRunRead === undefined ? {} : { routeRunRead }) }, scope);
+  return { fake, sent, scope, harness };
+}
+const auth = { Authorization: `Bearer ${ROUTE_TOKEN}`, Accept: 'application/vnd.github+json' };
+
+test('with the opt-in, main\'s run read is answered by the loopback fake through its proxy, with every field the importer verifies', async () => {
+  const { fake, sent, scope, harness } = await routed(true);
+  try {
+    const response = await scope.fetch(RUN_URL, { method: 'GET', headers: auth });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ id: 1, run_attempt: 1, head_sha: FAKE_HEAD_SHA, head_branch: 'main', path: '.github/workflows/collect.yml', event: 'workflow_dispatch', status: 'completed', repository: { full_name: FAKE_REPOSITORY } });
+    expect(fake.connects).toEqual(['api.github.com:443']);
+    expect(fake.seen).toEqual([expect.objectContaining({ host: 'api.github.com', method: 'GET', path: `/repos/${FAKE_REPOSITORY}/actions/runs/1`, authorization: 'exact' })]);
+    expect(sent).toEqual([]); expect(harness.refusedFetches).toEqual([]);
+  } finally { await fake.close(); }
+});
+
+test('without the opt-in the run read is still refused, and the opt-in routes nothing but a GET of one run', async () => {
+  const off = await routed(undefined);
+  try {
+    await expect(off.scope.fetch(RUN_URL, { headers: auth })).rejects.toThrow('E2E_NETWORK_REFUSED');
+    expect(off.fake.seen).toEqual([]); expect(off.harness.refusedFetches).toEqual(['api.github.com']);
+  } finally { await off.fake.close(); }
+  const on = await routed(true);
+  try {
+    for (const [resource, init] of [[RUN_URL, { method: 'POST', headers: auth }], [`${RUN_URL}/artifacts`, { headers: auth }], [`${RUN_URL}?x=1`, { headers: auth }],
+      ['https://api.github.com:8443/repos/o/r/actions/runs/1', { headers: auth }], ['http://api.github.com/repos/o/r/actions/runs/1', { headers: auth }], ['https://example.com/repos/o/r/actions/runs/1', { headers: auth }]] as const) {
+      await expect(on.scope.fetch(resource, init), resource).rejects.toThrow('E2E_NETWORK_REFUSED');
+    }
+    expect(on.fake.seen).toEqual([]); expect(on.fake.connects).toEqual([]); expect(on.sent).toEqual([]);
+    expect(on.harness.refusedFetches).toHaveLength(6);
+  } finally { await on.fake.close(); }
+  for (const value of [false, 'yes', 1]) expect(() => install({ spawn: original }, { ...network, routeRunRead: value }), String(value)).toThrow('E2E_NETWORK_INVALID');
+});
+
+test('the verified import accepts the routed run read and binds the package to its commit, ref and attempt', async () => {
+  const { fake, scope } = await routed(true);
+  try {
+    const bindings: unknown[] = [];
+    const importer = packageImporter({
+      epoch: () => 'epoch', fetch: scope.fetch,
+      vault: { grant: () => 'grant', withSecret: async (_grant: string, _binding: unknown, operation: (secret: string) => unknown) => operation(ROUTE_TOKEN), revokeContext: () => {} } as never,
+      settings: { current: () => ({ revision: 1, repository: FAKE_REPOSITORY, workflow: 'collect.yml', ref: 'main', secretRef: 'secret-ref' }) },
+      // FAIL after the run checks: only a run read that passed every identity check reaches the validator.
+      kit: { validate: async (_file, binding) => { bindings.push(binding); return { status: 'FAIL' } as never; } },
+    });
+    const handoff = { researchId: 'r1', projectId: 'p1', expectedRevision: 3, projectRevision: 1, clientRef: 'mz-abc', target: { repository: FAKE_REPOSITORY, workflow: 'collect.yml', ref: 'main' }, workflowRunId: '1', file: '/spool/x.zip', kit: { status: 'PASS', state: 'REVIEW_REQUIRED' }, signal: new AbortController().signal } as PackageHandoff;
+    expect(await importer(handoff)).toEqual({ kind: 'rejected', failure: 'ARTIFACT_INVALID', cause: 'IMPORT_FAIL' });
+    expect(bindings).toEqual([expect.objectContaining({ repository: FAKE_REPOSITORY, ref: 'main', commit: FAKE_HEAD_SHA, workflow: 'collect.yml', workflowRunId: 1, runAttempt: 1 })]);
+  } finally { await fake.close(); }
 });

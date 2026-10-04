@@ -10,6 +10,8 @@ import type { AddressInfo, Socket } from 'node:net';
 export const FAKE_REPOSITORY = 'o/r';
 export const FAKE_RUN_ID = 1;
 export const FAKE_ARTIFACT_ID = 7;
+/** The run's commit: a journey's package is made with this as its commit, so the import's binding matches it. */
+export const FAKE_HEAD_SHA = 'a'.repeat(40);
 export const TEST_CA = resolve('tests/fixtures/github-tls/ca.pem');
 
 export interface FakeScenario {
@@ -69,7 +71,9 @@ export async function startFakeGitHub(token: string): Promise<FakeGitHub> {
       if (request.method === 'GET' && path === `${base}/runs/${FAKE_RUN_ID}`) {
         setTimeout(() => {
           if (scenario.runHttp) json(scenario.runHttp, { message: `HTTP ${scenario.runHttp}` });
-          else json(200, { id: FAKE_RUN_ID, status: scenario.runStatus ?? 'completed', conclusion: scenario.conclusion === undefined ? 'success' : scenario.conclusion, html_url: `https://github.com/${FAKE_REPOSITORY}/actions/runs/${FAKE_RUN_ID}` });
+          // The identity fields are what main's verified import checks (src/main/research-import.ts RunSchema); the kit's
+          // watch reads only status and conclusion.
+          else json(200, { id: FAKE_RUN_ID, run_attempt: 1, head_sha: FAKE_HEAD_SHA, head_branch: 'main', path: '.github/workflows/collect.yml', event: 'workflow_dispatch', repository: { full_name: FAKE_REPOSITORY }, status: scenario.runStatus ?? 'completed', conclusion: scenario.conclusion === undefined ? 'success' : scenario.conclusion, html_url: `https://github.com/${FAKE_REPOSITORY}/actions/runs/${FAKE_RUN_ID}` });
         }, scenario.holdRunMs ?? 0);
         return;
       }
