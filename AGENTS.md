@@ -48,7 +48,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 ### Quality gate (run in order)
 | Step           | Command |
 |----------------|---------|
-| Install        | `npm ci`, then `node scripts/prepare-research-kit.mjs` (pinned external kit into `.build/`) |
+| Install        | `npm ci`, `node node_modules/electron/install.js` (as README, HANDOFF and CI do), then `node scripts/prepare-research-kit.mjs` (pinned external kit into `.build/`). Without the Electron binary, importing `src/main/engine.ts` (`tests/research-review-e2e.test.ts`, `tests/research-review-main-engine.test.ts`) downloads it during the test run, or, offline with no `~/.cache/electron`, both files fail to load |
 | Typecheck      | `npm run typecheck` |
 | Lint           | `npm run lint` |
 | Build          | `npm run build` |
@@ -61,6 +61,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 - Linux (re-measured 2026-10-03 at `8c60521`): exactly 74 failing tests. `research-kit` "changed runtime and missing installation fail closed" now passes on Linux, because the missing helper maps to `INSTALLATION_INVALID`; on Windows it still tests the hash check. Earlier, on `e14fc2c`, there were 75 failing tests, all needing the Windows native helper (`WINDOWS_REQUIRED`) or results downstream of it, in `research-kit` (21), `managed-ollama` (11), `git` (10), `commands` (8), `guarded-process` (7), `owned-transport` (7), `command-broker` (6), `owned-connection` (3), `hardware` (1) and `scheduler` (1). Measured on `e14fc2c`; identical to the earlier list.
 - Windows CI: 0 failures (639 tests, 9 e2e journeys on `e14fc2c`).
 - Pass criterion: no failure outside the Linux set, none of the set skipped or hidden, and a green Windows run on the exact head.
+- A test file that fails to load reports no test, so a comparison of failing test names cannot see it: also compare the JSON report's `numTotalTests` and the files with no `assertionResults` (none at baseline; 10 failing files, all from the Linux set) against the baseline run.
 
 ### Sources of truth
 - Plans: `docs/superpowers/plans/2026-09-24-moonaliza.md` (product), `docs/superpowers/plans/2026-10-02-research-jobs.md` (current phase, with Progress and "Recorded for later")
@@ -83,6 +84,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 | The research document reader returns only redacted text, and its refusals carry no document text | `tests/research-document.test.ts` (a vault secret redacted in the result and absent from a refusal of the same document; a secret straddling the 262,144-byte cut; redaction unavailable returns no text) |
 | A reader result is `verified: true`, and the panel shows Ready, only for bytes validated in that call | `tests/research-document.test.ts` (every call validates again; a package replaced after validation still yields the verified buffer; deleted or tampered is `verified: false`), `tests/research-panel.test.tsx` (Ready only on `verified: true`) |
 | A research-only policy change during a non-research run is refused before any run is stopped | `tests/policy-route.test.ts` (no signal aborted, context revoked, supervisor held; `run.start` serialized by the lock), `tests/project-policy-engine.test.ts` (the engine re-check) |
+| A purge never deletes a digest another job references, and leaves the job rows unchanged | `tests/research-purge.test.ts` ("a digest another job references is kept (keptShared), its receipt stays, and the other job's reader still verifies"; the byte-compare test "a refused, a shared-digest and an approved purge leave the research, research_events, runs and events rows byte-identical") |
 
 ### Research-Kit
 | Item | Value |

@@ -334,6 +334,23 @@ export class Store {
       ORDER BY o.created_at,o.rowid`).all(researchId, fresh.revision) as Array<{ id: string; run_id: string; input: string; status: 'completed' | 'unknown' }>;
     return rows.map(row => ({ id: row.id, runId: row.run_id, input: JSON.parse(row.input) as unknown, status: row.status }));
   }
+  /**
+   * One read for main's purge (control `research.retained`): every job's id, project, status, the collected digest its
+   * `collecting -> collected` journal row's verification names (as `research.review.context` reads it) and its reviewed
+   * package digest. A collected row whose digest is not a digest is RESEARCH_STATE_INVALID: guessing null would let a
+   * referenced ZIP look unreferenced.
+   */
+  researchRetained(): { jobs: Array<{ id: string; projectId: string; status: StoreResearchStatus; collected: string | null; reviewed: string | null }> } {
+    const rows = this.db.prepare(`SELECT r.id,r.project_id,r.status,r.reviewed_package_sha256 AS reviewed,
+      (SELECT json_extract(e.detail,'$.verification.artifactSha256') FROM research_events e WHERE e.research_id=r.id AND e.from_status='collecting' AND e.to_status='collected' ORDER BY e.revision LIMIT 1) AS collected,
+      EXISTS(SELECT 1 FROM research_events e WHERE e.research_id=r.id AND e.from_status='collecting' AND e.to_status='collected') AS has_collected
+      FROM research r ORDER BY r.created_at,r.id`).all() as Array<{ id: string; project_id: string; status: StoreResearchStatus; reviewed: string | null; collected: unknown; has_collected: number }>;
+    const isDigest = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+    return { jobs: rows.map(row => {
+      if ((row.has_collected && !isDigest(row.collected)) || (row.reviewed !== null && !isDigest(row.reviewed))) throw new Error('RESEARCH_STATE_INVALID');
+      return { id: row.id, projectId: row.project_id, status: row.status, collected: row.has_collected ? row.collected as string : null, reviewed: row.reviewed };
+    }) };
+  }
   hasActiveResearch(projectId: string): boolean { return !!this.db.prepare(`SELECT 1 FROM research WHERE project_id=? AND status IN (${activeResearch}) LIMIT 1`).get(projectId); }
   researchEvents(researchId: string, after = 0, limit = 100): { events: StoreResearchEvent[]; hasMore: boolean } {
     if (!Number.isSafeInteger(after) || after < 0) throw new RangeError('Event cursor must be a nonnegative integer');

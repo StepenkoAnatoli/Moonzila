@@ -1,0 +1,8 @@
+# B7b builder report 1 (saved by the lead; structured sections kept)
+
+- Worktree `/home/user/task5-handoff/wt/p5-b7b`, branch `build/p5-b7b`, commit `36f082f` on `7e1f4d9`.
+- `ResearchPanel.tsx`: `PurgeControl` for approved/failed/cancelled, on the current job and on finished history rows; inline confirmation (Cancel / Delete stored corpus); only the confirm calls `research.purge {researchId}`; reply parsed with `ResearchPurgeResultSchema`, shown in the status line (`research-notice`); a refusal shown once, no retry; every finished purge restarts `ApprovedCheck` and `DocumentReader`. `research-text.ts`: `PURGEABLE_RESEARCH`, `PURGE_TEXT`, `purgeResultText`. Tests: new `tests/research-panel-purge.test.tsx` (23), button-text test extended.
+- Guard removals, all red: `collected` added to the statuses; button always offered (8 red); history always offered; first button purges directly; keptBusy clause dropped (2) and keptShared always shown (3); reply without the schema check; error swallowed; purge count removed from the check's key and from the reader's key; confirm renamed "Approve deletion".
+- Commands: typecheck, lint clean; six renderer/contract files 109 pass; the purge file 5x, the two panel files 4x concurrently (verified). Full suite not run (renderer only).
+- Decisions: history rows offer the button (no other way to purge an older job); the approved disclosure reworded to avoid "approve": 'If this research passed review, it reads "Unverified" instead of "Ready" from then on.'; singular wording; re-check after any purge outcome; result in the shared status line.
+- Mistake: the first test edit was refused (file not read first), so the first 109 run lacked the extended test; re-run after the edit.

@@ -4,7 +4,7 @@ This describes how the desktop tests (plan Task 7) run a real research job in th
 
 ## The problem
 
-The collector child gets a minimal environment (`collectorEnvironment` in `src/adapters/research-kit/collector.ts`): temporary folders, `SystemRoot` and the token. Nothing is inherited, so no proxy and no extra CA reach it, and no setting, IPC method or file in the data folder can add one. The protocol tests (`tests/research-collector-protocol.test.ts`) reach `tests/fixtures/fake-github.ts` by adding two variables to that environment: `HTTPS_PROXY` (a CONNECT proxy on 127.0.0.1 that tunnels only `api.github.com:443` and `artifacts.invalid:443`) and `NODE_EXTRA_CA_CERTS` (the test CA in `tests/fixtures/github-tls`). A desktop test has to do the same inside the running app.
+The collector child gets a minimal environment (`collectorEnvironment` in `src/adapters/research-kit/collector.ts`): temporary folders, `SystemRoot` and the token. Nothing is inherited, so no proxy and no extra CA reach it, and no setting, IPC method or file in the data folder can add one. The protocol tests (`tests/research-collector-protocol.test.ts`) reach `tests/fixtures/fake-github.ts` by adding two variables to that environment: `HTTPS_PROXY` (a CONNECT proxy on 127.0.0.1 that tunnels only `api.github.com:443` and `artifacts.invalid:443`) and `NODE_EXTRA_CA_CERTS` (`fake.caPath`: a test CA generated afresh for each fake by `tests/fixtures/github-tls.ts` and written to the fake's own temporary folder). A desktop test has to do the same inside the running app.
 
 ## Designs considered
 
@@ -27,7 +27,7 @@ Why this does not weaken production:
 
 - Nothing under `src/` reads the variable, the preload or the CA. The file is not in `dist/` and not in the installer (`electron-builder.yml` packs `dist/**`).
 - Loading it needs control of Electron's command line and environment. Whoever has that can already run any code in main, which is how Playwright drives the app at all.
-- TLS is never disabled. The test CA is trusted only by the collector child, only through `NODE_EXTRA_CA_CERTS`, and its private key was discarded when it was made (`tests/fixtures/github-tls/README.md`).
+- TLS is never disabled. The test CA is trusted only by the collector child, only through `NODE_EXTRA_CA_CERTS`. It is generated at test time with a non-extractable private key, so that key never reaches disk; the leaf's key stays in memory; only the two certificates are written, to a temporary folder the fake's `close()` removes; and no certificate or key is committed (`tests/fixtures/github-tls/README.md`). A journey passes the generated CA path to the preload in `MOONALIZA_E2E_COLLECTOR_NETWORK`, so the preload never needs the generator. Node and Electron read `NODE_EXTRA_CA_CERTS` lazily, at the first TLS use, not at child start, so the CA file must outlive each child's first handshake: a test closes the fake only after the child is done.
 - The token reaches the fake only as the exact bearer header the real kit sends; the journeys assert every request carried it exactly and that no file under the data folder contains it.
 
 The coupling to the helper protocol is deliberate and tested: `tests/research-journeys-network.test.ts` runs the preload against the real `spawnOwned` encoder (with the helper replaced by a recording child), so a protocol change turns that test red on any OS.
@@ -54,13 +54,13 @@ Exact-head Windows CI (`npm run test:e2e`, unpackaged; the packaged `workflow_di
 What ran on Linux (Node 24.21.0, Electron 44.4.5, under `dbus-run-session -- xvfb-run -a`, with `MOONALIZA_E2E_ELECTRON_ARGS=--no-sandbox` because Electron runs as root there; Playwright's loader already adds `--password-store=basic`):
 
 - `npx playwright test e2e/research-journeys.spec.ts`: the harness check passed; journeys 2 and 3 were skipped by their platform condition. Removing the preload's `delete process.env[...]` turned the harness check red. With `-r` removed from the launch and the platform skip removed, all three tests failed at launch with `E2E_HARNESS_MISSING`, before any token was saved.
-- The packaged case was reproduced with a packaged-layout Electron: a copy of `node_modules/electron/dist` without `default_app.asar`, with the app in `resources/app`. Run as `MOONALIZA_TEST_EXECUTABLE`, the previous spec failed its harness check because the preload state was `null`. The current spec skips all three tests.
+- The packaged case was reproduced with a packaged-layout Electron: a copy of `node_modules/electron/dist` without `default_app.asar`, with the app in `resources/app`. Run as `MOONALIZA_TEST_EXECUTABLE`, the previous spec failed its harness check because the preload state was `null`. The current spec skips all of its tests.
 - `tests/research-journeys-network.test.ts` (4 tests) passed. Mutations each turned it red: not adding the variables, dropping the guard list, accepting an environment that already carries a variable, accepting a non-loopback proxy, not ending the helper's input on a refusal, comparing variable names case-sensitively (a lowercase `https_proxy`), and not recording a collector launch's outcome.
 - Outside the committed tests, the journey's network steps were run against the real pinned kit without the app: a dispatch with `collectorEnvironment` plus the two variables classified as `dispatched` with run id 1, with one exact-token POST whose `inputs.client_ref` was the job's and one CONNECT to `api.github.com:443`; a package made by the kit's producer for an `mz-` client ref, served after an `in_progress` poll, classified as `package`.
 
 - The run-read route: `tests/research-journeys-network.test.ts` has three cases for it, against the real fake and, in one, the real `packageImporter` (the import reaches the validator with the run's commit, ref and attempt). Each turned red with its guard removed: no test CA, not GET-only, not opt-in, an opt-in value other than `true` accepted, the fake without `head_sha`. Outside the committed tests, the route was exercised inside a real Electron main on Linux: the routed read returned the fake's run and a `POST` was refused.
 
-Not run anywhere yet: journeys 2, 3 and 4 themselves.
+Journeys 2, 3 and 4 run only on Windows CI, which was green with all of them on `bad5909` (push run 37217502754, October 4) and, with the test CA generated at test time (P4-40), on `8edec7e` and `dc367ea`.
 
 Observed on Linux while building this, not investigated: quitting the app before the renderer's first render (for example `app.close()` right after `firstWindow()`) fires `before-quit` twice and never reaches `will-quit`, so the process stays up. Waiting for the first render (`Your work starts here`) avoids it; every journey waits for it.
 

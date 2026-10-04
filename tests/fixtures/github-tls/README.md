@@ -1,21 +1,14 @@
-# Test-only TLS material for the fake GitHub
+# Test-only TLS for the fake GitHub: generated at test time
 
-These files exist only so the real Research Kit collector can be run against `tests/fixtures/fake-github.ts`. That fake answers on loopback, behind a CONNECT proxy that tunnels only `api.github.com:443` and `artifacts.invalid:443`.
+The real Research Kit collector is run against `tests/fixtures/fake-github.ts`. That fake answers on loopback, behind a CONNECT proxy that tunnels only `api.github.com:443` and `artifacts.invalid:443`, and it needs a certificate for those names. This folder used to hold that certificate, its key and a test CA. It now holds only this README: no certificate or private key is committed (requirement F-8, task P4-40).
 
-- `ca.pem`: a self-signed test CA. Tests trust it only by giving the collector child process `NODE_EXTRA_CA_CERTS`, which no production code path sets. The desktop journeys add it the same way, through the test-only preload `e2e/fixtures/collector-network.cjs` ([research journeys](../../../docs/specification/research-journeys.md)). Its private key was discarded when it was made, so it cannot sign anything else.
-- `leaf.pem` and `leaf.key`: the server certificate and key for `api.github.com` and `artifacts.invalid`, signed by that CA and valid until 2036-09-29. The key is a test fixture, not a secret. It protects nothing outside the loopback fake.
+Each `startFakeGitHub()` calls `generateTestTls()` in `tests/fixtures/github-tls.ts`, which makes, with Node's WebCrypto and `pkijs`:
 
-Nothing under `src/` may reference this directory. A secret scanner that flags `leaf.key` should allowlist this path (Task 7).
+- a fresh P-256 test CA (`CA:TRUE`, `keyCertSign`, `cRLSign`). Its private key is generated non-extractable, signs the leaf in memory and is never written anywhere;
+- a leaf for `api.github.com` and `artifacts.invalid` (subjectAltName for both, extendedKeyUsage `serverAuth`, `CA:FALSE`), valid for a week. Its private key stays in memory and goes straight to the fake's HTTPS server.
 
-Regenerate (OpenSSL 3, run from this directory, then commit all three files):
+Only `ca.pem` and `leaf.pem` are written, under the fake's own `mkdtemp` folder, and `close()` removes it. The fake exposes the CA path as `fake.caPath`. Tests trust it only by giving the collector child `NODE_EXTRA_CA_CERTS=fake.caPath`, which no production code path sets. The desktop journeys pass the same path to the test-only preload `e2e/fixtures/collector-network.cjs` through `MOONALIZA_E2E_COLLECTOR_NETWORK` ([research journeys](../../../docs/specification/research-journeys.md)).
 
-```sh
-openssl ecparam -name prime256v1 -genkey -noout -out ca.key
-openssl req -x509 -new -key ca.key -sha256 -days 3650 -subj "/CN=MoonAliza test CA (not trusted outside tests)" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" -out ca.pem
-openssl ecparam -name prime256v1 -genkey -noout -out leaf.key
-openssl req -new -key leaf.key -subj "/CN=api.github.com" -out leaf.csr
-printf 'basicConstraints=CA:FALSE\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:api.github.com,DNS:artifacts.invalid\n' > ext.cnf
-openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 3650 -sha256 -extfile ext.cnf -out leaf.pem
-openssl verify -CAfile ca.pem leaf.pem
-rm ca.key ca.srl leaf.csr ext.cnf
-```
+Node and Electron read `NODE_EXTRA_CA_CERTS` lazily, at a process's first TLS use, not when the child starts. So the CA file has to outlive each child's first handshake: close the fake (which deletes the file) only after every child that was given `fake.caPath` is done.
+
+Nothing under `src/` may reference this folder or the generator. `tests/github-tls.test.ts` checks the generated chain, that only the two certificates reach disk, and that this folder holds nothing but this README.

@@ -1,0 +1,8 @@
+# G13 builder report (P5-11, P5-12; saved by the lead; structured sections kept)
+
+- Worktree `/home/user/task5-handoff/wt/p5-g13`, branch `build/p5-g13` on `f84efd3`: `8fd8b19` (any earlier job can be the panel's subject), `6391bb4` (Cancel review asks first; review-specific cancel text).
+- P5-11: a Show control per history row; the subject's own controls apply; default subject unchanged; the choice sticks; a job that becomes active after the choice takes the panel and becomes the choice; check and reader keyed by the subject; the start form hidden while any job is active. New `tests/research-panel-subject.test.tsx`. Guard removals red: choice ignored (3); no precedence; precedence not recorded as the choice; start form tied to the shown job. Limit: the late-reply part of the first test cannot be shown red (switching unmounts the check).
+- P5-12: inline confirmation (`CANCEL_REVIEW_TEXT`: cannot be resumed, workspace deleted, Stop keeps it retryable); buttons Keep the review / Cancel review; Cancel collection still one click; `REVIEW_CANCEL_STATUS` for jobs with a `reviewRunId`. New `tests/research-panel-cancel-review.test.tsx`; the packaging-cancel test clicks the confirm. Guard removals red: no confirmation; Keep sending the cancel; each status text forced either way; Cancel collection asking first.
+- Commands: typecheck, lint clean; 8 renderer files 122 pass; new files 5x 11/11 (verified).
+- Interpretations: the dismiss button named "Keep the review" (not "Cancel"); precedence only for a job that becomes active after the choice.
+- Mistake: the first precedence test expected the panel to jump to the newest job after the new job finished; corrected before commit.

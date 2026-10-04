@@ -54,6 +54,18 @@ describe('research contracts', () => {
     expect(result.safeParse({ ...ok, source: 'workspace', verified: false }).success).toBe(true);
   });
 
+  test('research.purge is main-owned, takes only a researchId, and reports what it removed and kept', () => {
+    const { params, result, owner } = MethodSpec['research.purge'];
+    expect(owner).toBe('main');
+    expect(params.safeParse({ researchId: 'r1' }).success).toBe(true);
+    expect(params.safeParse({ researchId: 'r1', digest: 'a'.repeat(64) }).success).toBe(false);
+    expect(result.safeParse({ removed: 2, keptShared: 1, keptBusy: false }).success).toBe(true);
+    expect(result.safeParse({ deleted: true }).success).toBe(false);
+    expect(result.safeParse({ removed: -1, keptShared: 0, keptBusy: false }).success).toBe(false);
+    expect(ErrorCodeSchema.safeParse('PURGE_NOT_ALLOWED').success).toBe(true);
+    expect(ErrorCodeSchema.safeParse('PURGE_INCOMPLETE').success).toBe(true);
+  });
+
   test('no research payload accepts a credential field', () => {
     // Start from a valid input for each method, so a rejection can only come from the added field.
     const valid: Record<string, object> = {

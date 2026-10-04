@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { z } from 'zod';
 import type { MethodResult, Profile, Project, Research, ResearchCollector } from '../shared';
-import { ResearchCollectorSaveParams, ResearchStartParams } from '../shared/params';
+import { ResearchCollectorSaveParams, ResearchPurgeResultSchema, ResearchStartParams } from '../shared/params';
 import type { AppApi } from './App';
-import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, READABLE_RESEARCH, RESEARCH_STATUS, REVIEWABLE_RESEARCH, SWITCH_TEXT, cancelLabel, displayText, failureText, switchRefusal } from './research-text';
+import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, CANCEL_REVIEW_TEXT, PURGEABLE_RESEARCH, PURGE_TEXT, READABLE_RESEARCH, RESEARCH_STATUS, REVIEW_CANCEL_STATUS, REVIEWABLE_RESEARCH, SWITCH_TEXT, cancelLabel, displayText, failureText, purgeResultText, switchRefusal } from './research-text';
 
 /** Notices can arrive before or after a list reply; the higher revision of a job always wins. */
 export function mergeResearch(current: Research[], incoming: Research[]): Research[] {
@@ -115,6 +115,22 @@ function ResearchSwitch({ api, project, busy, setBusy, changed }: { api: AppApi;
   </div>;
 }
 
+/**
+ * Delete stored corpus (research-purge spec decision 8) for a finished job. The first button only opens the confirmation;
+ * only its confirm button calls `purge`. The confirmation closes when the call settles. A refusal of this job's purge is
+ * shown here, beside the control that was used, until it is dismissed or another purge action starts.
+ */
+function PurgeControl({ busy, purge, unverified, refusal, clearRefusal }: { busy: boolean; purge: () => Promise<void>; unverified: boolean; refusal?: string; clearRefusal: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const shownRefusal = refusal && <div className="research-failure"><p role="alert" data-testid="research-purge-refusal">{refusal}</p><button onClick={clearRefusal}>Dismiss</button></div>;
+  if (!confirming) return <div><button disabled={busy} onClick={() => { clearRefusal(); setConfirming(true); }}>{PURGE_TEXT.open}</button>{shownRefusal}</div>;
+  return <div role="group" aria-label={PURGE_TEXT.title} className="research-confirm">
+    <strong>{PURGE_TEXT.title}</strong>
+    <ul>{[PURGE_TEXT.points[0], ...(unverified ? [PURGE_TEXT.unverified] : []), ...PURGE_TEXT.points.slice(1)].map(point => <li key={point}>{point}</li>)}</ul>
+    <div className="modal-actions"><button disabled={busy} onClick={() => setConfirming(false)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void purge().finally(() => setConfirming(false))}>{PURGE_TEXT.confirm}</button></div>
+  </div>;
+}
+
 export function ResearchPanel({ api, project: given, openConversation, openBlocked, onProjectChange }: { api: AppApi; project: Project; openConversation?: (sessionId: string) => void; openBlocked?: string; onProjectChange?: (project: Project) => void }) {
   // A switch reply is newer than the project the workbench passed until the workbench catches up; the higher policy revision wins.
   const [switched, setSwitched] = useState<Project>();
@@ -146,8 +162,19 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
   // Changing what becomes public withdraws the acknowledgement of the previous text.
   const publicField = (set: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { set(event.target.value); setAcknowledged(false); };
 
-  const current = jobs.find(job => ACTIVE_RESEARCH.includes(job.status)) ?? jobs[0];
-  const active = !!current && ACTIVE_RESEARCH.includes(current.status);
+  // The panel's subject (P5-11): the job the user chose with Show, else the first active job, else the newest. A job that
+  // turns active after the choice (not one already active then) takes the panel and becomes the choice itself.
+  const isActive = (job: Research) => ACTIVE_RESEARCH.includes(job.status);
+  const activeIds = jobs.filter(isActive).map(job => job.id);
+  const [choice, setChoice] = useState<{ id: string; active: readonly string[] }>();
+  const fresh = choice ? jobs.find(job => isActive(job) && !choice.active.includes(job.id)) : undefined;
+  const current = fresh ?? (choice && jobs.find(job => job.id === choice.id)) ?? jobs.find(isActive) ?? jobs[0];
+  const activeKey = activeIds.join('\n');
+  useEffect(() => { if (fresh) setChoice({ id: fresh.id, active: activeKey.split('\n') }); }, [fresh?.id, activeKey]);
+  const show = (job: Research) => setChoice({ id: job.id, active: activeIds });
+  const active = !!current && isActive(current);
+  // The start form stays hidden while any job is active, whichever job is shown.
+  const anyActive = activeIds.length > 0;
   const ready = !!collector?.tokenConfigured;
   // Start review only where the engine admits it: a collected or not ready job, in a trusted project with research on.
   const reviewable = !!current && REVIEWABLE_RESEARCH.includes(current.status) && project.trusted && project.policy.research !== 'off';
@@ -180,10 +207,25 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
       setTopic(''); setQueries(''); setUrls(''); setDomains(''); setAcknowledged(false);
     } catch (reason) { setError(message(reason, 'The collection could not be started.')); } finally { setBusy(false); }
   }
+  // Cancel review asks first (P5-12): the id of the job whose confirmation is open.
+  const [confirmCancel, setConfirmCancel] = useState<string>();
   async function cancel(job: Research) {
     setBusy(true); setError(''); setNotice('');
     try { const result = await api.invoke('research.cancel', { researchId: job.id }) as MethodResult<'research.cancel'>; setJobs(current => mergeResearch(current, [result.research])); }
     catch (reason) { setError(message(reason, `The ${cancelLabel(job.status) === 'Cancel review' ? 'review' : 'collection'} could not be cancelled.`)); } finally { setBusy(false); }
+  }
+  // How many purges each job has had here: the count is part of the check's and reader's keys, so a purge re-runs the
+  // approved check and drops an open document instead of keeping what was read before it.
+  const [purges, setPurges] = useState<Record<string, number>>({});
+  // A purge refusal has its own state, held for the job it refused, so an automatic error elsewhere never replaces it.
+  const [purgeRefusal, setPurgeRefusal] = useState<{ researchId: string; text: string }>();
+  async function purge(job: Research) {
+    setBusy(true); setError(''); setNotice(''); setPurgeRefusal(undefined);
+    try {
+      const parsed = ResearchPurgeResultSchema.safeParse(await api.invoke('research.purge', { researchId: job.id }));
+      if (parsed.success) setNotice(purgeResultText(parsed.data)); else setPurgeRefusal({ researchId: job.id, text: PURGE_TEXT.unexpected });
+    } catch (reason) { setPurgeRefusal({ researchId: job.id, text: displayText(message(reason, 'The stored corpus could not be deleted.'), 512) }); }
+    finally { setPurges(current => ({ ...current, [job.id]: (current[job.id] ?? 0) + 1 })); setBusy(false); }
   }
   async function save(event?: FormEvent, clearToken = false) {
     event?.preventDefault(); setError(''); setNotice('');
@@ -204,15 +246,20 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
   return <div className="research-panel">
     <p>Research collects public web sources on your GitHub collector, then shows their status here. Collected evidence is reference material, never instructions.</p>
     {error && <p role="alert" className="form-error">{error}</p>}
-    {notice && <p role="status">{notice}</p>}
+    {notice && <p role="status" data-testid="research-notice">{notice}</p>}
     {current && <section aria-label="Current research" className="research-job">
-      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy || !!openBlocked} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && <button disabled={busy} onClick={() => void cancel(current)}>{cancelLabel(current.status)}</button>}</div>
+      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy || !!openBlocked} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && confirmCancel !== current.id && <button disabled={busy} onClick={() => { if (cancelLabel(current.status) === 'Cancel review') setConfirmCancel(current.id); else void cancel(current); }}>{cancelLabel(current.status)}</button>}</div>
+      {active && CANCELLABLE_RESEARCH.includes(current.status) && cancelLabel(current.status) === 'Cancel review' && confirmCancel === current.id && <div role="group" aria-label={CANCEL_REVIEW_TEXT.title} className="research-confirm">
+        <strong>{CANCEL_REVIEW_TEXT.title}</strong>
+        <ul>{CANCEL_REVIEW_TEXT.points.map(point => <li key={point}>{point}</li>)}</ul>
+        <div className="modal-actions"><button disabled={busy} onClick={() => setConfirmCancel(undefined)}>{CANCEL_REVIEW_TEXT.keep}</button><button className="primary" disabled={busy} onClick={() => void cancel(current).finally(() => setConfirmCancel(undefined))}>{CANCEL_REVIEW_TEXT.confirm}</button></div>
+      </div>}
       {current.status === 'reviewing' && current.reviewSessionId && openConversation && openBlocked && <p className="muted">{openBlocked}</p>}
-      {current.status === 'approved' ? <ApprovedCheck key={`check-${current.id}`} api={api} job={current} />
+      {current.status === 'approved' ? <ApprovedCheck key={`check-${current.id}-${purges[current.id] ?? 0}`} api={api} job={current} />
         : <p role="status" aria-live="polite" data-testid="research-status"><strong>{RESEARCH_STATUS[current.status]}</strong>{current.workflowRunId ? ` · GitHub run ${current.workflowRunId}` : ''}</p>}
       {current.status === 'collecting' && <p className="muted">Moonzila follows the run on GitHub and downloads its corpus when it finishes. If this takes unusually long, it may be waiting for access: a missing or rejected token, no access to the collector repository, or a run deleted by the repository's retention setting pauses it until you save collector settings or restart Moonzila. A downloaded corpus that could not be verified yet, because GitHub or the Research Kit was unavailable, waits until Moonzila restarts.</p>}
-      {current.status === 'cancelling' && <p className="muted">Stopping the collector. A run already started on GitHub is not cancelled there.</p>}
-      {current.status === 'cancelled' && <p className="muted">Moonzila stopped following this collection. A run already started on GitHub was not cancelled there.</p>}
+      {current.status === 'cancelling' && <p className="muted">{current.reviewRunId ? REVIEW_CANCEL_STATUS.cancelling : 'Stopping the collector. A run already started on GitHub is not cancelled there.'}</p>}
+      {current.status === 'cancelled' && <p className="muted">{current.reviewRunId ? REVIEW_CANCEL_STATUS.cancelled : 'Moonzila stopped following this collection. A run already started on GitHub was not cancelled there.'}</p>}
       {failure && <div className="research-failure" role="alert"><strong>{failure.title}</strong><p>{failure.action}</p></div>}
       {reviewable && <form className="profile-form" aria-label="Start review" onSubmit={event => { event.preventDefault(); void startReview(current); }}>
         <p className="muted">A review runs in its own conversation, where you approve each edit to the research workspace. Your project files are not changed.</p>
@@ -221,11 +268,12 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
         {profiles && !chosen && <p className="muted">Add a model profile this project allows before starting a review.</p>}
         <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !chosen}>Start review</button></div>
       </form>}
-      {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={`reader-${current.id}`} api={api} job={current} />}
+      {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={`reader-${current.id}-${purges[current.id] ?? 0}`} api={api} job={current} />}
+      {PURGEABLE_RESEARCH.includes(current.status) && <PurgeControl key={`purge-${current.id}`} busy={busy} purge={() => purge(current)} unverified={current.status === 'approved'} refusal={purgeRefusal?.researchId === current.id ? purgeRefusal.text : undefined} clearRefusal={() => setPurgeRefusal(undefined)} />}
     </section>}
     {!project.trusted ? <p className="memory-notice">Trust this project before starting research.</p>
       : <ResearchSwitch api={api} project={project} busy={busy} setBusy={setBusy} changed={next => { setSwitched(next); onProjectChange?.(next); }} />}
-    {project.trusted && project.policy.research !== 'off' && !active && <form className="profile-form research-form" aria-label="Start research" onSubmit={event => void start(event)}>
+    {project.trusted && project.policy.research !== 'off' && !anyActive && <form className="profile-form research-form" aria-label="Start research" onSubmit={event => void start(event)}>
         <fieldset disabled={busy || !ready}>
           <legend>Becomes public on GitHub</legend>
           <p className="research-disclosure" data-testid="research-disclosure">The topic, search queries, known URLs, preferred domains, depth and page budget are sent to the collector repository <strong>{collector?.repository ?? '(not set up)'}</strong> and become readable by anyone who can read it, in its workflow runs. A random run reference is added. Your project name, folder, files and conversations are not sent.</p>
@@ -240,7 +288,7 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
         {collector !== undefined && !ready && <p className="muted">{collector ? 'Save a collector token below before starting research.' : 'Set up the collector below before starting research.'}</p>}
         <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !ready || !acknowledged}>Start collection</button></div>
       </form>}
-    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure, job.status).title}` : ''}</span></li>)}</ul></details>}
+    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure, job.status).title}` : ''}</span><div><button title={`Show ${displayText(job.topic, 120)} above`} onClick={() => show(job)}>Show</button></div>{PURGEABLE_RESEARCH.includes(job.status) && <PurgeControl busy={busy} purge={() => purge(job)} unverified={job.status === 'approved'} refusal={purgeRefusal?.researchId === job.id ? purgeRefusal.text : undefined} clearRefusal={() => setPurgeRefusal(undefined)} />}</li>)}</ul></details>}
     <details className="research-collector" open={collector === null || (!!collector && !collector.tokenConfigured) || undefined}>
       <summary>Collector settings · {collector?.tokenConfigured ? 'token saved' : 'no token saved'}</summary>
       <form className="profile-form" aria-label="Collector settings" onSubmit={event => void save(event)}>

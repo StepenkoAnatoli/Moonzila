@@ -1,0 +1,12 @@
+# Task 5 gap-audit (Stage 7; saved by the lead; structured sections kept)
+
+- Audited `d599a39` read-only; 7 test files 184 passed, 1 Windows-only skipped; pinned kit preflight against 16 real corpora. Standard: Ready only from a fresh validation of exact bytes; every edit approved; every collected corpus reachable through review.
+- G1 (High, VERIFIED, IN-SCOPE): only the newest job gets controls (`ResearchPanel.tsx:165` `current` = first active else `jobs[0]`; `:240/:246/:253` act on `current`; `:273` history offers only Purge): an older approved job loses its check and reader; an older collected/not_ready job loses Start review and the reader; those statuses cannot be purged or cancelled, so the corpus is stranded (spec allows a new collection beside them, `research-review.md:70`).
+- G2 (Med-High, VERIFIED/INFERRED, IN-SCOPE per the audit): retries get no reason: the same `reviewInstruction` every retry (`research-review.ts:210`); only the failure code kept (`review.ts:593-594`); the validated reviewed manifest holds `review.*` flags and `gate.blockingFindings`; kit preflight never reports `findingsReviewed` (kit `lib/artifact.mjs:253-258`).
+- G3 (Medium, VERIFIED, IN-SCOPE): Cancel review one click (`ResearchPanel.tsx:238`), terminal (`research-state.ts:44`), then described with collection text (`:243-244`).
+- G4 (Med-Low, INFERRED, IN-SCOPE): a `fresh` retry rebuilds the workspace silently; the reused session's history describes edits that are gone (`review.ts:176-193`; `research-review.ts:198,210,213`; `application.ts:335`); `ResearchSchema` has no `workspace` field.
+- G5 (Medium, VERIFIED, IN-SCOPE as a test): review kit children (preflight, brief, create) never run through the real native helper in tests (`research-review-e2e.test.ts:182`, `research-review-main-kit.test.ts:22`).
+- G6 (Low, VERIFIED, DESIGN CHANGE): collected/not_ready jobs can never be abandoned; their ZIPs and workspaces stay (`research-purge.ts:19,51-57`).
+- Solid: readiness (`review.ts:593`, trigger), reader re-validation from the buffer, panel Ready only on verified with stale discard, packaging guards, purge lock and rules.
+- Ledger notes: P5-7/P5-8 docs not landed; P4-17, P4-30, P4-31, P4-32, P4-42 lack a Phase 5 disposition; decision 6 overstates the P4-30 bound (receipts remain for never-purged digests, `adapter.ts:329,339`); P4-12, P4-19 no output effect.
+- Source audit: no external fact needed; Research-Kit not run.

@@ -123,9 +123,14 @@ export class ResearchKit {
   private readonly receipts = new Map<string, Receipt>();
   private readonly launches = new Set<Promise<unknown>>();
   private readonly run: OwnedRunner;
-  /** `run` is the launcher (the native helper by default); it is not installation input. */
-  constructor(config: ResearchConfig, run?: OwnedRunner) {
+  private readonly unlink: (path: string) => Promise<void>;
+  /**
+   * `run` is the launcher (the native helper by default); it is not installation input. `files.unlink` is the purge's
+   * delete (fs unlink by default), replaceable so a test can answer it as a Windows handle without FILE_SHARE_DELETE does.
+   */
+  constructor(config: ResearchConfig, run?: OwnedRunner, files: { unlink?: (path: string) => Promise<void> } = {}) {
     this.config = ConfigSchema.parse(config);
+    this.unlink = files.unlink ?? unlink;
     this.run = run ?? ((request, signal, options) => spawnOwned(request, signal, { ...options, helperPath: this.config.helperPath }));
     for (const path of [config.kitRoot, config.nodePath, config.storageRoot, config.helperPath]) if (!isAbsolute(path) || path.includes('\0')) throw new Error('INSTALLATION_INVALID');
   }
@@ -204,53 +209,55 @@ export class ResearchKit {
   /** validate, recording in `seen.sha256` the hash of the one capture of `file` it validated (verifyRetained's evidence). */
   private validateCaptured(file: string, input: Binding, seen: { sha256?: string }, signal?: AbortSignal, admit?: () => Promise<void>): Promise<Result> {
     const binding = BindingSchema.parse(input);
-    return serialized(this.config.storageRoot, async () => {
-      try {
-        checkAbort(signal); const bytes = await capturedFile(file, MAX_ARCHIVE); seen.sha256 = hash(bytes);
-        const manifestValue = await packageContent(() => inspectArchive(bytes));
-        const report = await this.inspectOwned(bytes, binding.clientRef, signal, admit);
-        if (report.status !== 'PASS') return ResultSchema.parse({ status: report.status, state: null, researchReady: false, receipt: null, error: 'ARTIFACT_INVALID' });
-        const manifest = await packageContent(() => ManifestProjection.parse(manifestValue));
-        for (const key of ['repository', 'ref', 'commit', 'workflow', 'workflowRunId', 'runAttempt'] as const) if (manifest.source[key] !== binding[key]) throw new Error('IDENTITY_MISMATCH');
-        if (manifest.clientRef !== binding.clientRef || report.clientRef !== binding.clientRef || report.workflowRunId !== binding.workflowRunId || report.packageId !== manifest.packageId) throw new Error('IDENTITY_MISMATCH');
-        const state = StateSchema.parse(manifest.state === 'HUMAN_REVIEW_REQUIRED' ? 'REVIEW_REQUIRED' : manifest.state);
-        if (report.state !== state || report.buildAuthorized !== manifest.buildAuthorized || report.reviewedBy !== (manifest.review.by ?? 'undeclared')) throw new Error('ARTIFACT_INVALID');
-        const researchReady = state === 'APPROVED_BRIEF' && manifest.kind === 'APPROVED_RESEARCH' && manifest.buildAuthorized && manifest.review.mapClassified && manifest.review.findingsReviewed && manifest.review.briefReviewed && manifest.gate.verdict === 'PASS' && manifest.gate.buildAuthorized && manifest.gate.blockingFindings.length === 0;
-        if (manifest.buildAuthorized !== researchReady) throw new Error('ARTIFACT_INVALID');
-        checkAbort(signal);
-        const artifactSha256 = hash(bytes); const store = await privateDirectory(join(this.config.storageRoot, 'artifacts'));
-        const destination = join(store, artifactSha256 + '.zip');
-        // The name is the digest of bytes just verified, so a file under it with other bytes (torn by a crash mid-write,
-        // or altered) is replaced, never trusted. Anything else wrong in the store is this machine's fault and defers.
-        let intact = false;
-        try { intact = hash(await capturedFile(destination, MAX_ARCHIVE)) === artifactSha256; }
-        catch (error) { if (!missing(error) && !(error instanceof Error && error.message === 'INPUT_LIMIT')) throw new Error('INSTALLATION_INVALID', { cause: error }); }
-        if (!intact) {
-          let total = 0;
-          for (const name of await readdir(store)) {
-            const info = await lstat(join(store, name)); if (!info.isFile() || info.isSymbolicLink()) throw new Error('INSTALLATION_INVALID');
-            if (name !== artifactSha256 + '.zip') total += info.size;
-          }
-          if (total + bytes.length > 128 * 1024 ** 2) throw new Error('STORAGE_LIMIT');
-          // Written in full and synced under work/ (swept at start, same volume), then replaced by rename. On Windows that is
-          // MoveFileExW(MOVEFILE_REPLACE_EXISTING), with no documented crash-atomicity guarantee: the check above, which replaces
-          // a file whose bytes do not hash to its name, is what keeps a torn file from blocking validation.
-          const temporary = join(await privateDirectory(join(this.config.storageRoot, 'work')), randomUUID() + '.zip');
-          try {
-            const handle = await open(temporary, 'wx');
-            try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
-            await rename(temporary, destination);
-          } finally { await rm(temporary, { force: true }); }
+    return serialized(this.config.storageRoot, () => this.validateOwned(file, binding, seen, signal, admit));
+  }
+  /** validateCaptured's body; the caller holds the storage lock. */
+  private async validateOwned(file: string, binding: Binding, seen: { sha256?: string }, signal?: AbortSignal, admit?: () => Promise<void>): Promise<Result> {
+    try {
+      checkAbort(signal); const bytes = await capturedFile(file, MAX_ARCHIVE); seen.sha256 = hash(bytes);
+      const manifestValue = await packageContent(() => inspectArchive(bytes));
+      const report = await this.inspectOwned(bytes, binding.clientRef, signal, admit);
+      if (report.status !== 'PASS') return ResultSchema.parse({ status: report.status, state: null, researchReady: false, receipt: null, error: 'ARTIFACT_INVALID' });
+      const manifest = await packageContent(() => ManifestProjection.parse(manifestValue));
+      for (const key of ['repository', 'ref', 'commit', 'workflow', 'workflowRunId', 'runAttempt'] as const) if (manifest.source[key] !== binding[key]) throw new Error('IDENTITY_MISMATCH');
+      if (manifest.clientRef !== binding.clientRef || report.clientRef !== binding.clientRef || report.workflowRunId !== binding.workflowRunId || report.packageId !== manifest.packageId) throw new Error('IDENTITY_MISMATCH');
+      const state = StateSchema.parse(manifest.state === 'HUMAN_REVIEW_REQUIRED' ? 'REVIEW_REQUIRED' : manifest.state);
+      if (report.state !== state || report.buildAuthorized !== manifest.buildAuthorized || report.reviewedBy !== (manifest.review.by ?? 'undeclared')) throw new Error('ARTIFACT_INVALID');
+      const researchReady = state === 'APPROVED_BRIEF' && manifest.kind === 'APPROVED_RESEARCH' && manifest.buildAuthorized && manifest.review.mapClassified && manifest.review.findingsReviewed && manifest.review.briefReviewed && manifest.gate.verdict === 'PASS' && manifest.gate.buildAuthorized && manifest.gate.blockingFindings.length === 0;
+      if (manifest.buildAuthorized !== researchReady) throw new Error('ARTIFACT_INVALID');
+      checkAbort(signal);
+      const artifactSha256 = hash(bytes); const store = await privateDirectory(join(this.config.storageRoot, 'artifacts'));
+      const destination = join(store, artifactSha256 + '.zip');
+      // The name is the digest of bytes just verified, so a file under it with other bytes (torn by a crash mid-write,
+      // or altered) is replaced, never trusted. Anything else wrong in the store is this machine's fault and defers.
+      let intact = false;
+      try { intact = hash(await capturedFile(destination, MAX_ARCHIVE)) === artifactSha256; }
+      catch (error) { if (!missing(error) && !(error instanceof Error && error.message === 'INPUT_LIMIT')) throw new Error('INSTALLATION_INVALID', { cause: error }); }
+      if (!intact) {
+        let total = 0;
+        for (const name of await readdir(store)) {
+          const info = await lstat(join(store, name)); if (!info.isFile() || info.isSymbolicLink()) throw new Error('INSTALLATION_INVALID');
+          if (name !== artifactSha256 + '.zip') total += info.size;
         }
-        checkAbort(signal);
-        const receipt = ReceiptSchema.parse({ id: randomUUID(), artifactSha256, artifactBytes: bytes.length, validatorRevision: VALIDATOR_REVISION, nodeSha256: this.config.nodeSha256, binding, state, researchReady });
-        this.receipts.set(receipt.id, structuredClone(receipt));
-        return ResultSchema.parse({ status: 'PASS', state, researchReady, receipt, error: null });
-      } catch (error) {
-        // Any other unclassified failure is this machine's (the helper, a spawn, the input file or the store), never the package's.
-        return ResultSchema.parse({ status: 'BLOCKED', state: null, researchReady: false, receipt: null, error: signal?.aborted ? 'CANCELLED' : failureOf(error) ?? 'INSTALLATION_INVALID' });
+        if (total + bytes.length > 128 * 1024 ** 2) throw new Error('STORAGE_LIMIT');
+        // Written in full and synced under work/ (swept at start, same volume), then replaced by rename. On Windows that is
+        // MoveFileExW(MOVEFILE_REPLACE_EXISTING), with no documented crash-atomicity guarantee: the check above, which replaces
+        // a file whose bytes do not hash to its name, is what keeps a torn file from blocking validation.
+        const temporary = join(await privateDirectory(join(this.config.storageRoot, 'work')), randomUUID() + '.zip');
+        try {
+          const handle = await open(temporary, 'wx');
+          try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+          await rename(temporary, destination);
+        } finally { await rm(temporary, { force: true }); }
       }
-    });
+      checkAbort(signal);
+      const receipt = ReceiptSchema.parse({ id: randomUUID(), artifactSha256, artifactBytes: bytes.length, validatorRevision: VALIDATOR_REVISION, nodeSha256: this.config.nodeSha256, binding, state, researchReady });
+      this.receipts.set(receipt.id, structuredClone(receipt));
+      return ResultSchema.parse({ status: 'PASS', state, researchReady, receipt, error: null });
+    } catch (error) {
+      // Any other unclassified failure is this machine's (the helper, a spawn, the input file or the store), never the package's.
+      return ResultSchema.parse({ status: 'BLOCKED', state: null, researchReady: false, receipt: null, error: signal?.aborted ? 'CANCELLED' : failureOf(error) ?? 'INSTALLATION_INVALID' });
+    }
   }
   readVerified(id: string, current: Binding): Promise<Buffer> {
     const binding = BindingSchema.parse(current);
@@ -303,38 +310,103 @@ export class ResearchKit {
    * - VALIDATOR_UNAVAILABLE (internal, never public): intact bytes and no verdict (timeout, cut-off or unreadable output,
    *   storage limit), or intact bytes this machine then fails to read: nothing is known about the package;
    * - INSTALLATION_INVALID for this machine's installation, CANCELLED for the caller's signal or admission.
+   * The check, the validation and the read are one step under the storage lock, so a purge of the same digest runs
+   * entirely before or entirely after it (docs/specification/research-purge.md, decision 4).
    */
-  async verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<{ receipt: Receipt; bytes: Buffer }> {
+  async verifyRetained(artifactSha256: string, input: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<{ receipt: Receipt; bytes: Buffer }> {
     DigestSchema.parse(artifactSha256);
     const file = join(this.config.storageRoot, 'artifacts', artifactSha256 + '.zip');
-    // A retained package that is gone (purged, or never retained here) is a stale verification, not a broken installation.
-    try { await lstat(file); } catch (error) { if (missing(error)) throw new Error('STALE_VERIFICATION', { cause: error }); throw new Error('INSTALLATION_INVALID', { cause: error }); }
-    // The hash comes from validate's own single read of the file, never from a second read (no window between the two).
-    const seen: { sha256?: string } = {};
-    const result = await this.validateCaptured(file, binding, seen, signal, admit);
-    if (result.status !== 'PASS' || !result.receipt) throw new Error(retainedFailure(result.error, artifactSha256, seen.sha256));
-    if (result.receipt.artifactSha256 !== artifactSha256) throw new Error('STALE_VERIFICATION');
-    return { receipt: result.receipt, bytes: await this.readRetained(result.receipt) };
+    return serialized(this.config.storageRoot, async () => {
+      // A retained package that is gone (purged, or never retained here) is a stale verification, not a broken installation.
+      try { await lstat(file); } catch (error) { if (missing(error)) throw new Error('STALE_VERIFICATION', { cause: error }); throw new Error('INSTALLATION_INVALID', { cause: error }); }
+      // Parsed after the existence check, as validate did before this step took the lock (review F3).
+      const binding = BindingSchema.parse(input);
+      // The hash comes from validate's own single read of the file, never from a second read (no window between the two).
+      const seen: { sha256?: string } = {};
+      const result = await this.validateOwned(file, binding, seen, signal, admit);
+      if (result.status !== 'PASS' || !result.receipt) throw new Error(retainedFailure(result.error, artifactSha256, seen.sha256));
+      if (result.receipt.artifactSha256 !== artifactSha256) throw new Error('STALE_VERIFICATION');
+      return { receipt: result.receipt, bytes: await this.readRetained(result.receipt) };
+    });
   }
   /**
    * readVerified's read for verifyRetained, telling the package's fault from this machine's. Right after a PASS the file
    * under the digest holds the validated bytes (validate replaces it otherwise). Bytes that no longer hash to the digest, a
    * file gone, linked, hard-linked or grown are the package no longer verifying: STALE_VERIFICATION. A receipt gone (close()
-   * at quit) or an I/O error on a file that is still there is this machine's: VALIDATOR_UNAVAILABLE.
+   * at quit) or an I/O error on a file that is still there is this machine's: VALIDATOR_UNAVAILABLE. The caller holds the
+   * storage lock.
    */
-  private readRetained(receipt: Receipt): Promise<Buffer> {
+  private async readRetained(receipt: Receipt): Promise<Buffer> {
+    if (!this.receipts.has(receipt.id)) throw new Error('VALIDATOR_UNAVAILABLE');
+    let bytes: Buffer;
+    try { bytes = await capturedFile(join(this.config.storageRoot, 'artifacts', receipt.artifactSha256 + '.zip'), MAX_ARCHIVE); }
+    catch (error) {
+      this.receipts.delete(receipt.id);
+      const code = error instanceof Error ? error.message : '';
+      throw new Error(missing(error) || code === 'ARTIFACT_INVALID' || code === 'INPUT_LIMIT' ? 'STALE_VERIFICATION' : 'VALIDATOR_UNAVAILABLE', { cause: error });
+    }
+    if (bytes.length !== receipt.artifactBytes || hash(bytes) !== receipt.artifactSha256) { this.receipts.delete(receipt.id); throw new Error('STALE_VERIFICATION'); }
+    return bytes;
+  }
+  /**
+   * The purge's locked step (docs/specification/research-purge.md). Under the storage lock: first `plan` (main's read of
+   * every job's references and its refusals, made inside this lock, before anything is listed); then the listing of the
+   * retained ZIPs - only regular files named `<64 hex>.zip` directly in storage/artifacts, never a link, a folder or any
+   * other name - handed to the selector `plan` returned, which names the ones to delete; then the deletes, and the
+   * receipts of every digest deleted are forgotten. A digest the selector names that is not listed is ignored.
+   * A delete refused with EBUSY or EPERM (Windows: a handle opened without FILE_SHARE_DELETE) is retried once; refused
+   * again with either, the purge stops with PURGE_INCOMPLETE (another program holds the file), keeping what it deleted
+   * deleted and its receipts forgotten; any other failed delete is thrown as it is (the store's fault). An
+   * artifacts folder that is not a real folder of storage is INSTALLATION_INVALID; nothing beneath it is listed.
+   * `plan`'s and the selector's own errors pass through unchanged.
+   */
+  purgeRetained(plan: () => Promise<(stored: readonly string[]) => readonly string[]>): Promise<{ removed: number }> {
     return serialized(this.config.storageRoot, async () => {
-      if (!this.receipts.has(receipt.id)) throw new Error('VALIDATOR_UNAVAILABLE');
-      let bytes: Buffer;
-      try { bytes = await capturedFile(join(this.config.storageRoot, 'artifacts', receipt.artifactSha256 + '.zip'), MAX_ARCHIVE); }
-      catch (error) {
-        this.receipts.delete(receipt.id);
-        const code = error instanceof Error ? error.message : '';
-        throw new Error(missing(error) || code === 'ARTIFACT_INVALID' || code === 'INPUT_LIMIT' ? 'STALE_VERIFICATION' : 'VALIDATOR_UNAVAILABLE', { cause: error });
+      const select = await plan();
+      const store = await this.artifactsRoot();
+      const stored: string[] = [];
+      for (const name of store ? await readdir(store) : []) {
+        const match = /^([0-9a-f]{64})\.zip$/.exec(name); if (!match) continue;
+        const info = await lstat(join(store!, name));
+        if (info.isFile() && !info.isSymbolicLink()) stored.push(match[1]!);
       }
-      if (bytes.length !== receipt.artifactBytes || hash(bytes) !== receipt.artifactSha256) { this.receipts.delete(receipt.id); throw new Error('STALE_VERIFICATION'); }
-      return bytes;
+      const listed = new Set(stored);
+      const targets = [...new Set(select(stored))].filter(sha => listed.has(sha));
+      const deleted = new Set<string>();
+      try {
+        for (const sha of targets) {
+          const file = join(store!, sha + '.zip');
+          // Checked again right before the delete: only a regular file under this name, never what a link names.
+          let info; try { info = await lstat(file); } catch (error) { if (missing(error)) continue; throw error; }
+          if (!info.isFile() || info.isSymbolicLink()) continue;
+          try { await this.unlink(file); }
+          catch (error) {
+            const code = (error as NodeJS.ErrnoException)?.code;
+            if (code === 'ENOENT') continue;
+            if (code !== 'EBUSY' && code !== 'EPERM') throw error;
+            await new Promise(done => setTimeout(done, 100));
+            try { await this.unlink(file); }
+            catch (retry) {
+              const again = (retry as NodeJS.ErrnoException)?.code;
+              if (again === 'ENOENT') continue;
+              throw again === 'EBUSY' || again === 'EPERM' ? new Error('PURGE_INCOMPLETE', { cause: retry }) : retry;
+            }
+          }
+          deleted.add(sha);
+        }
+      } finally {
+        for (const [id, receipt] of this.receipts) if (deleted.has(receipt.artifactSha256)) this.receipts.delete(id);
+      }
+      return { removed: deleted.size };
     });
+  }
+  /** storage/artifacts, contained as reviewRoot is: null when absent, INSTALLATION_INVALID when not a real folder of storage. */
+  private async artifactsRoot(): Promise<string | null> {
+    const store = join(this.config.storageRoot, 'artifacts');
+    let info; try { info = await lstat(store); } catch (error) { if (missing(error)) return null; throw new Error('INSTALLATION_INVALID', { cause: error }); }
+    const expected = join(await realpath(this.config.storageRoot), 'artifacts'); const actual = await realpath(store);
+    if (!info.isDirectory() || info.isSymbolicLink() || (process.platform === 'win32' ? actual.toLowerCase() !== expected.toLowerCase() : actual !== expected)) throw new Error('INSTALLATION_INVALID');
+    return store;
   }
   /** Removes storage/review/<name> for each name recovery returned, under the same lock as sweep. Plain names only. */
   discardReview(names: readonly string[]): Promise<void> {

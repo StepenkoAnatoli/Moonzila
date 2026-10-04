@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { FAKE_HEAD_SHA, FAKE_REPOSITORY, TEST_CA, startFakeGitHub, type FakeGitHub } from '../tests/fixtures/fake-github';
+import { FAKE_HEAD_SHA, FAKE_REPOSITORY, startFakeGitHub, type FakeGitHub } from '../tests/fixtures/fake-github';
 
 // Plan Task 7's research journeys: the real app, the real pinned kit and the native helper, against the loopback fake
 // GitHub. The app gives a collector child no proxy or CA variable, so e2e/fixtures/collector-network.cjs is loaded
@@ -54,7 +54,7 @@ async function journey(name: string, { routeRunRead = false }: { routeRunRead?: 
   const launch = async () => {
     const app = await electron.launch({
       args: [...localArgs, '-r', PRELOAD, resolve('.'), `--user-data-dir=${data}`],
-      env: { ...process.env, MOONALIZA_E2E_COLLECTOR_NETWORK: JSON.stringify({ HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: TEST_CA, ...(routeRunRead ? { routeRunRead: true } : {}) }) },
+      env: { ...process.env, MOONALIZA_E2E_COLLECTOR_NETWORK: JSON.stringify({ HTTPS_PROXY: fake.proxyUrl, NODE_EXTRA_CA_CERTS: fake.caPath, ...(routeRunRead ? { routeRunRead: true } : {}) }) },
     });
     if (await network(app) === null) {
       const main = app.process(); const exited = new Promise(done => main.once('exit', done));

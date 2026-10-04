@@ -90,6 +90,46 @@ export const CANCELLABLE_RESEARCH: readonly Research['status'][] = ['queued', 'd
 export const REVIEWABLE_RESEARCH: readonly Research['status'][] = ['collected', 'not_ready'];
 /** Statuses main's `research.document.read` has a source for (research-review-ui spec 3). */
 export const READABLE_RESEARCH: readonly Research['status'][] = ['collected', 'reviewing', 'packaging', 'approved', 'not_ready'];
+/** Statuses main's `research.purge` admits (research-purge spec decision 2); never `collected` or `not_ready`. */
+export const PURGEABLE_RESEARCH: readonly Research['status'][] = ['approved', 'failed', 'cancelled'];
+/**
+ * Delete stored corpus (research-purge spec decision 8): the confirmation's disclosures; no text says approve or authorize.
+ * `unverified` is shown only for the current approved job, the one whose Ready check the purge can change; a package
+ * another job uses is kept, so it is worded for that case too.
+ */
+export const PURGE_TEXT = {
+  open: 'Delete stored corpus', title: 'Delete the stored corpus?', confirm: 'Delete stored corpus',
+  points: [
+    'The brief and evidence of this research can no longer be read.',
+    'The research record stays in this list. Packages another research job uses are kept.',
+  ],
+  unverified: 'If this research passed review and no other research uses its stored package, it reads "Unverified" instead of "Ready" from then on.',
+  unexpected: 'Moonzila could not tell what was deleted. Check the research status before trying again.',
+} as const;
+/** The purge result in words; each clause follows one field of `ResearchPurgeResultSchema`. */
+export function purgeResultText(result: { removed: number; keptShared: number; keptBusy: boolean }): string {
+  return [
+    `Removed ${result.removed} stored package${result.removed === 1 ? '' : 's'}.`,
+    ...(result.keptShared > 0 ? [result.keptShared === 1 ? '1 stored package was kept because another research job uses it.' : `${result.keptShared} stored packages were kept because another research job uses them.`] : []),
+    ...(result.keptBusy ? ['Unused packages were kept because research is running.'] : []),
+  ].join(' ');
+}
+/**
+ * Cancel review is terminal (`cancelling -> cancelled`, research-review spec "Cancel, Stop, trust and policy"), so it asks
+ * first and names Stop in the review conversation, which ends only the run and keeps the review retryable (P5-12).
+ */
+export const CANCEL_REVIEW_TEXT = {
+  title: 'Cancel the review?', keep: 'Keep the review', confirm: 'Cancel review',
+  points: [
+    'A cancelled review cannot be resumed or started again for this research, and its review workspace is deleted.',
+    'To pause instead, use Stop in the review conversation: the review can then be started again and continues from the edits already made.',
+  ],
+} as const;
+/** What a cancelling or cancelled job says when it has a review run (`reviewRunId`); without one, the collection text. */
+export const REVIEW_CANCEL_STATUS = {
+  cancelling: 'Stopping the review. This research cannot be reviewed again.',
+  cancelled: 'The review was cancelled, and this research cannot be reviewed again. Start a new collection to research this topic again.',
+} as const;
 export const cancelLabel = (status: Research['status']) => status === 'reviewing' || status === 'packaging' ? 'Cancel review' : 'Cancel collection';
 
 // Bidirectional overrides and isolates can make untrusted text read differently from what it contains.

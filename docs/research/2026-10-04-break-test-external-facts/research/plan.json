@@ -1,0 +1,36 @@
+{
+  "topic": "Facts the 2026-10-04 break test could not observe on Linux: the Windows environment-block sort rule, Node's fs open flags on Windows, and where Node takes its default locale",
+  "notes": "Owner pages named directly, keyless, no search: Microsoft's Win32 documentation for CreateProcessW and the environment block (U-01), Node.js 24.21.0's fs documentation for the open flags available on Windows (U-02), and Node.js 24.21.0's Internationalization documentation for where the default locale comes from (U-03). No GitHub host is fetched (the break test's unattended rules).",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 6,
+  "prefer": [
+    "learn.microsoft.com",
+    "nodejs.org"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+      "type": "P",
+      "why": "U-01: what CreateProcessW requires of the lpEnvironment block's order"
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows/win32/procthread/changing-environment-variables",
+      "type": "P",
+      "why": "U-01: the environment block's format and sort rule, from the process documentation"
+    },
+    {
+      "url": "https://nodejs.org/docs/v24.21.0/api/fs.html",
+      "type": "P",
+      "why": "U-02: which fs.constants open flags exist on Windows (O_NOFOLLOW, O_NONBLOCK)"
+    },
+    {
+      "url": "https://nodejs.org/docs/v24.21.0/api/intl.html",
+      "type": "P",
+      "why": "U-03: where Node takes its default locale, which String.prototype.localeCompare uses"
+    }
+  ]
+}

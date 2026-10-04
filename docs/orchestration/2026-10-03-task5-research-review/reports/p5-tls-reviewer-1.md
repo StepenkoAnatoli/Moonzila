@@ -1,0 +1,9 @@
+# P4-40 unit review 1 (saved by the lead; structured sections kept)
+
+- Reviewed `/home/user/task5-handoff/wt/p5-rev-tls` at `8edec7e`; commits `aa5b7ea` (pkijs), `89ef613` (asn1js), `c722776` (generator); tree clean. No S1/S2.
+- S3: `NODE_EXTRA_CA_CERTS` is read lazily at the first TLS use (Node 24.21 and Electron), not at child start: deleting the CA after start gives "Ignoring extra certs" then UNABLE_TO_VERIFY_LEAF_SIGNATURE. All callers hold the fake open until done, so nothing breaks today.
+- S3: `tests/fixtures/github-tls.ts:76` comment wrongly says Node refuses a leaf without EKU; both OpenSSL and BoringSSL accept it; SAN is the real guard (the EKU removal turns red only by the attribute assertion at `github-tls.test.ts:36`).
+- S3: `fake-github.ts:51-52` leaks the cert folder if `https.createServer` throws after generation (certificates only, no key); also when Playwright abandons a timed-out body.
+- Concerns held: v3 P-256 ecdsa-SHA256; CA CA:TRUE critical, keyCertSign+cRLSign critical, SKI; leaf CA:FALSE critical, digitalSignature critical, EKU serverAuth, SAN both hosts, SKI, AKI = CA SKI; `openssl verify -x509_strict -purpose sslserver` passes for both hosts, fails on a wrong one; handshakes under Node and Electron; validity now-1h..+7d generated and verified on one host; the preload receives the CA path through `MOONALIZA_E2E_COLLECTOR_NETWORK`. Lockfile: exactly the two root devDependencies (pkijs 3.4.1, asn1js 3.0.10, dev, BSD-3-Clause), `npm ls` clean. Only `ca.pem`, `leaf.pem` written; leaf key memory-only; CA key non-extractable; nothing in logs, env or /tmp. Secret scan pass (doctor exit 1 there only for `firecrawl-auth`, no key on that run).
+- Re-run: 56 passed; `--list` 13; typecheck, lint clean; EKU removal red (attribute assertion); dispose removed from close red.
+- Not checked: Windows journeys, Windows CI, full suite.
