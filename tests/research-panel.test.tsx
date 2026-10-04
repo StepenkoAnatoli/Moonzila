@@ -247,8 +247,10 @@ test('an approved job reads Checking until the reader answers, then Ready with t
   render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
   await waitFor(() => expect(screen.getByTestId('research-status').textContent).toBe('Checking the reviewed package'));
   expect(screen.queryByText(/Ready/)).toBeNull();
-  expect(calls.filter(call => call.method === 'research.document.read').map(call => call.params)).toEqual([{ researchId: 'r1', document: 'brief' }]);
+  // "Checking" is the initial state, painted before React runs the effect that sends the read: wait for the read itself.
+  await waitFor(() => expect(calls.filter(call => call.method === 'research.document.read').map(call => call.params)).toEqual([{ researchId: 'r1', document: 'brief' }]));
   await act(async () => reply.resolve({ text: 'brief', truncated: false, source: 'reviewed', verified: true }));
+  expect(calls.filter(call => call.method === 'research.document.read')).toHaveLength(1);
   expect(screen.getByTestId('research-status').textContent).toBe(`Ready: approved by the Research Kit gate · package ${DIGEST.slice(0, 12)}`);
   expect(screen.getByTestId('research-status').textContent).not.toContain(DIGEST.slice(0, 13));
   expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
