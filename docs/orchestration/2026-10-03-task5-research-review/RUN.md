@@ -19,7 +19,7 @@
 | 4 Mandate | DONE (standing mandate) | MANDATE-P5.md | 18:00 |
 | 5 Build | DONE | units B7a, B7b, P4-40 integrated, reviewed, fixed; integration spec and invariant reviews done | 2026-10-04 |
 | 6 Harden | ACTIVE: break-test agent on `break-test/2026-10-04` from `d599a39` | report due at docs/evidence/2026-10-04-break-test.md | - |
-| 7 Audit | ACTIVE: gap-audit agent (read-only, `d599a39`), in parallel with Stage 6 | - | - |
+| 7 Audit | DONE: P5-11..P5-14 fixed; P5-15, P5-16 open items in the plan | reports/p5-gap-audit-1.md | 2026-10-04 |
 | 8 Deliver and merge | PENDING | - | - |
 | 9 Validate and report | PENDING | - | - |
 
@@ -173,8 +173,8 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-10 | B7a builder | design note | two finished jobs that share a digest each keep it, so neither purge ever deletes it | KEPT: the user's 2026-10-03 rule (delete only when no other verification references the digest); sharing needs identical bytes, which UNIQUE client_ref makes rare; recorded in the spec's as built |
 | P5-11 | gap-audit G1 | High, IN-SCOPE | only the newest job gets controls; older approved, collected and not_ready jobs lose their check, reader and Start review | FIXED (`8fd8b19`): a Show control makes any job the subject; lead re-ran the panel files 101/101 |
 | P5-12 | gap-audit G3 | Medium, IN-SCOPE | Cancel review is one click, terminal, then described as a collection | FIXED (`6391bb4`): confirmation and review wording; lead: confirmation removed -> red |
-| P5-13 | gap-audit G4 | Med-Low, IN-SCOPE (instruction part) | a `fresh` retry rebuilds the workspace without telling the model | FIX (unit G45): the engine's instruction says the workspace was rebuilt and earlier edits are gone. The panel notice needs a `workspace` field on ResearchSchema: DESIGN CHANGE, open item |
-| P5-14 | gap-audit G5 | Medium, IN-SCOPE (test) | review kit children never run through the real native helper in tests | FIX (unit G45): a Windows-only test running freeze and packaging through the helper; verified by Windows CI |
+| P5-13 | gap-audit G4 | Med-Low, IN-SCOPE (instruction part) | a `fresh` retry rebuilds the workspace without telling the model | FIXED (`61d0ef9`): the engine's instruction says so; lead: notice removed -> red. The panel notice: DESIGN CHANGE, open item in the plan |
+| P5-14 | gap-audit G5 | Medium, IN-SCOPE (test) | review kit children never run through the real native helper in tests | FIXED (`ca2386e`): Windows-only test through `MoonAlizaHost.exe`; Windows CI verifies |
 | P5-15 | gap-audit G2 | Med-High, DESIGN CHANGE (lead) | a retry is not told why the previous review failed; the reviewed manifest's `review.*` flags and `gate.blockingFindings` never reach the next run or the panel | OPEN ITEM: needs a new field from main to the engine's begin and to ResearchSchema (an interface change); recorded in the plan as a Task 5 follow-up |
 | P5-16 | gap-audit G6 | Low, DESIGN CHANGE | collected/not_ready jobs can never be abandoned; their ZIPs and workspaces stay | OPEN ITEM: changes the user's 2026-10-03 purge rule; for the user |
 
@@ -235,3 +235,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: Stage 6 break-test and Stage 7 gap-audit launched in parallel (the audit is read-only; fixes from either go through lead fix briefs). The GPT cross-vendor reviewer offered for the gap-audit was not run: the user asked to continue without stopping; noted for the report.
 - 2026-10-04: gap-audit returned: P5-11..P5-14 fixed in this run (units G13, G45); P5-15, P5-16 open items; ledger notes to the docs unit.
 - 2026-10-04: G13 integrated (P5-11, P5-12).
+- 2026-10-04: G45 integrated (P5-13, P5-14). Every gap-audit in-scope gap fixed. Pushed for Windows CI.
