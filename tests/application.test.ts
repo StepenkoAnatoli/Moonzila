@@ -8,7 +8,7 @@ import { Application } from '../src/engine/application';
 const roots: string[] = []; const stores: Store[] = [];
 afterEach(() => { stores.splice(0).forEach(store => store.close()); roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })); });
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), 'moonaliza-app-')); roots.push(root);
+  const root = mkdtempSync(join(tmpdir(), 'monnzila-app-')); roots.push(root);
   const store = new Store(join(root, 'state.sqlite')); stores.push(store);
   const at = new Date().toISOString();
   store.putProject({ id: 'p1', rootPath: root, pathLabel: root, name: 'Example', trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'off' }, missing: false, createdAt: at });

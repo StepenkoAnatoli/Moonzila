@@ -1,4 +1,4 @@
-# MoonAliza architecture and current decisions
+# Monnzila architecture and current decisions
 
 The full product architecture is defined in [reviewed decisions](specification/decisions.md) and the [implementation roadmap](superpowers/plans/2026-09-24-moonaliza.md). This document records current context recovery and offline Research Kit boundaries, not a replacement roadmap.
 
@@ -34,3 +34,5 @@ Research panel (plan Task 6, collection part): `src/renderer/ResearchPanel.tsx` 
 Renderer error ownership (0.8.1): navigation and explicit actions clear prior errors synchronously. The session-loading effect must not clear errors, because a newly created session can finish rendering after run admission has already refused a request. The refusal and retained draft remain visible; this changes no engine admission or recovery authority.
 
 Desktop verification waits for durable terminal run status before checking the rendered GitHub answer. The fixture includes a valid six-second response to prevent reinstating a five-second end-to-end assumption. This test-only correction preserves production request deadlines and requires completed status, exact source identity and restart persistence.
+
+The product is named Monnzila since 2026-10-03 ([decision 12](specification/decisions.md)). The rename changed user-facing names and current documents only; the identifiers that bind an installed app to its data (app ID, `app.setName`, session partitions, IPC channel names, the native helper file name, model-store and receipt identities, the activation signature domain) keep their original spelling. [Operate mode](specification/operate-mode.md) is specified as the sixth mode, built on missions over a main-owned runtime connection; its [stage plan](superpowers/plans/2026-10-03-operate-mode.md) is scheduled after research jobs and adds no code yet.

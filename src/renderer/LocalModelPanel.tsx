@@ -40,7 +40,7 @@ export function LocalModelPanel({ api }: { api: AppApi }) {
     </section>
     <section aria-label="Local runtime" className="local-runtime">
       <div className="local-panel-heading"><h3>Ollama connection</h3><button disabled={checking} onClick={() => void inspect()}>{checking ? 'Checking…' : 'Check Ollama'}</button></div>
-      <p>Checks 127.0.0.1:11434 for an existing runtime and installed models. MoonAliza does not start, stop or change that runtime during this check.</p>
+      <p>Checks 127.0.0.1:11434 for an existing runtime and installed models. Monnzila does not start, stop or change that runtime during this check.</p>
       {runtime && <div role="status" data-testid="runtime-status">
         {runtime.status === 'unavailable' ? <p>No Ollama runtime could be reached at this address. For a different local address, use Model profiles.</p> : runtime.status === 'incompatible' ? <p>The service responded, but its model inventory could not be verified.</p> : <><p>Connected · Ollama {runtime.version} · externally managed</p>{!runtime.models.length && <p>No installed models were reported.</p>}
           <ul className="local-model-list">{runtime.models.map(model => <li key={`${model.name}:${model.digest}`}><strong>{model.name}</strong><span>{gib(model.sizeBytes)} on disk · {model.quantization ?? 'Quantization unknown'}</span><span className="muted">Not qualified for coding</span></li>)}</ul></>}

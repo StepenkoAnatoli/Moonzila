@@ -244,7 +244,7 @@ if (ownsInstance) void app.whenReady().then(async () => {
     }
   }
 
-  window = new BrowserWindow({ width: 1440, height: 960, minWidth: 960, minHeight: 640, title: 'MoonAliza', backgroundColor: '#101821', show: false,
+  window = new BrowserWindow({ width: 1440, height: 960, minWidth: 960, minHeight: 640, title: 'Monnzila', backgroundColor: '#101821', show: false,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false, partition: 'moonaliza-renderer' } });
   window.removeMenu();
   const contents = window.webContents;
@@ -259,7 +259,7 @@ if (ownsInstance) void app.whenReady().then(async () => {
   ipcMain.handle('moonaliza:invoke', (event, input: unknown) => invoke({ webContentsId: event.sender.id, frameId: event.senderFrame?.routingId ?? -1, url: event.senderFrame?.url ?? '', isMainFrame: event.senderFrame === event.sender.mainFrame }, input));
   window.on('closed', () => { tickets.revokeOwner(contents.id); window = undefined; });
   await window.loadFile(entry); window.show();
-}).catch(() => { dialog.showErrorBox('MoonAliza could not start', 'The application engine could not be initialized. Your saved project data has been retained.'); app.quit(); });
+}).catch(() => { dialog.showErrorBox('Monnzila could not start', 'The application engine could not be initialized. Your saved project data has been retained.'); app.quit(); });
 
 app.on('second-instance', () => { window?.show(); window?.focus(); });
 app.on('window-all-closed', () => app.quit());

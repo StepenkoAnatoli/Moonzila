@@ -22,7 +22,7 @@ const runner: OwnedRunner = async (request, signal, options = {}) => {
 };
 const make = (name: string) => new ResearchKit({ kitRoot: resolve('.build/research-kit-external/research-kit'), nodePath: process.execPath, nodeSha256, storageRoot: join(root, name), helperPath: resolve('.build/native/MoonAlizaHost.exe') }, runner);
 
-beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'moonaliza-retain-')); nodeSha256 = digest(await readFile(process.execPath)); });
+beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'monnzila-retain-')); nodeSha256 = digest(await readFile(process.execPath)); });
 afterAll(async () => { if (root) await rm(root, { recursive: true, force: true }); });
 
 test('a torn retained file left by a crash is replaced by the verified bytes, and nothing temporary stays in the store', async () => {

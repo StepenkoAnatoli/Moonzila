@@ -7,7 +7,7 @@ import { Vault } from '../src/main/vault';
 
 const roots: string[] = [];
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), 'moonaliza-vault-'));
+  const directory = await mkdtemp(join(tmpdir(), 'monnzila-vault-'));
   roots.push(directory);
   const key = randomBytes(32);
   const cryptor = {

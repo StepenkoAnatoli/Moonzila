@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// MoonAliza-owned boundary types. The pinned external validator owns the full wire schema.
+// Monnzila-owned boundary types. The pinned external validator owns the full wire schema.
 export const DigestSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const id = z.string().min(1).max(128);
 const text = z.string().min(1).max(4096);

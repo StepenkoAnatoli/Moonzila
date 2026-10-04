@@ -52,7 +52,7 @@ Use [PR #2's current-head checks](https://github.com/StepenkoAnatoli/MoonAliza/p
 
 ```powershell
 gh pr checks 2 --repo StepenkoAnatoli/MoonAliza
-gh run list --repo StepenkoAnatoli/MoonAliza --branch feat/moonaliza-desktop
+gh run list --repo StepenkoAnatoli/MoonAliza --branch feat/monnzila-desktop
 gh run view <run-id> --repo StepenkoAnatoli/MoonAliza --log-failed
 ```
 

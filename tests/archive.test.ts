@@ -7,7 +7,7 @@ import { zipFixture } from './fixtures/zip';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture(entries: Parameters<typeof zipFixture>[0]) {
-  const root = await mkdtemp(join(tmpdir(), 'moonaliza-zip-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'monnzila-zip-')); roots.push(root);
   const archive = join(root, 'runtime.zip'), destination = join(root, 'extracted'); await writeFile(archive, zipFixture(entries)); return { root, archive, destination };
 }
 const limits = { maxExpandedBytes: 1024, maxEntries: 10 };

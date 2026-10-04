@@ -222,7 +222,7 @@ test('TLS is really checked: an untrusted CA reaches the proxy but never the API
   fake.reset(); fake.set({});
   const { spawn } = await import('node:child_process');
   const { mkdtemp, rm } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
-  const temp = await mkdtemp(join(tmpdir(), 'moonaliza-collector-'));
+  const temp = await mkdtemp(join(tmpdir(), 'monnzila-collector-'));
   try {
     const output = await new Promise<{ code: number | null; text: string }>((done, fail) => {
       const child = spawn(process.execPath, dispatchArgs(KIT_SCRIPT, job, target), { cwd: temp, env: { ...collectorEnvironment(temp, TEST_TOKEN), HTTPS_PROXY: fake.proxyUrl }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });

@@ -37,7 +37,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: npm run test:e2e
         env:
-          MOONALIZA_TEST_EXECUTABLE: '${{ github.workspace }}/release/win-unpacked/MoonAliza.exe'
+          MOONALIZA_TEST_EXECUTABLE: '${{ github.workspace }}/release/win-unpacked/Monnzila.exe'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

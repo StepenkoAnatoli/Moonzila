@@ -26,7 +26,7 @@ const make = (seen: Seen[], name: string, hold?: Promise<void>, patch: Partial<{
   new ResearchKit({ kitRoot, nodePath: process.execPath, nodeSha256, storageRoot: join(root, name), helperPath: resolve('.build/native/MoonAlizaHost.exe'), ...patch }, runner(seen, hold));
 const options = (admit: () => Promise<void> = async () => {}) => ({ timeoutMs: 1000, admissionTimeoutMs: 600, maxOutputBytes: 4096, signal: new AbortController().signal, admit, onStarted: () => {} });
 
-beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'moonaliza-collector-launch-')); nodeSha256 = createHash('sha256').update(await readFile(process.execPath)).digest('hex'); });
+beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'monnzila-collector-launch-')); nodeSha256 = createHash('sha256').update(await readFile(process.execPath)).digest('hex'); });
 afterAll(async () => { if (root) { const rel = relative(resolve(tmpdir()), root); if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error('UNSAFE_TEST_CLEANUP'); await rm(root, { recursive: true, force: true }); } });
 
 test('a launch runs the staged collect-remote.mjs in its own folder, with the guarded locks and the admission inside beforeStart', async () => {

@@ -30,7 +30,7 @@ function replay(name: string, clientRef?: string, signal?: AbortSignal): OwnedRe
 const gate = () => { let open!: () => void; const promise = new Promise<void>(resolve => { open = resolve; }); return { promise, open }; };
 
 async function harness(script: Script, options: { fault?(control: Control): Promise<void> | void; root?: string; now?(): number; noToken?: boolean; epoch?(): string; importPackage?(handoff: PackageHandoff): Promise<ImportOutcome> } = {}) {
-  const root = options.root ?? await mkdtemp(join(tmpdir(), 'moonaliza-supervisor-')); if (!options.root) roots.push(root);
+  const root = options.root ?? await mkdtemp(join(tmpdir(), 'monnzila-supervisor-')); if (!options.root) roots.push(root);
   const store = new Store(join(root, 'state.sqlite')); closers.push(async () => store.close());
   const notices: unknown[] = []; const jobs = new ResearchJobs(store, research => notices.push(research));
   if (!store.getProject('p')) store.putProject({ id: 'p', name: 'p', rootPath: 'C:\\work\\p', pathLabel: 'p', trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'public-technical' }, missing: false, createdAt: at });
