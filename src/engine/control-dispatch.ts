@@ -45,6 +45,8 @@ export function createControl(store: Store, app: Application): (command: Control
       case 'research.review.begin': return app.beginReview({ requestId: command.requestId, researchId: command.researchId, profileId: command.profileId, workspace: command.workspace });
       // Main's policy route (research-review-ui spec section 4): one read each, never a run list or history.
       case 'policy.guard': return store.policyGuard(command.projectId) ?? null;
+      // Main's purge (docs/specification/research-purge.md): every job's retained digests, one read, inside main's storage lock.
+      case 'research.retained': return store.researchRetained();
       case 'session.project': { const session = store.getSession(command.sessionId); return session ? { projectId: session.projectId } : null; }
       case 'vault.references': return store.listSecretRefs();
       case 'request.lookup': return store.lookupAcceptedRequest({ method: command.requestMethod, clientRequestId: command.requestId, canonicalInputHash: command.inputHash }) ?? null;
