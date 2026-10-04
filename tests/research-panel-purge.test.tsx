@@ -160,8 +160,9 @@ test('no purge text says approve or authorize', () => {
   for (const text of texts) expect(text).not.toMatch(/authori[sz]e|approv/i);
 });
 
-test('the Unverified line is shown only for the current approved job, worded for a package another job keeps', async () => {
-  // Guard: the line is passed only for the current approved job (mutation: show it in every confirmation).
+test('the Unverified line is shown for every approved job, current or history, worded for a package another job keeps', async () => {
+  // Guard: the line is passed for approved jobs only (mutation: show it in every confirmation); a history row's
+  // approved job gets it too, because Show makes that job current and it then reads Unverified (final audit, P5-23).
   expect(PURGE_TEXT.unverified).toBe('If this research passed review and no other research uses its stored package, it reads "Unverified" instead of "Ready" from then on.');
   render(<ResearchPanel api={bridge({ jobs: [approved(), approved({ id: 'r0', topic: 'Older approved', createdAt: '2026-10-01T00:00:00Z' })] }).api} project={project} openConversation={() => {}} />);
   const section = await screen.findByRole('region', { name: 'Current research' });
@@ -169,7 +170,7 @@ test('the Unverified line is shown only for the current approved job, worded for
   expect(within(section).getByRole('group', { name: PURGE_TEXT.title }).textContent).toContain(PURGE_TEXT.unverified);
   const history = (await screen.findByText(/^Earlier research/)).closest('details')!;
   fireEvent.click(within(history).getByRole('button', { name: 'Delete stored corpus' }));
-  expect(within(history).getByRole('group', { name: PURGE_TEXT.title }).textContent).not.toContain('Unverified');
+  expect(within(history).getByRole('group', { name: PURGE_TEXT.title }).textContent).toContain(PURGE_TEXT.unverified);
   for (const status of ['failed', 'cancelled'] as const) {
     cleanup();
     render(<ResearchPanel api={bridge({ jobs: [job({ status })] }).api} project={project} />);
