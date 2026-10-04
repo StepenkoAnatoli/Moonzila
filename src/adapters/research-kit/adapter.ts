@@ -101,15 +101,20 @@ async function packageContent<T>(read: () => T | Promise<T>): Promise<T> {
   try { return await read(); } catch (error) { throw failureOf(error) ? error : new Error('ARTIFACT_INVALID', { cause: error }); }
 }
 
+/** Errors that are a verdict on the bytes the validator read: the package does not verify. Every other error is no verdict. */
+const VERDICTS: ReadonlySet<string> = new Set(['ARTIFACT_INVALID', 'IDENTITY_MISMATCH', 'INPUT_LIMIT']);
 /**
- * verifyRetained's code for a validation without a receipt. TIMEOUT and STORAGE_LIMIT say the validator could not finish
- * on this machine (VALIDATOR_UNAVAILABLE). OUTPUT_LIMIT and VALIDATOR_OUTPUT stay STALE_VERIFICATION: a tampered retained
- * ZIP can make the validator print too much or something unparseable, so they are not evidence of this machine's fault.
+ * verifyRetained's code for a validation without a receipt, decided by the bytes the validator itself read (`read`, the
+ * SHA-256 of validate's single capture; undefined when the capture failed). INSTALLATION_INVALID and CANCELLED pass
+ * through. Bytes that do not hash to the digest name are STALE_VERIFICATION whatever the validator did (a changed file can
+ * make it time out or print garbage). Intact bytes with a real verdict are STALE_VERIFICATION; intact bytes with no verdict
+ * (TIMEOUT, OUTPUT_LIMIT, VALIDATOR_OUTPUT, STORAGE_LIMIT) are VALIDATOR_UNAVAILABLE: nothing is known about the package.
+ * A capture that failed (a link, a second hard link, a file grown past the bound) is the package's: STALE_VERIFICATION.
  */
-function retainedFailure(error: Result['error']): string {
+export function retainedFailure(error: Result['error'], artifactSha256: string, read: string | undefined): string {
   if (error === 'INSTALLATION_INVALID' || error === 'CANCELLED') return error;
-  if (error === 'TIMEOUT' || error === 'STORAGE_LIMIT') return 'VALIDATOR_UNAVAILABLE';
-  return 'STALE_VERIFICATION';
+  if (read !== artifactSha256) return 'STALE_VERIFICATION';
+  return error !== null && VERDICTS.has(error) ? 'STALE_VERIFICATION' : 'VALIDATOR_UNAVAILABLE';
 }
 
 export class ResearchKit {
@@ -194,10 +199,14 @@ export class ResearchKit {
    * (the review supervisor re-reads its job there). It refuses by throwing `CANCELLED`; the result is then CANCELLED.
    */
   validate(file: string, input: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<Result> {
+    return this.validateCaptured(file, input, {}, signal, admit);
+  }
+  /** validate, recording in `seen.sha256` the hash of the one capture of `file` it validated (verifyRetained's evidence). */
+  private validateCaptured(file: string, input: Binding, seen: { sha256?: string }, signal?: AbortSignal, admit?: () => Promise<void>): Promise<Result> {
     const binding = BindingSchema.parse(input);
     return serialized(this.config.storageRoot, async () => {
       try {
-        checkAbort(signal); const bytes = await capturedFile(file, MAX_ARCHIVE);
+        checkAbort(signal); const bytes = await capturedFile(file, MAX_ARCHIVE); seen.sha256 = hash(bytes);
         const manifestValue = await packageContent(() => inspectArchive(bytes));
         const report = await this.inspectOwned(bytes, binding.clientRef, signal, admit);
         if (report.status !== 'PASS') return ResultSchema.parse({ status: report.status, state: null, researchReady: false, receipt: null, error: 'ARTIFACT_INVALID' });
@@ -288,9 +297,11 @@ export class ResearchKit {
   }
   /**
    * The verified bytes of a retained package: a fresh validation of storage/artifacts/<sha256>.zip under the binding,
-   * whose receipt must name that same digest. Throws:
-   * - STALE_VERIFICATION: the package is missing, does not verify, or is no longer the bytes just verified;
-   * - VALIDATOR_UNAVAILABLE (internal, never public): the validator could not finish on this machine (TIMEOUT, STORAGE_LIMIT);
+   * whose receipt must name that same digest. The error is decided by the bytes the validator read (`retainedFailure`):
+   * - STALE_VERIFICATION: the file is missing, its bytes do not hash to the digest name, or the validator's real verdict
+   *   on intact bytes is not PASS (or the bytes changed after validation);
+   * - VALIDATOR_UNAVAILABLE (internal, never public): intact bytes and no verdict (timeout, cut-off or unreadable output,
+   *   storage limit), or intact bytes this machine then fails to read: nothing is known about the package;
    * - INSTALLATION_INVALID for this machine's installation, CANCELLED for the caller's signal or admission.
    */
   async verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<{ receipt: Receipt; bytes: Buffer }> {
@@ -298,14 +309,32 @@ export class ResearchKit {
     const file = join(this.config.storageRoot, 'artifacts', artifactSha256 + '.zip');
     // A retained package that is gone (purged, or never retained here) is a stale verification, not a broken installation.
     try { await lstat(file); } catch (error) { if (missing(error)) throw new Error('STALE_VERIFICATION', { cause: error }); throw new Error('INSTALLATION_INVALID', { cause: error }); }
-    const result = await this.validate(file, binding, signal, admit);
-    if (result.status !== 'PASS' || !result.receipt) throw new Error(retainedFailure(result.error));
+    // The hash comes from validate's own single read of the file, never from a second read (no window between the two).
+    const seen: { sha256?: string } = {};
+    const result = await this.validateCaptured(file, binding, seen, signal, admit);
+    if (result.status !== 'PASS' || !result.receipt) throw new Error(retainedFailure(result.error, artifactSha256, seen.sha256));
     if (result.receipt.artifactSha256 !== artifactSha256) throw new Error('STALE_VERIFICATION');
-    // readVerified turns every failure into STALE_VERIFICATION, and it stays that: right after a PASS under this same
-    // binding, the receipt can only be gone through close() (quit), so what fails is the file under the digest having been
-    // removed, replaced, linked or changed since the validator read it, which is the retained package no longer verifying.
-    // An I/O error reading it is folded in there too; readVerified does not tell the two apart.
-    return { receipt: result.receipt, bytes: await this.readVerified(result.receipt.id, binding) };
+    return { receipt: result.receipt, bytes: await this.readRetained(result.receipt) };
+  }
+  /**
+   * readVerified's read for verifyRetained, telling the package's fault from this machine's. Right after a PASS the file
+   * under the digest holds the validated bytes (validate replaces it otherwise). Bytes that no longer hash to the digest, a
+   * file gone, linked, hard-linked or grown are the package no longer verifying: STALE_VERIFICATION. A receipt gone (close()
+   * at quit) or an I/O error on a file that is still there is this machine's: VALIDATOR_UNAVAILABLE.
+   */
+  private readRetained(receipt: Receipt): Promise<Buffer> {
+    return serialized(this.config.storageRoot, async () => {
+      if (!this.receipts.has(receipt.id)) throw new Error('VALIDATOR_UNAVAILABLE');
+      let bytes: Buffer;
+      try { bytes = await capturedFile(join(this.config.storageRoot, 'artifacts', receipt.artifactSha256 + '.zip'), MAX_ARCHIVE); }
+      catch (error) {
+        this.receipts.delete(receipt.id);
+        const code = error instanceof Error ? error.message : '';
+        throw new Error(missing(error) || code === 'ARTIFACT_INVALID' || code === 'INPUT_LIMIT' ? 'STALE_VERIFICATION' : 'VALIDATOR_UNAVAILABLE', { cause: error });
+      }
+      if (bytes.length !== receipt.artifactBytes || hash(bytes) !== receipt.artifactSha256) { this.receipts.delete(receipt.id); throw new Error('STALE_VERIFICATION'); }
+      return bytes;
+    });
   }
   /** Removes storage/review/<name> for each name recovery returned, under the same lock as sweep. Plain names only. */
   discardReview(names: readonly string[]): Promise<void> {

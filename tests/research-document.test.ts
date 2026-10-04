@@ -47,7 +47,7 @@ function cryptor(broken = false) {
   };
 }
 
-interface World { folder: string; store: Store; jobs: ResearchJobs; kit: ResearchKit; storage: string; reviewRoot: string; vault: Vault; id: string; job: string; project: string; runId?: string; verifications: number; stalled: boolean }
+interface World { folder: string; store: Store; jobs: ResearchJobs; kit: ResearchKit; storage: string; reviewRoot: string; vault: Vault; id: string; job: string; project: string; runId?: string; verifications: number; stalled: boolean; crashed: boolean }
 let count = 0;
 // Every world's database stays open for its test; closed before the root is removed, since Windows cannot delete an open file.
 const stores: Store[] = [];
@@ -60,17 +60,18 @@ async function world(options: { secrets?: string[]; brokenVault?: boolean; nodeS
   const id = 'j1';
   store.createResearch({ id, projectId: 'p', topic: 'Fixture topic', inputs: { queries: [], urls: [], preferDomains: [], depth: 'quick', maxPages: 8 }, clientRef: provenance.identity.clientRef, researchLevel: 'public-technical', policyRevision: 1, trustRevision: 1 }, { actor: 'user' });
   const storage = join(folder, 'storage');
-  // While `stalled`, the validator child never finishes: the helper reports its timeout.
-  const flags = { stalled: false };
+  // While `stalled`, the validator child never finishes: the helper reports its timeout. While `crashed`, the child's
+  // output is cut off by the helper's bound: no verdict either way.
+  const flags = { stalled: false, crashed: false };
   const kit = new ResearchKit({ kitRoot, nodePath: process.execPath, nodeSha256: options.nodeSha256 ?? nodeSha256, storageRoot: storage, helperPath: resolve('.build/native/MoonAlizaHost.exe') }, async (request, signal, opts = {}) => {
-    if (!flags.stalled) return runner(request, signal, opts);
+    if (!flags.stalled && !flags.crashed) return runner(request, signal, opts);
     await opts.beforeStart?.(); opts.onStarted?.({ pid: 4242, createdAt: '1' });
-    return { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: true };
+    return { status: 'exited', code: 1, output: '', truncated: flags.crashed, cancelled: false, timedOut: flags.stalled };
   });
   const vault = new Vault(join(folder, 'vault'), cryptor(options.brokenVault));
   await vault.initialize('epoch-1');
   for (const secret of options.secrets ?? []) { const ref = await vault.saveStaged(secret); await vault.commit(ref); }
-  const w: World = { folder, store, jobs, kit, storage, reviewRoot: join(storage, 'review'), vault, id, job: join(storage, 'review', id), project: join(storage, 'review', id, 'project'), verifications: 0, get stalled() { return flags.stalled; }, set stalled(value: boolean) { flags.stalled = value; } };
+  const w: World = { folder, store, jobs, kit, storage, reviewRoot: join(storage, 'review'), vault, id, job: join(storage, 'review', id), project: join(storage, 'review', id, 'project'), verifications: 0, get stalled() { return flags.stalled; }, set stalled(value: boolean) { flags.stalled = value; }, get crashed() { return flags.crashed; }, set crashed(value: boolean) { flags.crashed = value; } };
   if (options.collect === false) return w;
   step(w, 'dispatching', 'main', { target: { collectorRevision: 1, repository: provenance.identity.repository, workflow: 'collect.yml', ref: provenance.identity.ref } });
   step(w, 'collecting', 'main', { workflowRunId: '1' });
@@ -454,5 +455,17 @@ test('the job folder swapped for a link to itself between the lstat and the open
     const moved = join(w.folder, 'moved-job');
     const swap = async () => { await rename(w.job, moved); await symlink(moved, w.job, 'junction'); };
     await expect(readWorkspace(w.reviewRoot, w.id, ['research', 'BRIEF.md'], { beforeOpen: swap })).rejects.toThrow('DOCUMENT_UNSAFE');
+  } finally { await w.kit.close(); }
+}, 60000);
+
+test('an intact retained package whose validator gives no verdict (output cut off) is "Cannot check", never Unverified', async () => {
+  // Guard: verifyRetained classifies by the bytes the validator read (mutation: classify OUTPUT_LIMIT as stale again).
+  const w = await world();
+  try {
+    w.crashed = true;
+    expect((await refusal(w)).message).toBe('RESEARCH_KIT_UNAVAILABLE');
+    w.crashed = false; await approved(w); w.crashed = true;
+    const error = await refusal(w);
+    expect(error.message).toBe('RESEARCH_KIT_UNAVAILABLE'); expect(error.cause).toBeUndefined();
   } finally { await w.kit.close(); }
 }, 60000);
