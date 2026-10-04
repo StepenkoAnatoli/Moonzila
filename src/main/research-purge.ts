@@ -33,7 +33,8 @@ export async function purgeResearch(deps: PurgeDeps, researchId: string): Promis
   if (!deps.kit) throw new Error('RESEARCH_KIT_UNAVAILABLE');
   let decided: Error | undefined;
   let keptShared = 0; let keptBusy = false;
-  const decide = async (stored: readonly string[]): Promise<string[]> => {
+  // Inside the lock: the read and the refusals first, before the store is even listed (review F2).
+  const plan = async (): Promise<(stored: readonly string[]) => string[]> => {
     try {
       const { jobs } = ResearchRetainedResultSchema.parse(await deps.control({ method: 'research.retained' }));
       const job = jobs.find(item => item.id === researchId);
@@ -45,16 +46,19 @@ export async function purgeResearch(deps: PurgeDeps, researchId: string): Promis
         referenced.add(sha); if (item.id !== job.id) others.add(sha);
       }
       const own = [...new Set([job.collected, job.reviewed].filter((sha): sha is string => sha !== null))];
-      const targets = own.filter(sha => !others.has(sha));
-      keptShared = own.length - targets.length;
-      const orphans = stored.filter(sha => !referenced.has(sha));
-      if (jobs.some(item => ACTIVE.has(item.status))) keptBusy = orphans.length > 0;
-      else targets.push(...orphans);
-      return targets;
+      const busy = jobs.some(item => ACTIVE.has(item.status));
+      return stored => {
+        const targets = own.filter(sha => !others.has(sha));
+        keptShared = own.length - targets.length;
+        const orphans = stored.filter(sha => !referenced.has(sha));
+        if (busy) keptBusy = orphans.length > 0;
+        else targets.push(...orphans);
+        return targets;
+      };
     } catch (error) { decided = error instanceof Error ? error : new Error('INTERNAL_ERROR'); throw decided; }
   };
   let removed: number;
-  try { ({ removed } = await deps.kit.purgeRetained(decide)); }
+  try { ({ removed } = await deps.kit.purgeRetained(plan)); }
   catch (error) {
     if (decided && error === decided) throw error;
     if (error instanceof Error && error.message === 'PURGE_INCOMPLETE') throw new Error('PURGE_INCOMPLETE', { cause: error });

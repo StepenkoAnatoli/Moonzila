@@ -303,6 +303,19 @@ test('a link in place of artifacts/ itself is RESEARCH_KIT_UNAVAILABLE, and noth
   expect(await readdir(elsewhere)).toEqual([`${digest(bytes)}.zip`]);
 });
 
+test('the status is decided before artifacts/ is listed: with a link there, an unknown job is NOT_FOUND and a collected one PURGE_NOT_ALLOWED', async () => {
+  // Guard: decide's refusals come before the listing (review F2; mutation: list storage/artifacts first - every refusal
+  // then reads RESEARCH_KIT_UNAVAILABLE).
+  const w = await world(); job(w, 'kept', 'collected'); job(w, 'done', 'cancelled');
+  const elsewhere = join(w.folder, 'elsewhere'); await mkdir(elsewhere);
+  await mkdir(w.storage, { recursive: true }); await symlink(elsewhere, w.artifacts, 'junction');
+  expect(await refusal(purge(w, 'missing'))).toBe('NOT_FOUND');
+  expect(await refusal(purge(w, 'kept'))).toBe('PURGE_NOT_ALLOWED');
+  // A purge that passes the check still refuses the unusable store.
+  expect(await refusal(purge(w, 'done'))).toBe('RESEARCH_KIT_UNAVAILABLE');
+  expect(w.unlinks).toEqual([]);
+});
+
 // ------------------------------------------------------------------ the storage lock
 
 test('an import retaining a ZIP while the purge reads its references is ordered by the storage lock: the new ZIP survives', async () => {

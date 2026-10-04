@@ -347,18 +347,20 @@ export class ResearchKit {
     return bytes;
   }
   /**
-   * The purge's locked step (docs/specification/research-purge.md). Under the storage lock: lists the retained ZIPs -
-   * only regular files named `<64 hex>.zip` directly in storage/artifacts, never a link, a folder or any other name -
-   * then asks `decide` (main's read of every job's references, made inside this lock) which of them to delete, deletes
-   * those and forgets the receipts of every digest it deleted. A digest `decide` names that is not listed is ignored.
+   * The purge's locked step (docs/specification/research-purge.md). Under the storage lock: first `plan` (main's read of
+   * every job's references and its refusals, made inside this lock, before anything is listed); then the listing of the
+   * retained ZIPs - only regular files named `<64 hex>.zip` directly in storage/artifacts, never a link, a folder or any
+   * other name - handed to the selector `plan` returned, which names the ones to delete; then the deletes, and the
+   * receipts of every digest deleted are forgotten. A digest the selector names that is not listed is ignored.
    * A delete refused with EBUSY or EPERM (Windows: a handle opened without FILE_SHARE_DELETE) is retried once; refused
    * again with either, the purge stops with PURGE_INCOMPLETE (another program holds the file), keeping what it deleted
    * deleted and its receipts forgotten; any other failed delete is thrown as it is (the store's fault). An
    * artifacts folder that is not a real folder of storage is INSTALLATION_INVALID; nothing beneath it is listed.
-   * `decide`'s own errors pass through unchanged.
+   * `plan`'s and the selector's own errors pass through unchanged.
    */
-  purgeRetained(decide: (stored: readonly string[]) => Promise<readonly string[]>): Promise<{ removed: number }> {
+  purgeRetained(plan: () => Promise<(stored: readonly string[]) => readonly string[]>): Promise<{ removed: number }> {
     return serialized(this.config.storageRoot, async () => {
+      const select = await plan();
       const store = await this.artifactsRoot();
       const stored: string[] = [];
       for (const name of store ? await readdir(store) : []) {
@@ -367,7 +369,7 @@ export class ResearchKit {
         if (info.isFile() && !info.isSymbolicLink()) stored.push(match[1]!);
       }
       const listed = new Set(stored);
-      const targets = [...new Set(await decide(stored))].filter(sha => listed.has(sha));
+      const targets = [...new Set(select(stored))].filter(sha => listed.has(sha));
       const deleted = new Set<string>();
       try {
         for (const sha of targets) {
