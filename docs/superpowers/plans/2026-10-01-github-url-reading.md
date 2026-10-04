@@ -16,7 +16,7 @@ Design and contract:
 
 Tasks:
 - [x] Add failing real-reader tests: root listing and file paging at a pinned commit; allowlist, redirect, cancellation, byte/size limits, rate limit, missing/private repo and malformed URL handling.
-- [x] Implement shared GitHub input/parser/scope helpers and main GitHub reader with injectable fetch for protocol tests. Verify against public MoonAliza without auth.
+- [x] Implement shared GitHub input/parser/scope helpers and main GitHub reader with injectable fetch for protocol tests. Verify against public Monnzila without auth.
 - [x] Extend strict process messages, engine host hook, main capability validation and read-only tool events; test general chat scope, rejected cross-repo calls, Stop and saved results.
 - [x] Update UI capability copy, model guidance and existing local-tool errors. Add a desktop workflow using mocked public API at the network boundary, not a fake reader.
 - [ ] Run typecheck, lint, full tests, build/runtime and desktop checks; package and test the Windows app. Update handoff, source evidence and release record; scan for keys; push/open PR and inspect exact-head Windows CI. User merges.
@@ -27,7 +27,7 @@ Primary API evidence (accessed 2026-10-01):
 
 The token question does not authorize copying developer tokens into application settings. Public URL reading needs no token; a secure private-repository connection remains a separate feature.
 
-Local full-suite evidence: 511 tests / 37 files passed in 279.10 seconds; typecheck and lint pass. The standalone public MoonAliza read and the new Electron conversation/restart workflow passed. Final packaging/remote status are tracked in the phase PR and release record.
+Local full-suite evidence: 511 tests / 37 files passed in 279.10 seconds; typecheck and lint pass. The standalone public Monnzila read and the new Electron conversation/restart workflow passed. Final packaging/remote status are tracked in the phase PR and release record.
 
 ## CI correction
 

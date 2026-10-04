@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { spawnOwned, safeCommandEnvironment, inspectOwnedConnection, type OwnedIdentity } from '../src/tools/commands';
 
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), 'moonaliza-owned-http-')); const file = join(directory, 'ready.json'); const body = join(directory, 'body');
+  const directory = await mkdtemp(join(tmpdir(), 'monnzila-owned-http-')); const file = join(directory, 'ready.json'); const body = join(directory, 'body');
   const stop = new AbortController(); let identity: OwnedIdentity | undefined;
   const result = spawnOwned({ executable: process.execPath, args: [resolve('tests/fixtures/processes/http-owner.mjs'), file, body], cwd: directory, env: safeCommandEnvironment(), timeoutMs: 10000, maxOutputBytes: 4096 }, stop.signal, { onStarted: value => { identity = value; } });
   // The directory is deleted even when the owned process fails; that failure is still reported.

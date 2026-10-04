@@ -37,12 +37,12 @@ test('Build reads, reviews an edit, applies, undoes and stops before an unapprov
     await page.getByLabel('Model name').fill('fixture-tools');
     await page.getByRole('button', { name: 'Save profile' }).click();
     await page.getByLabel('Mode', { exact: true }).selectOption('build');
-    await page.getByLabel('Message MoonAliza').fill('Change before to after in hello.txt');
+    await page.getByLabel('Message Monnzila').fill('Change before to after in hello.txt');
     await page.getByRole('button', { name: 'Send message' }).click();
     await expect(page.getByRole('button', { name: 'Approve edit' })).toBeVisible();
     expect(await readFile(join(project, 'hello.txt'), 'utf8')).toBe('before\r\n');
     await expect(page.getByLabel('Proposed content')).toContainText('after');
-    await page.screenshot({ path: 'test-results/moonaliza-edit-review.png' });
+    await page.screenshot({ path: 'test-results/monnzila-edit-review.png' });
     await page.getByRole('button', { name: 'Approve edit' }).click();
     await expect(page.getByText('Applied the approved edit.', { exact: true })).toBeVisible();
     expect(await readFile(join(project, 'hello.txt'), 'utf8')).toBe('after\r\n');
@@ -50,7 +50,7 @@ test('Build reads, reviews an edit, applies, undoes and stops before an unapprov
     await page.getByRole('button', { name: 'Undo hello.txt' }).click();
     await expect(page.getByText('Undone', { exact: true })).toBeVisible();
     expect(await readFile(join(project, 'hello.txt'), 'utf8')).toBe('before\r\n');
-    await page.getByLabel('Message MoonAliza').fill('Make the change again');
+    await page.getByLabel('Message Monnzila').fill('Make the change again');
     await page.getByRole('button', { name: 'Send message' }).click();
     await expect(page.getByRole('button', { name: 'Approve edit' })).toBeVisible();
     await page.getByRole('button', { name: 'Stop run' }).click();

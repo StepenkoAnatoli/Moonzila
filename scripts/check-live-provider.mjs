@@ -56,7 +56,7 @@ try {
   });
   await page.getByLabel('Mode', { exact: true }).selectOption('build');
   report.step = 'run-and-review';
-  await page.getByLabel('Message MoonAliza').fill('Read hello.txt with read_file, then use edit_file to replace the word before with after. Preserve the line ending. Only change hello.txt, do not run commands. After the approved edit succeeds, briefly confirm the result.');
+  await page.getByLabel('Message Monnzila').fill('Read hello.txt with read_file, then use edit_file to replace the word before with after. Preserve the line ending. Only change hello.txt, do not run commands. After the approved edit succeeds, briefly confirm the result.');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('button', { name: 'Approve edit' })).toBeVisible({ timeout: 60000 });
   assert.equal(await readFile(file, 'utf8'), 'before\r\n');

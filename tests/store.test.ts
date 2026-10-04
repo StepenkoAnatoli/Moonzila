@@ -18,7 +18,7 @@ function seed(projectId = 'p1', sessionId = 's1', runId = 'r1') {
 }
 
 beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), 'moonaliza-store-'));
+  directory = mkdtempSync(join(tmpdir(), 'monnzila-store-'));
   path = join(directory, 'state.sqlite');
   store = new Store(path);
 });

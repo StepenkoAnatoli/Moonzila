@@ -4,7 +4,7 @@ import { StateSchema } from './contracts';
 import { validatorEnvironment } from './adapter';
 
 /**
- * The pinned Research Kit collector (bin/collect-remote.mjs) as MoonAliza drives it: argv, environment and the
+ * The pinned Research Kit collector (bin/collect-remote.mjs) as Monnzila drives it: argv, environment and the
  * reading of its one --json line. Pure: no file system, no process. The kit's free text (error, remedy, URLs, file
  * names, findings) is bounds-checked and dropped, because under --json the kit does not redact it; only codes,
  * numbers, an allowlisted conclusion and a state survive classification.

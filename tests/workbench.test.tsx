@@ -62,10 +62,10 @@ test('cloud preflight preserves the draft and requires explicit policy confirmat
     return bridge.invoke(method, params);
   } }} />);
   await screen.findByRole('heading', { name: project.name });
-  await waitFor(() => expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(false));
-  fireEvent.change(screen.getByLabelText('Message MoonAliza'), { target: { value: 'Keep my draft' } });
+  await waitFor(() => expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(false));
+  fireEvent.change(screen.getByLabelText('Message Monnzila'), { target: { value: 'Keep my draft' } });
   expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(true);
-  fireEvent.keyDown(screen.getByLabelText('Message MoonAliza'), { key: 'Enter', ctrlKey: true });
+  fireEvent.keyDown(screen.getByLabelText('Message Monnzila'), { key: 'Enter', ctrlKey: true });
   fireEvent.click(await screen.findByRole('button', { name: 'Review cloud access' }));
   expect((await screen.findByRole('dialog', { name: 'Allow cloud inference?' })).textContent).toContain('provider.example');
   fireEvent.click(screen.getByRole('button', { name: 'Keep local only' }));
@@ -75,7 +75,7 @@ test('cloud preflight preserves the draft and requires explicit policy confirmat
   await waitFor(() => expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(false));
   expect(calls.filter(call => call === 'project.policy.update')).toHaveLength(1);
   expect(calls).not.toContain('run.start');
-  expect((screen.getByLabelText('Message MoonAliza') as HTMLTextAreaElement).value).toBe('Keep my draft');
+  expect((screen.getByLabelText('Message Monnzila') as HTMLTextAreaElement).value).toBe('Keep my draft');
 });
 
 test('editing context creates a bound profile revision while keeping the saved credential', async () => {
@@ -106,13 +106,13 @@ test('general chat accepts a draft without a project and reviews cloud consent w
     if (method === 'session.policy.update') { session = { ...session, policy: { revision: 1, inference: 'cloud-allowed' } }; return { session }; }
     return bridge.invoke(method, params);
   } }} />);
-  await waitFor(() => expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(false));
-  fireEvent.change(screen.getByLabelText('Message MoonAliza'), { target: { value: 'An idea without a folder' } });
+  await waitFor(() => expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(false));
+  fireEvent.change(screen.getByLabelText('Message Monnzila'), { target: { value: 'An idea without a folder' } });
   fireEvent.click(screen.getByRole('button', { name: 'Review cloud access' }));
   expect((await screen.findByRole('dialog', { name: 'Allow cloud for this conversation?' })).textContent).toContain('provider.example');
   fireEvent.click(screen.getByRole('button', { name: 'Allow for this conversation' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(false));
-  expect((screen.getByLabelText('Message MoonAliza') as HTMLTextAreaElement).value).toBe('An idea without a folder');
+  expect((screen.getByLabelText('Message Monnzila') as HTMLTextAreaElement).value).toBe('An idea without a folder');
   expect(calls).not.toContain('run.start'); expect(calls).not.toContain('project.trust');
   expect(screen.getByRole('option', { name: 'Build' }).hasAttribute('disabled')).toBe(true);
 });
@@ -120,11 +120,11 @@ test('general chat accepts a draft without a project and reviews cloud consent w
 test('navigating away from a project clears its unsent draft', async () => {
   render(<App api={api([project])} />);
   await screen.findByRole('heading', { name: project.name });
-  await waitFor(() => expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(false));
-  fireEvent.change(screen.getByLabelText('Message MoonAliza'), { target: { value: 'Private project draft' } });
+  await waitFor(() => expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(false));
+  fireEvent.change(screen.getByLabelText('Message Monnzila'), { target: { value: 'Private project draft' } });
   fireEvent.click(screen.getByRole('button', { name: 'General chats' }));
   await screen.findByRole('heading', { name: 'General chat' });
-  expect((screen.getByLabelText('Message MoonAliza') as HTMLTextAreaElement).value).toBe('');
+  expect((screen.getByLabelText('Message Monnzila') as HTMLTextAreaElement).value).toBe('');
 });
 
 test('composer waits for the selected scope and disables immediately when changing workspace', async () => {
@@ -134,15 +134,15 @@ test('composer waits for the selected scope and disables immediately when changi
     return bridge.invoke(method, params);
   } }} />);
   await screen.findByRole('heading', { name: project.name });
-  expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(true);
+  expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(true);
   await waitFor(() => expect(release).toBeDefined()); release!();
-  await waitFor(() => expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(false));
-  fireEvent.change(screen.getByLabelText('Message MoonAliza'), { target: { value: 'Private draft' } });
+  await waitFor(() => expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(false));
+  fireEvent.change(screen.getByLabelText('Message Monnzila'), { target: { value: 'Private draft' } });
   fireEvent.click(screen.getByRole('button', { name: 'General chats' }));
-  expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(true);
-  expect((screen.getByLabelText('Message MoonAliza') as HTMLTextAreaElement).value).toBe('');
+  expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(true);
+  expect((screen.getByLabelText('Message Monnzila') as HTMLTextAreaElement).value).toBe('');
   release!();
-  await waitFor(() => expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(false));
+  await waitFor(() => expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(false));
 });
 
 test('rejected run admission preserves the draft when Send has to create a session first', async () => {
@@ -156,12 +156,12 @@ test('rejected run admission preserves the draft when Send has to create a sessi
     if (method === 'run.start') { attempted = true; throw new Error('Review interrupted operations first.'); }
     return bridge.invoke(method, params);
   } }} />);
-  await waitFor(() => expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(false));
-  fireEvent.change(screen.getByLabelText('Message MoonAliza'), { target: { value: 'Keep this request through admission failure' } });
+  await waitFor(() => expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(false));
+  fireEvent.change(screen.getByLabelText('Message Monnzila'), { target: { value: 'Keep this request through admission failure' } });
   fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
   await waitFor(() => expect(attempted).toBe(true));
-  await waitFor(() => expect(screen.getByLabelText('Message MoonAliza').hasAttribute('disabled')).toBe(false));
-  expect((screen.getByLabelText('Message MoonAliza') as HTMLTextAreaElement).value).toBe('Keep this request through admission failure');
+  await waitFor(() => expect(screen.getByLabelText('Message Monnzila').hasAttribute('disabled')).toBe(false));
+  expect((screen.getByLabelText('Message Monnzila') as HTMLTextAreaElement).value).toBe('Keep this request through admission failure');
   expect((await screen.findByRole('alert')).textContent).toContain('Review interrupted operations first.');
   fireEvent.click(screen.getByRole('button', { name: 'General chats' }));
   await screen.findByRole('heading', { name: 'General chat' });
@@ -187,7 +187,7 @@ test('context recovery carries the request with its conversation privacy restric
   fireEvent.click(await screen.findByRole('button', { name: 'Start fresh with this request' }));
   await waitFor(() => expect(calls).toContain('session.branch'));
   expect(calls).not.toContain('session.create'); expect(calls).not.toContain('run.start');
-  expect((screen.getByLabelText('Message MoonAliza') as HTMLTextAreaElement).value).toBe('Private original request');
+  expect((screen.getByLabelText('Message Monnzila') as HTMLTextAreaElement).value).toBe('Private original request');
   expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(true);
 });
 

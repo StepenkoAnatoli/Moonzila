@@ -9,7 +9,7 @@ import { spawnOwned } from '../src/tools/commands';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'moonaliza-git-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'monnzila-git-')); roots.push(root);
   const git = await findCommand('git', process.env, []);
   const run = (...args: string[]) => execFileSync(git, args, { cwd: root, windowsHide: true, stdio: 'pipe' });
   run('init'); run('config', 'user.name', 'Fixture'); run('config', 'user.email', 'fixture@example.test');
@@ -50,7 +50,7 @@ test('rejects external object stores and linked worktrees', async () => {
   const f = await fixture(); await mkdir(join(f.root, '.git', 'objects', 'info'), { recursive: true });
   await writeFile(join(f.root, '.git', 'objects', 'info', 'alternates'), 'C:/outside');
   await expect(f.inspect('git_status')).rejects.toThrow('GIT_UNSAFE_REPOSITORY');
-  const linked = await mkdtemp(join(tmpdir(), 'moonaliza-linked-')); roots.push(linked);
+  const linked = await mkdtemp(join(tmpdir(), 'monnzila-linked-')); roots.push(linked);
   await writeFile(join(linked, '.git'), `gitdir: ${join(f.root, '.git')}`);
   await expect(buildGitCommand(f.git, linked, 'git_status', {})).rejects.toThrow('GIT_UNSAFE_REPOSITORY');
 });
