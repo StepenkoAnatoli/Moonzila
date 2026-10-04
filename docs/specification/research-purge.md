@@ -40,7 +40,7 @@
 - After a purge: the approved job reads Unverified; the reader never falls back to another source.
 - Receipts for deleted digests are gone.
 - No path is taken from the renderer, and `research.retained` is unreachable from it.
-- Windows: deleting a ZIP while another handle has it open. The test pins the outcome: EBUSY/EPERM is retried once, then answered `RESEARCH_KIT_UNAVAILABLE` with nothing half done.
+- Windows: deleting a ZIP while another handle has it open. EBUSY/EPERM is retried once; still refused, the call answers `PURGE_INCOMPLETE` (lead decision after the Phase 5 spec review, P5-5): the packages already deleted stay deleted, the message says so and asks the user to close the program and delete again (a purge is idempotent). *Set aside:* `RESEARCH_KIT_UNAVAILABLE`, whose message tells the user to reinstall the kit, and an all-or-nothing purge, which Windows delete semantics cannot give.
 
 ## Also in Phase 5
 

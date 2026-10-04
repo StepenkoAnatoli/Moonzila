@@ -63,6 +63,7 @@ describe('research contracts', () => {
     expect(result.safeParse({ deleted: true }).success).toBe(false);
     expect(result.safeParse({ removed: -1, keptShared: 0, keptBusy: false }).success).toBe(false);
     expect(ErrorCodeSchema.safeParse('PURGE_NOT_ALLOWED').success).toBe(true);
+    expect(ErrorCodeSchema.safeParse('PURGE_INCOMPLETE').success).toBe(true);
   });
 
   test('no research payload accepts a credential field', () => {

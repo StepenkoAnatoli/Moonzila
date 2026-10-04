@@ -165,6 +165,9 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-2 | B7b unit review | S3 (x4, batched) | purge refusal overwritten by an automatic error; the Unverified disclosure overstates (history rows, failed/cancelled, shared digest); plural wording; formatting | FIXED (branch `748a5da`): refusal kept beside its control, not cleared by automatic errors (red with the reported defect's mutation); Unverified line only for the current approved job; plurals; formatting; lead re-ran the panel files |
 | P5-3 | lead | process | the B7b reviewer's launch message named a placeholder commit ("85b..."); the reviewer found the real one (`b010a3b`) | launch messages name commits from `git log`, never from memory |
 | P5-4 | P4-40 unit review | S3 (x3, batched) | `NODE_EXTRA_CA_CERTS` read lazily (CA must outlive each child's first handshake; undocumented); EKU comment wrong (SAN is the guard); cert folder leak if server start throws | FIXED (branch `5343782`): cleanup on any failure after generation (red without the fix), EKU comment corrected, lazy CA load documented; lead re-ran 57/57 |
+| P5-5 | Phase 5 spec review | S2 (raised: a misleading message, the P4-14 class) | a Windows delete still refused after the retry answers RESEARCH_KIT_UNAVAILABLE ("reinstall the kit") and never says that earlier packages were already deleted | lead contract: new public code `PURGE_INCOMPLETE` (spec updated, contract test); FIX to the B7a builder, batched with its unit review |
+| P5-6 | Phase 5 spec review | S3 / test gap | no test for a purge racing a review start's `verifyRetained`; the reader race only in one ordering; `keptShared` counts referenced digests with no file | FIX batched to the B7a builder |
+| P5-7 | Phase 5 spec review | docs | spec divergences (keptBusy, NOT_FOUND, no-kit order, retry detail, disclosure, removed incl. orphans, projectId, no deleted state) and ARCHITECTURE wording | DOCS: "as built" in research-purge.md |
 
 ## Kit findings
 
@@ -217,3 +220,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: P5-4 fixed and integrated (57/57).
 - 2026-10-04: P5-2 fixed and integrated.
 - 2026-10-04: B7a integrated (46/46 with reader and main-kit; shared-digest guard removal red). All Phase 5 units in. Pushed; full Linux gate and Windows CI on this head; B7a unit review and the integration spec and invariant reviewers launched.
+- 2026-10-04: Phase 5 spec review: no S1/S2 in code; P5-5 (S2) needs contract `PURGE_INCOMPLETE` (lead, added); P5-6 test gaps; P5-7 docs.
