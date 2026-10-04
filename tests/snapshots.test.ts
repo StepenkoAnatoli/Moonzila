@@ -6,7 +6,7 @@ import { SnapshotStore } from '../src/tools/snapshots';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture(limit = 12) {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-snapshots-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-snapshots-')); roots.push(root);
   const pinned = new Set<string>(); const storage = new SnapshotStore(root, () => pinned, limit);
   const save = (text: string) => storage.retain([Buffer.from(text)], hashes => hashes[0]!);
   return { root, pinned, storage, save };

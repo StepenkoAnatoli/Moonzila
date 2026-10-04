@@ -6,7 +6,7 @@ import { spawnOwned, safeCommandEnvironment } from '../src/tools/commands';
 
 const roots: string[] = [];
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-guard-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-guard-')); roots.push(root);
   const folder = join(root, 'locked'); await mkdir(folder);
   const file = join(folder, 'input.txt'); await writeFile(file, 'verified bytes');
   return { root, folder, file };

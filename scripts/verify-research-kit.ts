@@ -19,6 +19,6 @@ const controller = new AbortController(); process.once('SIGINT', () => controlle
 try {
   const result = await adapter.validate(flags.get('--artifact')!, BindingSchema.parse(await json(flags.get('--binding')!)), controller.signal);
   await writeFile(flags.get('--output')!, JSON.stringify(result, null, 2) + '\n', { flag: 'wx' });
-  console.log(`${result.status}; researchReady=${result.researchReady}; Monnzila tool permission is separate.`);
+  console.log(`${result.status}; researchReady=${result.researchReady}; Moonzila tool permission is separate.`);
   process.exitCode = result.status === 'PASS' ? 0 : 1;
 } finally { await adapter.close(); }

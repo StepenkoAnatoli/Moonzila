@@ -6,10 +6,10 @@ research jobs and Task 1 depends on the mission runner from the product plan's s
 The [specification](../../specification/operate-mode.md) defines the mode; this plan
 sequences the work in working stages, each verified before the next.
 
-**Goal:** Monnzila is the operator's seat for a business bot that runs elsewhere
+**Goal:** Moonzila is the operator's seat for a business bot that runs elsewhere
 (first: KashMula). The operator sees pending gates with their evidence, decides them
 once and durably, watches cost and revenue, stops the loop, and reviews proposed code
-changes through the existing Build-mode review. The loop itself never runs in Monnzila.
+changes through the existing Build-mode review. The loop itself never runs in Moonzila.
 
 **Out of scope here:** the Anthropic provider family (its own stage; Operate mode's
 deterministic features do not need it), private-repository GitHub reading, general
@@ -113,5 +113,5 @@ HANDOFF.md and `docs/development-status.md` at the end of each task; run
 ## Recorded for later
 
 - Other runtimes than KashMula (a generic adapter) once a second bot exists.
-- Notifications outside the app (the operator is away) through the runtime, not Monnzila.
+- Notifications outside the app (the operator is away) through the runtime, not Moonzila.
 - Local-model summaries of evidence, once a qualified local model exists on the machine.

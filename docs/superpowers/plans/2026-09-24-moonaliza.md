@@ -1,6 +1,6 @@
-# Monnzila Implementation Plan
+# Moonzila Implementation Plan
 
-**Goal:** implement the full Windows desktop coding-agent product described in the supplied Rework specification, renamed Monnzila.
+**Goal:** implement the full Windows desktop coding-agent product described in the supplied Rework specification, renamed Moonzila.
 
 **Architecture:** Electron main owns OS/credential/network capabilities; a utility engine owns durable application state, policy and the agent loop. React communicates through strict IPC. A C++17 Windows helper supervises owned commands and collects hardware facts. Providers remain interchangeable.
 

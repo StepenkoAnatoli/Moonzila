@@ -9,7 +9,7 @@ import { materializeModels, verifyModelStore, clearModelMetadata } from '../src/
 const roots: string[] = []; const hash = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
 afterEach(async () => { for (const root of roots.splice(0)) { const child = relative(resolve(tmpdir()), root); if (!child || child.startsWith('..') || isAbsolute(child)) throw new Error('FIXTURE_PATH'); await rm(root, { recursive: true, force: true }); } });
 async function fixture(configValue: object = { model_format: 'gguf', file_type: 'Q4_K_M' }, weights = Buffer.from('synthetic model bytes, not inference or quality evidence')) {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-model-store-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-model-store-')); roots.push(root);
   const cacheDirectory = join(root, 'cache'); await mkdir(cacheDirectory);
   const config = Buffer.from(JSON.stringify(configValue));
   const identities = [config, weights].map(bytes => ({ sha256: hash(bytes), sizeBytes: bytes.length }));

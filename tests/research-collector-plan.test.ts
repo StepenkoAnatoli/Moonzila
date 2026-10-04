@@ -16,7 +16,7 @@ const verification = (jobRevision: number) => ({ artifactSha256: 'a'.repeat(64),
   jobRevision, projectRevision: 1, repository: 'owner/collector', ref: 'main', workflow: 'collect.yml', commit: 'd'.repeat(40), runAttempt: 1, workflowRunId: '41', clientRef: 'mz-j', downloadDigest: 'unverified' as const });
 const policy = (revision: number, research: 'off' | 'public-technical' | 'private-connected' = 'public-technical') => ({ revision, inference: 'local-only' as const, research });
 
-type Start = 'queued' | 'dispatching' | 'collecting' | 'cancelling-before-run' | 'cancelling-with-run' | 'collected' | 'failed' | 'cancelled';
+type Start = 'queued' | 'dispatching' | 'collecting' | 'cancelling-before-run' | 'cancelling-with-run' | 'collected' | 'reviewing' | 'packaging' | 'failed' | 'cancelled';
 type Change = 'none' | 'policy' | 'trust' | 'research-off';
 function setup(start: Start, change: Change = 'none') {
   const root = mkdtempSync(join(tmpdir(), 'moon-plan-')); roots.push(root);
@@ -34,7 +34,10 @@ function setup(start: Start, change: Change = 'none') {
       else if (start !== 'dispatching') {
         move('collecting', 'main', { workflowRunId: '41' });
         if (start === 'cancelling-with-run') move('cancelling', 'user');
-        if (start === 'collected') move('collected', 'main', { verification: verification(3) });
+        if (start === 'collected' || start === 'reviewing' || start === 'packaging') move('collected', 'main', { verification: verification(3) });
+        // Schema v4: a job under review or packaging is past collection; the collector only releases it.
+        if (start === 'reviewing' || start === 'packaging') move('reviewing', 'user', { reviewRunId: 'rr', reviewSessionId: 'rs', workspace: 'fresh' });
+        if (start === 'packaging') move('packaging', 'main', { reviewDigest: 'e'.repeat(64) });
       }
     }
   }
@@ -54,6 +57,8 @@ const EXPECTED: Array<[string, Start, Change, Outcome, string | undefined, Retur
   ['finished jobs are released', 'collected', 'none', { kind: 'dispatched', workflowRunId: '9' }, undefined, { kind: 'release' }],
   ['a failed job is released', 'failed', 'none', admit, undefined, { kind: 'release' }],
   ['a cancelled job is released', 'cancelled', 'none', { kind: 'ambiguous', cause: 'KIT_NETWORK' }, undefined, { kind: 'release' }],
+  ['a job under review is released', 'reviewing', 'none', { kind: 'verified', verification: verification(3) }, undefined, { kind: 'release' }],
+  ['a job being packaged is released', 'packaging', 'none', { kind: 'dispatched', workflowRunId: '9' }, undefined, { kind: 'release' }],
   ['queued + admit dispatches', 'queued', 'none', admit, undefined, T('dispatching', 'DISPATCH', { target })],
   ['queued + admit after a policy change fails', 'queued', 'policy', admit, undefined, T('failed', 'ADMISSION_REFUSED', { failure: 'POLICY_CHANGED' })],
   ['queued + admit with research off fails', 'queued', 'research-off', admit, undefined, T('failed', 'ADMISSION_REFUSED', { failure: 'RESEARCH_NOT_ALLOWED' })],

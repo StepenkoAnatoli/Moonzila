@@ -9,10 +9,14 @@ Phase 0 and keep it current. Record only facts that were checked. Mark anything 
 _Last verified: <date>, branch <name> at <commit>_
 
 ### Environments
-| Purpose     | Platform and versions                          |
-|-------------|------------------------------------------------|
-| Development | <OS, runtime and tool versions>                |
-| Acceptance  | <the check that decides "done", e.g. CI jobs>  |
+| Purpose           | Platform and versions                                        |
+|-------------------|--------------------------------------------------------------|
+| Development       | <OS, runtime and tool versions>                              |
+| Acceptance        | <the check that decides "done", e.g. CI jobs>                |
+| Not runnable here | <CI legs this host cannot run: other OS or runtime versions> |
+
+- Filesystem guard: <the helper tests must use to create links, and the result it reports
+  where the platform refuses, e.g. UNSUP>, or "none"
 
 ### Quality gate (run in order)
 | Step            | Command   |

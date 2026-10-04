@@ -33,7 +33,7 @@
   "activationPerformed": false,
   "materialized": {
     "digest": "7df6b6e09427a769808717c0a93cadc4ae99ed4eb8bf5ca557c90846becea435",
-    "name": "monnzila/7df6b6e09427a769808717c0a93cadc4ae99ed4eb8bf5ca557c90846becea435:verified",
+    "name": "moonaliza/7df6b6e09427a769808717c0a93cadc4ae99ed4eb8bf5ca557c90846becea435:verified",
     "quantization": "Q4_K_M",
     "sizeBytes": 522653767
   },
@@ -65,7 +65,7 @@
   "cloudDisabled": true,
   "inventory": [
     {
-      "name": "monnzila/7df6b6e09427a769808717c0a93cadc4ae99ed4eb8bf5ca557c90846becea435:verified",
+      "name": "moonaliza/7df6b6e09427a769808717c0a93cadc4ae99ed4eb8bf5ca557c90846becea435:verified",
       "digest": "7df6b6e09427a769808717c0a93cadc4ae99ed4eb8bf5ca557c90846becea435",
       "size": 522653767,
       "details": {

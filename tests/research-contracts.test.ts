@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import { EventSchema, MethodSpec, PublicErrorSchema, RESEARCH_INPUT_BUDGET, ResearchSchema, ResearchStatusSchema } from '../src/shared';
 import { commandLineFits, dispatchArgs } from '../src/adapters/research-kit/collector';
 import { safeError } from '../src/main/bridge';
+import { ACTIVE_RESEARCH as ENGINE_ACTIVE, RESEARCH_EDGES } from '../src/engine/research-state';
+import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, RESEARCH_STATUS } from '../src/renderer/research-text';
 
 const start = MethodSpec['research.start'].params;
 const save = MethodSpec['research.collector.save'].params;
@@ -104,6 +106,15 @@ describe('research contracts', () => {
     expect(error.message).not.toMatch(/github_pat|token:/);
   });
 
+  test('the panel\'s active and cancellable statuses are the engine\'s', () => {
+    // The panel shows one active job per project and offers Cancel where the user may cancel. Both follow the engine's
+    // own rules, so a status added there (as `packaging` in schema v4) cannot be left out here.
+    expect([...ACTIVE_RESEARCH].sort()).toEqual([...ENGINE_ACTIVE].sort());
+    const userCancels = Object.entries(RESEARCH_EDGES).filter(([, edges]) => [edges?.cancelling, edges?.cancelled].some(edge => edge?.actors.includes('user'))).map(([from]) => from);
+    expect([...CANCELLABLE_RESEARCH].sort()).toEqual(userCancels.sort());
+    for (const status of ResearchStatusSchema.options) expect(RESEARCH_STATUS[status]).toMatch(/\S/);
+  });
+
   test('review is started for a job, never decided by a flag', () => {
     const params = MethodSpec['research.review.start'].params;
     expect(params.safeParse({ researchId: 'r1', profileId: 'pr1' }).success).toBe(true);
@@ -112,9 +123,9 @@ describe('research contracts', () => {
   });
 
   test('job state and events share one status vocabulary', () => {
-    const statuses = ['queued', 'dispatching', 'collecting', 'collected', 'reviewing', 'approved', 'not_ready', 'failed', 'cancelling', 'cancelled'];
+    const statuses = ['queued', 'dispatching', 'collecting', 'collected', 'reviewing', 'packaging', 'approved', 'not_ready', 'failed', 'cancelling', 'cancelled'];
     expect(ResearchStatusSchema.options).toEqual(statuses);
-    const research = { id: 'r1', projectId: 'p1', revision: 1, status: 'collecting', topic: 't', clientRef: 'monnzila-r1', workflowRunId: '123', createdAt: '2026-10-02T00:00:00Z', updatedAt: '2026-10-02T00:00:00Z' };
+    const research = { id: 'r1', projectId: 'p1', revision: 1, status: 'collecting', topic: 't', clientRef: 'moonzila-r1', workflowRunId: '123', createdAt: '2026-10-02T00:00:00Z', updatedAt: '2026-10-02T00:00:00Z' };
     expect(ResearchSchema.safeParse(research).success).toBe(true);
     expect(ResearchSchema.safeParse({ ...research, status: 'sufficient' }).success).toBe(false);
     expect(ResearchSchema.safeParse({ ...research, clientRef: '-bad' }).success).toBe(false);

@@ -40,7 +40,7 @@ async function readRun(fetcher: Fetcher, repository: string, runId: string, toke
   const signal = AbortSignal.any([stop, AbortSignal.timeout(RUN_TIMEOUT_MS)]);
   const response = await fetcher(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/runs/${runId}`, {
     method: 'GET', redirect: 'manual', credentials: 'omit', cache: 'no-store', signal,
-    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Monnzila-research-import' },
+    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Moonzila-research-import' },
   });
   try {
     if (!response.ok || !response.body) throw new Error('GITHUB_RUN_UNAVAILABLE');

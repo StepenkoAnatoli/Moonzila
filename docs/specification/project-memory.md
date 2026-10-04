@@ -4,7 +4,7 @@ This is the implementation specification for the project-memory phase proposed i
 
 ## Purpose
 
-The user asked on October 2 that Monnzila keep where work stopped when they switch modes or conversations, not repeat mistakes and not rewrite finished work. This phase adds a local, per-project, revisioned record of tasks, decisions, facts and constraints, unknowns and lessons. Every project run reads a bounded brief of it before history, and the user can see, edit and delete every record.
+The user asked on October 2 that Moonzila keep where work stopped when they switch modes or conversations, not repeat mistakes and not rewrite finished work. This phase adds a local, per-project, revisioned record of tasks, decisions, facts and constraints, unknowns and lessons. Every project run reads a bounded brief of it before history, and the user can see, edit and delete every record.
 
 What it cannot do: it reduces repeated mistakes, it does not guarantee a model never repeats one. A record is only as good as what was accepted into it.
 

@@ -30,10 +30,10 @@ test('chat without a folder survives restart, creates a workspace and applies on
     await page.getByRole('button', { name: 'Model profiles', exact: true }).click();
     await page.getByLabel('Profile name').fill('Chat fixture'); await page.getByLabel('Endpoint').fill(`http://127.0.0.1:${port}`);
     await page.getByLabel('Model name').fill('fixture'); await page.getByRole('button', { name: 'Save profile' }).click();
-    await page.getByLabel('Message Monnzila').fill('Explore a garden idea'); await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Message Moonzila').fill('Explore a garden idea'); await page.getByRole('button', { name: 'Send message' }).click();
     await expect(page.getByText('Let us explore your idea before choosing a folder.', { exact: true })).toBeVisible();
     expect(requests[0]?.tools ?? []).toHaveLength(0);
-    await page.screenshot({ path: 'test-results/monnzila-general-chat.png' });
+    await page.screenshot({ path: 'test-results/moonzila-general-chat.png' });
     await app.close(); app = await launch(); page = await app.firstWindow();
     await page.getByRole('button', { name: 'Explore a garden idea', exact: true }).click();
     await expect(page.getByText('Let us explore your idea before choosing a folder.', { exact: true })).toBeVisible();
@@ -51,7 +51,7 @@ test('chat without a folder survives restart, creates a workspace and applies on
     await expect(page.getByText('Only this reviewed idea crosses into the workspace.', { exact: true })).toBeVisible();
     await expect(page.getByText('Let us explore your idea before choosing a folder.', { exact: true })).toHaveCount(0);
     await page.getByLabel('Mode', { exact: true }).selectOption('build');
-    await page.getByLabel('Message Monnzila').fill('Create idea.txt'); await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Message Moonzila').fill('Create idea.txt'); await page.getByRole('button', { name: 'Send message' }).click();
     await expect(page.getByRole('button', { name: 'Approve edit' })).toBeVisible();
     await expect(readFile(join(workspace, 'idea.txt'))).rejects.toThrow();
     expect(JSON.stringify(requests.at(-1))).not.toContain('Explore a garden idea');

@@ -1,6 +1,6 @@
 # Research Kit offline consumer implementation plan
 
-**Goal:** Validate actual pinned Research Kit artifacts through an owned, bounded Windows process, retaining exact verified bytes and distinguishing validity/research readiness from Monnzila permissions.
+**Goal:** Validate actual pinned Research Kit artifacts through an owned, bounded Windows process, retaining exact verified bytes and distinguishing validity/research readiness from Moonzila permissions.
 
 **Architecture:** A main-owned adapter under `src/adapters/research-kit/` consumes independent strict contracts and trusted installation/job inputs. It stages verified runtime files and the artifact in private storage, acquires native read locks before hashing/launch, invokes the actual external CLI and retains content-addressed artifact bytes. The renderer cannot supply executable paths or dispatch identities. Stage 2 will connect job-owned IPC admission and UI; this stage provides serializable boundary contracts and an opt-in executable verifier, not a fake job lifecycle.
 

@@ -7,7 +7,7 @@ import { downloadArtifact, type ArtifactSpec } from '../src/models/download';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture(content = 'abcdef') {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-download-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-download-')); roots.push(root);
   const artifact: ArtifactSpec = { sha256: createHash('sha256').update(content).digest('hex'), sizeBytes: Buffer.byteLength(content), url: 'https://artifacts.example/runtime.zip', redirectHosts: ['cdn.example'] };
   return { root, artifact };
 }

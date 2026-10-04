@@ -197,7 +197,7 @@ test('cleanup beyond its elapsed deadline does not publish success if the timer 
 });
 
 test('a real native-owned child and grandchild exit before a queued holder starts', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'monnzila-scheduler-')); const path = join(directory, 'pids.json');
+  const directory = await mkdtemp(join(tmpdir(), 'moonzila-scheduler-')); const path = join(directory, 'pids.json');
   const controller = new AbortController(); const ownerStop = new AbortController();
   let running: Promise<OwnedResult> | undefined; let ready: number[] = [];
   const queue = scheduler({ stopRuntime: async () => {

@@ -102,6 +102,14 @@ STANDARDS    - Write the test first; confirm it fails for the intended reason.
                using recorded real outputs where available.
              - Repeat concurrency- or timing-sensitive tests <30> times; any failure is a defect.
              - Mutate or revert the guarded code to show each new test fails; then restore.
+               The mutation is of the guard the test names, and the test's own input must
+               reach that guard: a test that stays green with its guard removed is not a test.
+             - A test that touches the filesystem must hold on every CI platform: make links
+               only through the project's own guard (<guard>, per project facts); where the
+               guard refuses, take the project's unsupported result (<e.g. UNSUP>) rather
+               than linking another way. Target the test's scratch directory and never a
+               fixed host path, and assert by lstat and real path, never by a link's stored
+               text.
              - Assert against actual output, never a value the test built and compares to itself.
              - Implement externally sourced behaviour from the brief's claims. Do not fetch
                pages by hand. If a needed fact is missing, stop and report which one.
@@ -112,7 +120,8 @@ REPORT       Maximum 400 words. A report missing any item below is returned:
              - Branch and commit ID
              - Commit body in the project format (default in report-templates.md)
              - Commands run, each with its observed result
-             - For each new test: the mutation or revert that made it fail
+             - For each new test: the guard it names, and the removal of that guard that
+               made it fail on the test's own input
              - Items not verifiable in this environment, with the reason
              - Risks and open questions
 ```
@@ -124,8 +133,11 @@ OBJECTIVE    Resolve finding <ID> (severity <S1/S2>) in unit <ID>.
 PROBLEM      <observed behaviour, with the reviewer's reproduction>
 EXPECTED     <correct behaviour>
 SCOPE        <minimum set of files required>
-ACCEPTANCE   The reproduction passes. A test exists that fails on the previous code.
-             The gate is clean against the baseline.
+ACCEPTANCE   The reproduction passes. A test exists that fails on the previous code and
+             fails again with the guard it names removed, on its own input. A test that
+             touches the filesystem follows the builder brief's cross-platform rule.
+             The gate is clean against the baseline. Never patch a test until a red CI leg
+             happens to pass.
 REPORT       Maximum 200 words: root cause in one sentence; the fix; verification performed;
              any similar defects observed elsewhere (list them, do not fix them).
 ```
@@ -153,6 +165,11 @@ FOCUS        Process termination and restart at each step; races and reordering;
              duplicate delivery; lost or ambiguous responses; malformed, empty and oversized
              input; limits; platform and path differences; alternate working directories;
              stale build artifacts; slow or loaded CI; missing configuration.
+             This host is one platform. For every new test that touches the filesystem, also
+             read for what another platform does: a symlink made outside the project's guard,
+             a fixed host path (`/etc/...`, `/tmp`) as a target, an assertion on a link's
+             stored text, separators, case, line endings. Report each as a finding even
+             though the test is green here.
 SCOPE        May add tests and scratch files under <temporary directory>. Product code is
              read-only.
 REPORT       Maximum 400 words. For each finding: a reproduction (command or failing test),
@@ -166,8 +183,11 @@ OBJECTIVE    Demonstrate that the test suite detects defects in <commit range>.
 METHOD       For each guard, condition, branch and invariant in the diff, apply one small
              mutation (remove a check, invert a condition, reorder two steps, skip a call),
              run the relevant tests, record the result, and restore. Leave the tree clean.
+             Then, for every NEW test in the diff, remove the guard that test names and run
+             that test alone: green means SURVIVED, whatever other rule caught its input.
 REPORT       Maximum 300 words. A table of mutation → detecting test, or SURVIVED.
-             For each survivor, describe the test that should exist.
+             For each survivor, describe the test that should exist, or the input the
+             existing test must feed so that it reaches the guard.
 ```
 
 ## 9. Invariant auditor

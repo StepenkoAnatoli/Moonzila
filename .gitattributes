@@ -7,3 +7,6 @@ research/raw/** -text -whitespace
 
 docs/specification/proposals/*.txt -text
 tests/fixtures/research-kit/*.zip -text
+
+# SQL fixtures are compared as text with schema SQL built from LF template literals; a CRLF checkout must not alter them.
+tests/fixtures/*.sql text eol=lf

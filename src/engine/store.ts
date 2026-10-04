@@ -37,13 +37,17 @@ export interface StoreApproval {
   decision: 'allow' | 'deny'; createdAt: string;
 }
 export interface StoreMission { id: string; projectId: string; title: string; status: string; revision: number; state: unknown; createdAt: string; updatedAt: string }
-export type StoreResearchStatus = 'queued' | 'dispatching' | 'collecting' | 'collected' | 'reviewing' | 'approved' | 'not_ready' | 'failed' | 'cancelling' | 'cancelled';
-export type StoreResearchActor = 'user' | 'main' | 'recovery';
+export type StoreResearchStatus = 'queued' | 'dispatching' | 'collecting' | 'collected' | 'reviewing' | 'packaging' | 'approved' | 'not_ready' | 'failed' | 'cancelling' | 'cancelled';
+/** `engine`: a review run's outcome, recorded in the same transaction as the run's terminal event (schema v4). */
+export type StoreResearchActor = 'user' | 'main' | 'recovery' | 'engine';
 export interface StoreResearch {
   id: string; projectId: string; revision: number; status: StoreResearchStatus; topic: string; inputs: unknown; clientRef: string;
   researchLevel: 'public-technical' | 'private-connected'; policyRevision: number; trustRevision: number;
   collectorRevision?: number; repository?: string; workflow?: string; ref?: string; dispatchedAt?: string;
   workflowRunId?: string; failure?: string; createdAt: string; updatedAt: string;
+  /** Review (schema v4): the job's review conversation and current review run, the frozen workspace digest, and the reviewed package. */
+  reviewSessionId?: string; reviewRunId?: string; reviewDigest?: string;
+  reviewedPackageSha256?: string; reviewedValidatorRevision?: string; reviewedBoundRevision?: number;
 }
 export interface StoreResearchTarget { collectorRevision: number; repository: string; workflow: string; ref: string }
 /** What main verified on collecting -> collected. Journaled only (the detail of that step); no column holds it. */
@@ -51,7 +55,14 @@ export interface StoreResearchVerification {
   artifactSha256: string; artifactBytes: number; validatorRevision: string; nodeSha256: string; state: 'REVIEW_REQUIRED' | 'REVIEW_IN_PROGRESS' | 'PREFLIGHT_BLOCKED';
   jobRevision: number; projectRevision: number; repository: string; ref: string; workflow: string; commit: string; runAttempt: number; workflowRunId: string; clientRef: string; downloadDigest: 'unverified';
 }
-export interface StoreResearchPatch { target?: StoreResearchTarget; workflowRunId?: string; failure?: string; verification?: StoreResearchVerification }
+/** The reviewed ZIP: its digest, the validator revision of its receipt, and the job revision (packaging) its binding carried. */
+export interface StoreReviewedPackage { sha256: string; validatorRevision: string; boundRevision: number }
+export interface StoreResearchPatch {
+  target?: StoreResearchTarget; workflowRunId?: string; failure?: string; verification?: StoreResearchVerification;
+  reviewRunId?: string; reviewSessionId?: string; workspace?: 'fresh' | 'continued'; reviewDigest?: string; reviewedPackage?: StoreReviewedPackage;
+}
+/** A write operation of a review run, as recorded by the edit journal (contents stay in the operation). */
+export interface StoreReviewWrite { id: string; runId: string; input: unknown }
 export interface StoreResearchStep { researchId: string; expectedRevision: number; to: StoreResearchStatus; actor: StoreResearchActor; cause: string; requestId?: string; patch?: StoreResearchPatch }
 export interface StoreResearchEvent { researchId: string; revision: number; from?: StoreResearchStatus; to: StoreResearchStatus; actor: StoreResearchActor; requestId?: string; cause: string; detail: StoreResearchPatch; engineEpoch: string; at: number }
 export interface AcceptedRequestKey { method: string; clientRequestId: string; canonicalInputHash: string }
@@ -67,9 +78,12 @@ const messageColumns: Column[] = [['id','id'],['sessionId','session_id'],['runId
 const operationColumns: Column[] = [['id','id'],['runId','run_id'],['projectId','project_id'],['kind','kind'],['inputHash','input_hash'],['policyRevision','policy_revision'],['trustRevision','trust_revision'],['status','status'],['input','input','json'],['result','result','json'],['beforeRef','before_ref'],['afterRef','after_ref'],['snapshotRef','snapshot_ref'],['createdAt','created_at'],['updatedAt','updated_at']];
 const approvalColumns: Column[] = [['id','id'],['operationId','operation_id'],['projectId','project_id'],['inputHash','input_hash'],['policyRevision','policy_revision'],['trustRevision','trust_revision'],['decision','decision'],['createdAt','created_at']];
 const missionColumns: Column[] = [['id','id'],['projectId','project_id'],['title','title'],['status','status'],['revision','revision'],['state','state','json'],['createdAt','created_at'],['updatedAt','updated_at']];
-const researchColumns: Column[] = [['id','id'],['projectId','project_id'],['revision','revision'],['status','status'],['topic','topic'],['inputs','inputs','json'],['clientRef','client_ref'],['researchLevel','research_level'],['policyRevision','policy_revision'],['trustRevision','trust_revision'],['collectorRevision','collector_revision'],['repository','repository'],['workflow','workflow'],['ref','ref'],['dispatchedAt','dispatched_at'],['workflowRunId','workflow_run_id'],['failure','failure'],['createdAt','created_at'],['updatedAt','updated_at']];
+const researchColumns: Column[] = [['id','id'],['projectId','project_id'],['revision','revision'],['status','status'],['topic','topic'],['inputs','inputs','json'],['clientRef','client_ref'],['researchLevel','research_level'],['policyRevision','policy_revision'],['trustRevision','trust_revision'],['collectorRevision','collector_revision'],['repository','repository'],['workflow','workflow'],['ref','ref'],['dispatchedAt','dispatched_at'],['workflowRunId','workflow_run_id'],['failure','failure'],['createdAt','created_at'],['updatedAt','updated_at'],
+  ['reviewSessionId','review_session_id'],['reviewRunId','review_run_id'],['reviewDigest','review_digest'],['reviewedPackageSha256','reviewed_package_sha256'],['reviewedValidatorRevision','reviewed_validator_revision'],['reviewedBoundRevision','reviewed_bound_revision']];
 const researchEventColumns: Column[] = [['researchId','research_id'],['revision','revision'],['from','from_status'],['to','to_status'],['actor','actor'],['requestId','request_id'],['cause','cause'],['detail','detail','json'],['engineEpoch','engine_epoch'],['at','at']];
 const activeResearch = ACTIVE_RESEARCH.map(status => `'${status}'`).join(',');
+/** Run states with engine work still in flight: a review run in one of them can still change the workspace. */
+const LIVE_REVIEW_RUN: ReadonlySet<StoreRunStatus> = new Set(['queued', 'running', 'awaiting_approval', 'cancelling']);
 
 function json(value: unknown): string {
   const encoded = JSON.stringify(value);
@@ -260,16 +274,38 @@ export class Store {
       if (existing.revision !== step.expectedRevision) throw new Error('STALE_REVISION');
       const patch = step.patch ?? {};
       assertResearchEdge(existing, step.to, step.actor, patch);
+      // A review takes the project's single research slot. While another job holds it (a new collection beside a
+      // collected or not_ready job), starting or retrying the review is refused with the domain code, not the index's.
+      if (step.to === 'reviewing' && this.hasActiveResearch(existing.projectId)) throw new Error('RUN_ACTIVE');
+      // A review ends (not_ready, approved, or cancelled after a cancel) only once its run holds no live engine work:
+      // terminal, absent, or having given its final answer (awaiting_review). The engine records a run's terminal event
+      // before the job's edge. Ending earlier would free the project's slot and the workspace while the run still writes.
+      const endsReview = ((existing.status === 'reviewing' || existing.status === 'packaging') && (step.to === 'not_ready' || step.to === 'approved'))
+        || (existing.status === 'cancelling' && step.to === 'cancelled');
+      if (endsReview && existing.reviewRunId !== undefined && LIVE_REVIEW_RUN.has(this.getRun(existing.reviewRunId)?.status ?? 'completed')) throw new Error('RUN_ACTIVE');
       // Derive the step from the caller's expectation, so the journal trigger and the WHERE clause also refuse a stale caller.
       const revision = step.expectedRevision + 1; const iso = new Date(at).toISOString();
       const event: StoreResearchEvent = { researchId: existing.id, revision, from: existing.status, to: step.to, actor: step.actor, requestId: step.requestId, cause: step.cause, detail: patch, engineEpoch: this.engineEpoch, at };
       this.write('research_events',researchEventColumns,event);
       const target = patch.target;
-      const info = this.db.prepare(`UPDATE research SET revision=?,status=?,failure=COALESCE(?,failure),
+      // Failure and the review columns are written explicitly per edge, never coalesced: entering reviewing (a new review
+      // run) clears the failure, the frozen digest and the reviewed package, or the v4 checks would abort the step.
+      const entering = step.to === 'reviewing';
+      const failure = entering ? null : patch.failure ?? existing.failure ?? null;
+      const reviewSessionId = entering ? patch.reviewSessionId! : existing.reviewSessionId ?? null;
+      const reviewRunId = entering ? patch.reviewRunId! : existing.reviewRunId ?? null;
+      const reviewDigest = entering ? null : patch.reviewDigest ?? existing.reviewDigest ?? null;
+      const reviewed = entering ? null : patch.reviewedPackage
+        ?? (existing.reviewedPackageSha256 === undefined ? null : { sha256: existing.reviewedPackageSha256, validatorRevision: existing.reviewedValidatorRevision!, boundRevision: existing.reviewedBoundRevision! });
+      const info = this.db.prepare(`UPDATE research SET revision=?,status=?,failure=?,
         collector_revision=COALESCE(?,collector_revision),repository=COALESCE(?,repository),workflow=COALESCE(?,workflow),ref=COALESCE(?,ref),
-        dispatched_at=COALESCE(?,dispatched_at),workflow_run_id=COALESCE(?,workflow_run_id),updated_at=? WHERE id=? AND revision=?`)
-        .run(revision,step.to,patch.failure ?? null,target?.collectorRevision ?? null,target?.repository ?? null,target?.workflow ?? null,target?.ref ?? null,
-          step.to === 'dispatching' ? iso : null,patch.workflowRunId ?? null,iso,existing.id,step.expectedRevision);
+        dispatched_at=COALESCE(?,dispatched_at),workflow_run_id=COALESCE(?,workflow_run_id),
+        review_session_id=?,review_run_id=?,review_digest=?,reviewed_package_sha256=?,reviewed_validator_revision=?,reviewed_bound_revision=?,
+        updated_at=? WHERE id=? AND revision=?`)
+        .run(revision,step.to,failure,target?.collectorRevision ?? null,target?.repository ?? null,target?.workflow ?? null,target?.ref ?? null,
+          step.to === 'dispatching' ? iso : null,patch.workflowRunId ?? null,
+          reviewSessionId,reviewRunId,reviewDigest,reviewed?.sha256 ?? null,reviewed?.validatorRevision ?? null,reviewed?.boundRevision ?? null,
+          iso,existing.id,step.expectedRevision);
       if (info.changes !== 1) throw new Error('STALE_REVISION');
       return { research: this.getResearch(existing.id)!, event: this.researchEvents(existing.id,revision - 1,1).events[0]! };
     });
@@ -279,6 +315,18 @@ export class Store {
   listResearchByStatus(statuses: readonly StoreResearchStatus[]): StoreResearch[] {
     if (!statuses.length) return [];
     return this.many(`SELECT * FROM research WHERE status IN (${statuses.map(() => '?').join(',')}) ORDER BY created_at,id`,researchColumns,...statuses);
+  }
+  /**
+   * The write operations of a job's review runs since its latest `fresh` review edge, completed ones only, in creation
+   * order. The runs are the ones the job's `* -> reviewing` journal rows named from that edge on.
+   */
+  listReviewWrites(researchId: string): StoreReviewWrite[] {
+    const fresh = this.db.prepare("SELECT max(revision) AS revision FROM research_events WHERE research_id=? AND to_status='reviewing' AND json_extract(detail,'$.workspace')='fresh'").get(researchId) as { revision: number | null };
+    if (fresh.revision === null) return [];
+    const rows = this.db.prepare(`SELECT o.id,o.run_id,o.input FROM operations o WHERE o.kind='write' AND o.status='completed'
+      AND o.run_id IN (SELECT json_extract(detail,'$.reviewRunId') FROM research_events WHERE research_id=? AND to_status='reviewing' AND revision>=?)
+      ORDER BY o.created_at,o.rowid`).all(researchId, fresh.revision) as Array<{ id: string; run_id: string; input: string }>;
+    return rows.map(row => ({ id: row.id, runId: row.run_id, input: JSON.parse(row.input) as unknown }));
   }
   hasActiveResearch(projectId: string): boolean { return !!this.db.prepare(`SELECT 1 FROM research WHERE project_id=? AND status IN (${activeResearch}) LIMIT 1`).get(projectId); }
   researchEvents(researchId: string, after = 0, limit = 100): { events: StoreResearchEvent[]; hasMore: boolean } {
@@ -310,7 +358,10 @@ export class Store {
 
   recoverInterrupted(): { interruptedRunIds: string[]; unknownOperationIds: string[] } {
     return this.transaction(() => {
-      const active = this.db.prepare("SELECT id FROM runs WHERE status IN ('queued','running','awaiting_approval','awaiting_review','cancelling') ORDER BY id").all() as { id: string }[];
+      // A review run that gave its final answer (awaiting_review) holds no engine work; while a reviewing or packaging job
+      // names it, main still freezes or packages it, so it is kept. Every other active run is interrupted.
+      const active = this.db.prepare(`SELECT id FROM runs WHERE status IN ('queued','running','awaiting_approval','awaiting_review','cancelling')
+        AND NOT (status='awaiting_review' AND id IN (SELECT review_run_id FROM research WHERE status IN ('reviewing','packaging') AND review_run_id IS NOT NULL)) ORDER BY id`).all() as { id: string }[];
       const operations = this.db.prepare("SELECT id,run_id FROM operations WHERE status='started' AND kind IN ('write','command','research') ORDER BY id").all() as { id: string; run_id: string }[];
       const now = new Date().toISOString();
       this.db.prepare("UPDATE operations SET status='failed',updated_at=? WHERE status='prepared' AND kind IN ('write','command')").run(now);

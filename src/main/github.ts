@@ -13,7 +13,7 @@ export class GitHubReader {
   private async request(route: string, signal: AbortSignal): Promise<unknown> {
     if (signal.aborted) throw new Error('RUN_CANCELLED');
     const response = await this.fetcher(`https://api.github.com${route}`, { method: 'GET', redirect: 'manual', credentials: 'omit', cache: 'no-store', signal,
-      headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Monnzila-public-repository-reader' } });
+      headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Moonzila-public-repository-reader' } });
     try {
       if (signal.aborted) throw new Error('RUN_CANCELLED');
       if (response.status >= 300 && response.status < 400) throw new Error('GITHUB_REDIRECT');

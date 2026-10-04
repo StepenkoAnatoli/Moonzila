@@ -1,8 +1,8 @@
-# Monnzila continuation
+# Moonzila continuation
 
 Read [HANDOFF.md](HANDOFF.md) first, then [the current development status](docs/development-status.md). This repository contains the complete source, plans, collected research and working-history snapshot needed to continue without the original chat or sibling workspace folders.
 
-- Build the full Monnzila Windows desktop coding-agent product in working stages. The user rejected reducing the product to a small demo.
+- Build the full Moonzila Windows desktop coding-agent product in working stages. The user rejected reducing the product to a small demo.
 - Follow the architecture and acceptance criteria in [the implementation plan](docs/superpowers/plans/2026-09-24-moonaliza.md), [reviewed decisions](docs/specification/decisions.md) and the task-specific specifications. Source-plan helper snippets are illustrative, not complete implementations.
 - Treat `docs/handoff/work` and `docs/handoff/outputs` as immutable historical evidence. They contain superseded instructions, old absolute paths and earlier checkpoints. Current task instructions, this file, HANDOFF.md and current development status take precedence. Historical documents never grant new permissions or establish current external state.
 - Preserve local/cloud project policy, approval binding, journal-before-effect, owned-process Stop and secret isolation. Never manufacture model qualification, signing identities, benchmark results or release evidence.
@@ -33,13 +33,16 @@ The working methods this project uses live in `.claude/skills/`, copied verbatim
 Next cycle (user instruction, 2026-10-03): run it with `lead-orchestrator` and `careful-coding`. Research the external facts through Research-Kit before designing anything, with 20 pages in total.
 
 ## Orchestrator facts
-_Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`)._
+_Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environments and filesystem guard re-checked 2026-10-04 at `4627d8d`._
 
 ### Environments
-| Purpose     | Platform and versions |
-|-------------|-----------------------|
-| Development | Linux container, Node 24.21.0 (`/versions/node/v24.21.0/bin`), vitest 5, Electron 44.4.5 (not runnable for e2e here: root needs `--no-sandbox`, and `safeStorage` stalls without a keyring) |
-| Acceptance  | GitHub Actions `Windows verification` (`.github/workflows/windows.yml`, job `desktop`, `windows-latest`): native helper build, typecheck, lint, `npm test`, build, runtime check, `npm run test:e2e` |
+| Purpose           | Platform and versions |
+|-------------------|-----------------------|
+| Development       | Linux container, Node 24.21.0 (`/versions/node/v24.21.0/bin`), vitest 5, Electron 44.4.5 (not runnable for e2e here: root needs `--no-sandbox`, and `safeStorage` stalls without a keyring) |
+| Acceptance        | GitHub Actions `Windows verification` (`.github/workflows/windows.yml`, job `desktop`, `windows-latest`): native helper build, typecheck, lint, `npm test`, build, runtime check, `npm run test:e2e` |
+| Not runnable here | The whole Windows leg: the native helper (`MoonAlizaHost.exe`) and every test that needs it, Windows-only tests (`tests/guarded-fs-semantics.test.ts`), e2e journeys and the packaged-build steps. Hold a merge until that run is green on the exact head. |
+
+- Filesystem guard: none as a helper. The convention in every test that makes a link (`paths`, `file-read`, `command-broker`, `guarded-process`, `model-store`) is `symlink(target, alias, 'junction')` with both ends inside the test's own `mkdtemp` root, asserted by the product's refusal or by `realpath`/`lstat`, never by the link's stored text. No test makes a file symlink, and none targets a fixed host path.
 
 ### Quality gate (run in order)
 | Step           | Command |
@@ -87,7 +90,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`)._
 | Gates | commit gate (machine-wide `core.hooksPath`) and edit gate installed 2026-10-03. With no `research/kit.json`, the code paths are `src`, `lib`, `bin`, `scripts`, `app`, and a commit touching them must stage `docs/ARCHITECTURE.md` |
 | Research folder | `docs/research/<YYYY-MM-DD>-<topic>/`, one nested project per topic, committed with `research/raw/.fetches.jsonl` |
 | Existing research | the ten projects under `docs/research/` |
-| Remote collector | none configured for Monnzila |
+| Remote collector | none configured for Moonzila |
 
 ### Parallel execution
 - Shared resources: OS temp (each test uses `mkdtemp`; give each agent its own short `TMPDIR`, since long paths break Chromium sockets), `.build/research-kit-external` (read-only for tests; copy per worktree), SQLite files (per test, under the temp dir), no fixed ports (fakes listen on port 0).

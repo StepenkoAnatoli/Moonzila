@@ -4,7 +4,7 @@ This stage implements the backend boundary from the [integration review](researc
 
 ## Contract and trust
 
-`src/adapters/research-kit` owns Monnzila's strict job binding, report, receipt and result types. The external validator owns the full `research-kit-artifact` schema. Monnzila reads a projection of relevant manifest fields only after the real validator checks the whole package. It does not introduce a second artifact format.
+`src/adapters/research-kit` owns Moonzila's strict job binding, report, receipt and result types. The external validator owns the full `research-kit-artifact` schema. Moonzila reads a projection of relevant manifest fields only after the real validator checks the whole package. It does not introduce a second artifact format.
 
 The supported validator revision is `fcde0e6c4e9ba585454f81262d695609ef0af474` (re-pinned from `5588ce3def50e7e3702e5f84251bfd3d445f3df0` on October 2 for the collector's `--run-id`; the validator, ZIP reader and CLI entry are byte-identical between the two), with actual major-1 and major-2 producer fixtures, still the `5588ce3` and `1a0337b` producer outputs. A trusted main-process configuration supplies an external kit directory, Node executable and its expected SHA-256, native helper path and private application storage. These are not renderer inputs. The reviewed inventory pins every copied bin/lib/schema file to exact Git bytes; extra installation files are not copied or executed. There is no runtime download, shell launch or Research Kit redistribution in the application.
 

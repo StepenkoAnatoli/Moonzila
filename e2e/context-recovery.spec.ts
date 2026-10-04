@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 
 test('privacy choices, durable result retrieval, usage and context recovery in the desktop', async () => {
   test.setTimeout(120_000);
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-context-'));
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-context-'));
   const project = join(root, 'Context project'); await mkdir(project);
   await writeFile(join(project, 'large.txt'), 'A'.repeat(25000) + 'TAIL_EVIDENCE');
   const data = join(root, 'app-data'); await mkdir(data);
@@ -41,9 +41,9 @@ test('privacy choices, durable result retrieval, usage and context recovery in t
     await page.getByLabel('Profile name').fill('Cloud fixture'); await page.getByRole('combobox', { name: /^Provider/ }).selectOption('openai-compatible');
     await page.getByLabel('Endpoint').fill('https://provider.example/v1'); await page.getByLabel('Model name').fill('fixture');
     await page.getByLabel('API key').fill('fixture-only-key'); await page.getByRole('button', { name: 'Save profile' }).click();
-    await page.getByLabel('Message Monnzila').fill('Keep this draft');
+    await page.getByLabel('Message Moonzila').fill('Keep this draft');
     await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
-    await page.getByLabel('Message Monnzila').press('Control+Enter'); expect(calls).toBe(0);
+    await page.getByLabel('Message Moonzila').press('Control+Enter'); expect(calls).toBe(0);
     await page.getByRole('button', { name: 'Review cloud access' }).click();
     await expect(page.getByRole('dialog')).toContainText('provider.example'); await page.getByRole('button', { name: 'Keep local only' }).click();
     await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
@@ -61,7 +61,7 @@ test('privacy choices, durable result retrieval, usage and context recovery in t
     await page.getByRole('button', { name: 'Model profiles', exact: true }).click();
     await page.getByLabel('Profile name').fill('Local fixture'); await page.getByLabel('Endpoint').fill(`http://127.0.0.1:${port}`); await page.getByLabel('Model name').fill('fixture');
     await page.getByRole('button', { name: 'Save profile' }).click(); await page.getByLabel('Model profile', { exact: true }).selectOption({ label: 'Local fixture' });
-    await page.getByLabel('Message Monnzila').fill('Read the large file'); await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Message Moonzila').fill('Read the large file'); await page.getByRole('button', { name: 'Send message' }).click();
     await expect(page.getByText('Retrieved the saved tail successfully.', { exact: true })).toBeVisible(); expect(calls).toBe(3);
     await page.locator('.context-notice summary').click(); await expect(page.getByText('Last reported usage', { exact: false })).toContainText('712 input, 15 output');
     await page.screenshot({ path: 'test-results/context-recovery.png' });
@@ -69,11 +69,11 @@ test('privacy choices, durable result retrieval, usage and context recovery in t
     await page.getByRole('button', { name: 'Read the large file', exact: true }).click();
     await page.locator('.context-notice summary').click(); await expect(page.getByText('Last reported usage', { exact: false })).toContainText('712 input, 15 output');
     await page.getByLabel('Model profile', { exact: true }).selectOption({ label: 'Local fixture' });
-    await page.getByLabel('Message Monnzila').fill('Trigger provider context limit'); await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Message Moonzila').fill('Trigger provider context limit'); await page.getByRole('button', { name: 'Send message' }).click();
     await expect(page.getByRole('button', { name: 'Review context settings' })).toBeVisible();
     await expect(page.getByRole('alert')).not.toContainText('PRIVATE_PROVIDER_TEXT'); expect(calls).toBe(4);
     await page.getByRole('button', { name: 'Start fresh with this request' }).click();
-    await expect(page.getByLabel('Message Monnzila')).toHaveValue('Trigger provider context limit');
+    await expect(page.getByLabel('Message Moonzila')).toHaveValue('Trigger provider context limit');
     await expect(page.getByText('What are we working on?')).toBeVisible(); expect(calls).toBe(4);
   } finally {
     await app?.close(); await new Promise<void>(done => server.close(() => done()));

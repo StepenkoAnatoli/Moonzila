@@ -13,7 +13,7 @@ let reader: FileReader;
 const at = '2026-09-25T12:00:00.000Z';
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'monnzila-reads-'));
+  directory = await mkdtemp(join(tmpdir(), 'moonzila-reads-'));
   root = join(directory, 'project');
   await mkdir(root);
   store = new Store(join(directory, 'state.db'));
@@ -184,11 +184,11 @@ test('denies stale trust and policy revisions even when the project remains trus
 
 
 test.each(['.', './', '.\\'])('directory root alias %s lists and searches the attached folder', async path => {
-  await writeFile(join(root, 'README.md'), 'Monnzila local checkout');
+  await writeFile(join(root, 'README.md'), 'Moonzila local checkout');
   const listed = JSON.parse(await reader.execute('r1', 'list_files', { path }));
   expect(listed.entries).toEqual([{ path: 'README.md', type: 'file' }]);
   const searched = JSON.parse(await reader.execute('r1', 'search_text', { path, query: 'local checkout' }));
-  expect(searched.matches).toEqual([{ path: 'README.md', line: 1, text: 'Monnzila local checkout' }]);
+  expect(searched.matches).toEqual([{ path: 'README.md', line: 1, text: 'Moonzila local checkout' }]);
 });
 
 test.each(['../', './..', '.\\..', './.env', 'src/../.env'])('root aliases do not admit unsafe or unnormalized path %s', async path => {

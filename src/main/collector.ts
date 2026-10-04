@@ -9,7 +9,7 @@ import { classifyDispatch, classifyWatch, collectorEnvironment, commandLineFits,
 import type { CollectorLaunch } from '../adapters/research-kit/adapter';
 import { atomicJson, boundedJson } from '../models/artifact-files';
 import type { OwnedResult } from '../tools/commands';
-import { planStep, type Outcome } from './collector-plan';
+import { FINISHED, planStep, type Outcome } from './collector-plan';
 import type { CollectorConfig } from './collector-settings';
 import type { Vault } from './vault';
 
@@ -48,7 +48,6 @@ interface Job {
   attempt?: Attempt; pending?: Control; park?: Park; wake: AbortController; held: boolean;
 }
 
-const FINISHED = new Set(['collected', 'failed', 'cancelled', 'approved', 'not_ready', 'reviewing']);
 const SpoolSchema = z.object({ version: z.literal(1), researchId: IdSchema, clientRef: z.string().max(64), workflowRunId: WorkflowRunIdSchema }).strict();
 const REFUSALS: Record<string, LaunchRefusal> = {
   INSTALLATION_INVALID: 'INSTALLATION_INVALID', ADMISSION_REFUSED: 'ADMISSION_REFUSED', COLLECTOR_CHANGED: 'COLLECTOR_CHANGED',

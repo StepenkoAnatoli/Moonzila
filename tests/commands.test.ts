@@ -43,7 +43,7 @@ test('output cap continues draining a multi-megabyte real stream without deadloc
   expect(result.status).toBe('exited'); expect(result.code).toBe(0); expect(result.truncated).toBe(true); expect(Buffer.byteLength(result.output)).toBe(1000);
 });
 test('cancel waits for child and grandchild death and preserves an unrelated process', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'monnzila-process-')); directories.push(directory);
+  const directory = await mkdtemp(join(tmpdir(), 'moonzila-process-')); directories.push(directory);
   const file = join(directory, 'pids.json');
   const unrelated = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { windowsHide: true, stdio: 'ignore' });
   try {
@@ -64,7 +64,7 @@ test('helper death produces unknown and preserves output', async () => {
   expect(result.status).toBe('unknown'); expect(result.code).toBeNull(); expect(result.output).toContain('before death');
 });
 test('controlling engine death closes the pipe and kills owned descendants', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'monnzila-engine-')); directories.push(directory);
+  const directory = await mkdtemp(join(tmpdir(), 'moonzila-engine-')); directories.push(directory);
   const file = join(directory, 'pids.json');
   const engine = spawn(process.execPath, [resolve('tests/fixtures/processes/controller.mjs'), file], { windowsHide: true, stdio: 'ignore' });
   try { const pids = await pidFile(file); engine.kill(); await assertDead(pids); } finally { engine.kill(); }

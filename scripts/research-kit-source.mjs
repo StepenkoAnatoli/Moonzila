@@ -7,7 +7,7 @@ export const revision = 'fcde0e6c4e9ba585454f81262d695609ef0af474';
 export const legacyRevision = '1a0337b9cb1be34127f655671d72f752fe47210c';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export function exportSource(repo, pin, destination) {
-  // --git-dir, not -C: if the pin clone is broken, git must fail rather than walk up into Monnzila.
+  // --git-dir, not -C: if the pin clone is broken, git must fail rather than walk up into Moonzila.
   const git = ['--git-dir', join(repo, '.git')];
   // A clone made before the pin moved may not contain the pinned commit: fetch it by SHA rather than fail.
   try { execFileSync('git', [...git, 'cat-file', '-e', `${pin}^{commit}`], { stdio: 'ignore', windowsHide: true }); }

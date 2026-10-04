@@ -23,7 +23,8 @@ export interface Transition {
 }
 export type Plan = { kind: 'release' } | { kind: 'continue' } | { kind: 'transition'; transition: Transition };
 
-const FINISHED = new Set(['collected', 'failed', 'cancelled', 'approved', 'not_ready', 'reviewing']);
+/** Statuses the collector no longer drives: collection ended, or the job moved on to its review. */
+export const FINISHED: ReadonlySet<string> = new Set(['collected', 'failed', 'cancelled', 'approved', 'not_ready', 'reviewing', 'packaging']);
 const step = (ctx: ResearchContext, transition: Omit<Transition, 'expectedRevision'>): Plan => ({ kind: 'transition', transition: { ...transition, expectedRevision: ctx.research.revision } });
 
 /**
