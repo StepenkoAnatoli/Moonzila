@@ -211,14 +211,34 @@ October 3, integration of the five build teams (import, collector items, small f
     - `brainstorming` at the start of a phase whose shape or a decision is open: ask, compare, and get the user's approval before building;
     - `gap-audit` and `break-test` in the last phase, on the integrated feature.
   - **Phase 0, in review:** the research corpora, the decisions, the frozen contracts, the Q1 admission fix, the lead-orchestrator skill update and a merge of `main` (PR #30). Gate on the merged head: typecheck, lint and build pass; 74 tests fail, all of them the Linux baseline.
-  - **Phase 1: schema v4 and the Windows guard tests.** Wave 1 already built B0 and B6 and reviewed them adversarially. They sit on the branches `build/b0-schema` (head `26f7420`) and `build/b6-guards` (head `2bb122c`); the full reports are outside the repository (see the session handoff). Before integrating:
-    - B0 still has two reds outside its files, to be fixed as part of the unit:
-      - `packaging` is missing from `RESEARCH_STATUS`, `ACTIVE_RESEARCH` and `CANCELLABLE_RESEARCH` in `src/renderer/research-text.ts`;
-      - the v3 status list in `tests/research-contracts.test.ts:115`.
-    - `src/engine/index.ts` still drops `reviewFolders` in `research.recover`; this needs a control-level test.
-    - The `FINISHED` sets in `src/main/collector-plan.ts` and `src/main/collector.ts` lack `packaging`.
-    - B0 is stricter than the spec in two places, both written under "Schema v4 as built": it refuses `RUN_ACTIVE` beside an active job, and a review ends only once its run holds no live engine work. As a result, B2 must append the run's terminal event before the job's edge, in the same transaction.
-    - B6's tests run only on Windows CI. Their directory-guard gap is recorded in the test file. If Windows CI shows a rename over a destination held open by a Node handle succeeding, revisit the brief's U-07/U-10 decision; do not weaken the test.
+  - **Phase 1: schema v4 and the Windows guard tests (integrated October 4, in review as a PR).**
+    - Units: B0 schema v4 and B6 Windows guard tests, cherry-picked from the wave-1 branches.
+    - The lead's follow-ups (`4627d8d`):
+      - `packaging` in the panel's label and lists;
+      - one shared `FINISHED` set;
+      - `research.recover` passes `reviewFolders`.
+    - The four-role review on the integrated branch (spec, breaker, mutation, invariant, all on Opus). Dispositions:
+      - **Fixed:**
+        - breaker F1 (S1): SQL fixtures check out with LF (`59fca6e`); Windows run 149 failed on exactly this.
+        - Fixed in `52353b1`:
+          - F2 (S1): a cancelled review waits for its run;
+          - F3 (S2): the readiness trigger compares the collected digest lowercased;
+          - F4 (S2): `reviewDiscard` returns only plain folder names.
+        - Five new tests stayed green with their own guard removed (S1 under the skill's rule), and four tests were missing (S2); all closed in `3c9e1d0`.
+      - **Owned by Phase 3** (unreachable while `research.review.begin` is `NOT_IMPLEMENTED`):
+        - `research.cancel` on `reviewing` must abort the review run in the same request;
+        - `session.delete` must refuse a session a reviewing, packaging or not_ready job references;
+        - main's commits must append `research.status` to the review run;
+        - a retry must carry a new, live run of mode `research` (breaker F5);
+        - a control-level test of `src/engine/index.ts` for `research.recover` with `reviewFolders` and for `research.review.context`, since the entry runs at import (spec review S2, mutation audit);
+        - decision D1 below.
+      - **Recorded, not fixed:**
+        - Only raw SQL can reach these two: before approval a journaled `packaging → not_ready` step can rewrite the review columns; a journal row written outside a transaction can strand its job (invariant audit).
+        - The U-08 day-one check (`sqlite_version() >= 3.26.0` and `legacy_alter_table = 0` under Electron) is not asserted; plain Node reports 3.53.4 and 0.
+        - Equivalent mutations: the allowlist check, the freeze guard's status test, and the DROP order.
+        - The spec's `changes` entry lists a `status` that the frozen `ReviewChangeSchema` does not carry.
+      - **Rejected:** none.
+    - B6's tests run only on Windows. Its directory-guard gap is recorded in the test file. If Windows CI shows a rename over a destination held open by a Node handle succeeding, revisit the brief's U-07/U-10 decision; do not weaken the test.
   - **Decision D1, needed before B2/B3:** how a review run ends when main's step leaves the review. The spec says `run.failed` carries a public error code, but `ErrorCodeSchema` has none for the review failures. Either map them onto existing codes or add codes to the contract, and name the unit that owns the change. Until this is settled, after a refused freeze or a failed gate the run stays `awaiting_review` until restart.
   - **Phase 2: Electron fuses (B5).** Branch `build/b5-fuses`, head `858ada4`.
     - **Decision D2, needed:** turning off `enableNodeCliInspectArguments` stops Playwright from launching the packaged exe. It was reproduced on Linux: the stock exe started in 323 ms; with only that fuse off, the launch timed out after 15 s. So the packaged e2e step would fail on every `workflow_dispatch` run. The options:
