@@ -31,6 +31,36 @@ export interface CollectorLaunch {
   dispose(): Promise<void>;
 }
 
+/** The identity `create` records: the job's verified binding, plus the three source values Q8 carries from the collected manifest. */
+export interface ReviewIdentity {
+  clientRef: string; repository: string; ref: string; commit: string; workflow: string; workflowRunId: number; runAttempt: number;
+  runUrl?: string; htmlUrl?: string; apiVersion?: string;
+}
+export type ReviewTool = { tool: 'preflight' } | { tool: 'brief'; force: boolean } | { tool: 'create'; root: string; output: string; identity: ReviewIdentity };
+/** Bounds per review child (spec "Kit tools during the review", "Packaging"). Hitting the output limit stops each one. */
+export const REVIEW_BOUNDS = { preflight: { timeoutMs: 60_000, maxOutputBytes: 256 * 1024 }, brief: { timeoutMs: 60_000, maxOutputBytes: 64 * 1024 }, create: { timeoutMs: 120_000, maxOutputBytes: 64 * 1024 } } as const;
+const HTTPS_URL = /^https:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?\/[A-Za-z0-9._~/-]{0,1024}$/;
+const API_VERSION = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+/**
+ * `create`'s argv after the script: one `--name=value` element per value, so no value can be read as a flag. The Q8
+ * values are carried only in a plain shape; anything else is left to the kit's defaults.
+ */
+export function createArgs(root: string, output: string, identity: ReviewIdentity): string[] {
+  const id = BindingSchema.pick({ clientRef: true, repository: true, ref: true, commit: true, workflow: true, workflowRunId: true, runAttempt: true }).strict()
+    .parse({ clientRef: identity.clientRef, repository: identity.repository, ref: identity.ref, commit: identity.commit, workflow: identity.workflow, workflowRunId: identity.workflowRunId, runAttempt: identity.runAttempt });
+  return ['create', `--root=${root}`, `--output=${output}`, `--client-ref=${id.clientRef}`, `--repository=${id.repository}`, `--ref=${id.ref}`, `--commit=${id.commit}`,
+    `--workflow=${id.workflow}`, `--run-id=${id.workflowRunId}`, `--run-attempt=${id.runAttempt}`,
+    ...(identity.runUrl !== undefined && HTTPS_URL.test(identity.runUrl) ? [`--run-url=${identity.runUrl}`] : []),
+    ...(identity.htmlUrl !== undefined && HTTPS_URL.test(identity.htmlUrl) ? [`--html-url=${identity.htmlUrl}`] : []),
+    ...(identity.apiVersion !== undefined && API_VERSION.test(identity.apiVersion) ? [`--api-version=${identity.apiVersion}`] : [])];
+}
+/** One review child: the staged kit, run through the guarded runner with the caller's locks and pre-start check. */
+export interface ReviewLaunch {
+  /** storage/review: one folder per job, outside every project folder. */
+  readonly root: string;
+  run(tool: ReviewTool, options: { cwd: string; temp: string; locks: string[]; check(): Promise<void>; signal: AbortSignal }): Promise<OwnedResult>;
+}
+
 /** These are trusted main-process installation inputs, never IPC request fields. */
 export function validatorEnvironment(directory: string, source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const system = Object.entries(source).find(([key]) => key.toLowerCase() === 'systemroot')?.[1];
@@ -224,11 +254,63 @@ export class ResearchKit {
       dispose: () => removeOwned(this.config.storageRoot, folder),
     };
   }
-  /** At startup, before any launch: removes staged runtimes, validation work and collector folders a crash left. */
+  /**
+   * A review launch (Task 5). Staging is serialized with validation, as for the collector; the child is not. The
+   * environment is the validator's, pointed at the caller's private temp folder, so no machine config is found.
+   */
+  async prepareReview(signal?: AbortSignal): Promise<ReviewLaunch> {
+    const runtime = await serialized(this.config.storageRoot, () => this.prepare(signal));
+    const root = await privateDirectory(join(this.config.storageRoot, 'review'));
+    return {
+      root,
+      run: (tool, options) => {
+        const script = join(runtime, 'bin', tool.tool === 'preflight' ? 'preflight.mjs' : tool.tool === 'brief' ? 'brief.mjs' : 'artifact.mjs');
+        const args = tool.tool === 'preflight' ? ['--json'] : tool.tool === 'brief' ? (tool.force ? ['--force'] : []) : createArgs(tool.root, tool.output, tool.identity);
+        const bounds = REVIEW_BOUNDS[tool.tool];
+        return this.guardedRun(runtime, ['--max-old-space-size=256', script, ...args], options.cwd, validatorEnvironment(options.temp), { ...bounds, stopOnOutputLimit: true }, { locks: options.locks, check: options.check }, options.signal);
+      },
+    };
+  }
+  /**
+   * The verified bytes of a retained package: a fresh validation of storage/artifacts/<sha256>.zip under the binding,
+   * whose receipt must name that same digest. Throws STALE_VERIFICATION, or INSTALLATION_INVALID for this machine's fault.
+   */
+  async verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal): Promise<{ receipt: Receipt; bytes: Buffer }> {
+    DigestSchema.parse(artifactSha256);
+    const file = join(this.config.storageRoot, 'artifacts', artifactSha256 + '.zip');
+    // A retained package that is gone (purged, or never retained here) is a stale verification, not a broken installation.
+    try { await lstat(file); } catch (error) { if (missing(error)) throw new Error('STALE_VERIFICATION', { cause: error }); throw new Error('INSTALLATION_INVALID', { cause: error }); }
+    const result = await this.validate(file, binding, signal);
+    if (result.status !== 'PASS' || !result.receipt) throw new Error(result.error === 'INSTALLATION_INVALID' ? 'INSTALLATION_INVALID' : result.error === 'CANCELLED' ? 'CANCELLED' : 'STALE_VERIFICATION');
+    if (result.receipt.artifactSha256 !== artifactSha256) throw new Error('STALE_VERIFICATION');
+    return { receipt: result.receipt, bytes: await this.readVerified(result.receipt.id, binding) };
+  }
+  /** Removes storage/review/<name> for each name recovery returned, under the same lock as sweep. Plain names only. */
+  discardReview(names: readonly string[]): Promise<void> {
+    return serialized(this.config.storageRoot, async () => {
+      for (const name of names) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(name)) continue;
+        await removeOwned(this.config.storageRoot, join(this.config.storageRoot, 'review', name));
+      }
+    });
+  }
+  /**
+   * At startup, before any launch: removes staged runtimes, validation work and collector folders a crash left. Under
+   * storage/review it keeps every job's project/ and removes the per-attempt staging, scratch, out and temp folders; whole
+   * job folders are removed later, only once recovery names them (discardReview).
+   */
   sweep(): Promise<void> {
     return serialized(this.config.storageRoot, async () => {
       if (this.runtime || this.launches.size) throw new Error('KIT_BUSY');
       for (const name of ['runtime', 'work', 'collect']) await removeOwned(this.config.storageRoot, join(this.config.storageRoot, name));
+      const review = join(this.config.storageRoot, 'review');
+      let jobs: string[] = [];
+      try { jobs = await readdir(review); } catch (error) { if (!missing(error)) throw error; }
+      for (const job of jobs) {
+        const folder = join(review, job); const info = await lstat(folder);
+        if (!info.isDirectory() || info.isSymbolicLink()) { await removeOwned(this.config.storageRoot, folder); continue; }
+        for (const name of await readdir(folder)) if (/^(staging|scratch|out|temp)-/.test(name)) await removeOwned(this.config.storageRoot, join(folder, name));
+      }
     });
   }
   /** Waits for every launched child first: on Windows their read locks would make the runtime undeletable. */
