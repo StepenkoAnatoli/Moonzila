@@ -314,11 +314,13 @@ export class ResearchKit {
    * entirely before or entirely after it (docs/specification/research-purge.md, decision 4).
    */
   async verifyRetained(artifactSha256: string, input: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<{ receipt: Receipt; bytes: Buffer }> {
-    DigestSchema.parse(artifactSha256); const binding = BindingSchema.parse(input);
+    DigestSchema.parse(artifactSha256);
     const file = join(this.config.storageRoot, 'artifacts', artifactSha256 + '.zip');
     return serialized(this.config.storageRoot, async () => {
       // A retained package that is gone (purged, or never retained here) is a stale verification, not a broken installation.
       try { await lstat(file); } catch (error) { if (missing(error)) throw new Error('STALE_VERIFICATION', { cause: error }); throw new Error('INSTALLATION_INVALID', { cause: error }); }
+      // Parsed after the existence check, as validate did before this step took the lock (review F3).
+      const binding = BindingSchema.parse(input);
       // The hash comes from validate's own single read of the file, never from a second read (no window between the two).
       const seen: { sha256?: string } = {};
       const result = await this.validateOwned(file, binding, seen, signal, admit);

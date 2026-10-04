@@ -348,6 +348,13 @@ test('a purge racing the reader\'s verifyRetained of the same digest runs entire
   expect(await readResearchDocument(documents(w), 'j1', 'brief')).toEqual({ text: '', truncated: false, source: 'reviewed', verified: false });
 }, 120000);
 
+test('verifyRetained keeps its order: a missing file is STALE_VERIFICATION before the binding is parsed', async () => {
+  // Guard: the binding is parsed after the existence check, as before the lock moved (review F3; mutation: parse it first
+  // - an invalid binding for a purged digest then throws a schema error instead of the stale verdict).
+  const w = await world();
+  await expect(w.kit.verifyRetained('d'.repeat(64), {} as Parameters<ResearchKit['verifyRetained']>[1])).rejects.toThrow(/^STALE_VERIFICATION$/);
+});
+
 // ------------------------------------------------------------------ Windows: a delete another handle blocks
 
 const busy = (code: 'EBUSY' | 'EPERM') => Object.assign(new Error(`${code}: resource busy or locked`), { code });
