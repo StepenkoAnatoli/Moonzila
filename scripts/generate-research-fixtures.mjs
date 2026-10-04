@@ -1,5 +1,5 @@
 // Maintainer-only operation. Never invoked by tests or CI; changes require review.
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -15,6 +15,8 @@ const repo = resolve('.build/research-kit-pin');
 const output = resolve('tests/fixtures/research-kit'); mkdirSync(output, { recursive: true });
 const previous = mode === 'full' ? null : JSON.parse(readFileSync(join(output, 'provenance.json'), 'utf8'));
 const work = mkdtempSync(resolve('.build/rk-generation-'));
+// The exported kits and synthetic inputs are scratch: removed on every exit (success, --inventory-only's exit, or a throw).
+process.on('exit', () => rmSync(work, { recursive: true, force: true }));
 const kit = exportSource(repo, revision, join(work, 'current'));
 // The dispatch identity the producer ZIPs carry. Only a full regeneration may change it; after a
 // re-pin, a new commit here would no longer match the bytes (IDENTITY_MISMATCH).
