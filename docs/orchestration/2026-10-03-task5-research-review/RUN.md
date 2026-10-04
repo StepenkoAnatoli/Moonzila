@@ -17,8 +17,8 @@
 | 2 Requirements | DONE | REQUIREMENTS-P5.md | 18:00 |
 | 3 Design | DONE | docs/specification/research-purge.md | 18:00 |
 | 4 Mandate | DONE (standing mandate) | MANDATE-P5.md | 18:00 |
-| 5 Build | ACTIVE | - | - |
-| 6 Harden | PENDING | - | - |
+| 5 Build | DONE | units B7a, B7b, P4-40 integrated, reviewed, fixed; integration spec and invariant reviews done | 2026-10-04 |
+| 6 Harden | ACTIVE | - | - |
 | 7 Audit | PENDING | - | - |
 | 8 Deliver and merge | PENDING | - | - |
 | 9 Validate and report | PENDING | - | - |
@@ -92,7 +92,7 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 Contracts `7e1f4d9`. Briefs: `briefs/p5-common.md`, `p5-b7a-builder.md`, `p5-b7b-builder.md`, `p5-tls-builder.md`. All three in wave 1 (disjoint files).
 | Unit | Owns | Status | Commit on main-axuse | Model |
 |------|------|--------|----------------------|-------|
-| B7a purge | engine `research.retained`, adapter `purgeRetained`, `src/main/research-purge.ts`, index case | INTEGRATED, IN UNIT REVIEW (report `p5-b7a-builder-1.md`; lead: deleting shared digests -> red) | branch `2b374f9` | Opus |
+| B7a purge | engine `research.retained`, adapter `purgeRetained`, `src/main/research-purge.ts`, index case | REVIEWED, FIX ROUND INTEGRATED; INTEGRATED (report `p5-b7a-builder-1.md`; lead: deleting shared digests -> red) | branch `2b374f9` | Opus |
 | B7b panel | Delete stored corpus in `ResearchPanel.tsx` | REVIEWED, P5-2 FIXED; INTEGRATED (report `p5-b7b-builder-1.md`; lead: `collected` added to the statuses -> red) | branch `36f082f` | Opus |
 | P4-40 TLS | test-time CA and leaf, pkijs devDependency | REVIEWED, P5-4 FIXED; INTEGRATED (report `p5-tls-builder-1.md`; lead: SAN removed -> red); doctor READY | branch `460b66c`, `5031951`, `dced452` | Opus |
 
@@ -165,11 +165,12 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-2 | B7b unit review | S3 (x4, batched) | purge refusal overwritten by an automatic error; the Unverified disclosure overstates (history rows, failed/cancelled, shared digest); plural wording; formatting | FIXED (branch `748a5da`): refusal kept beside its control, not cleared by automatic errors (red with the reported defect's mutation); Unverified line only for the current approved job; plurals; formatting; lead re-ran the panel files |
 | P5-3 | lead | process | the B7b reviewer's launch message named a placeholder commit ("85b..."); the reviewer found the real one (`b010a3b`) | launch messages name commits from `git log`, never from memory |
 | P5-4 | P4-40 unit review | S3 (x3, batched) | `NODE_EXTRA_CA_CERTS` read lazily (CA must outlive each child's first handshake; undocumented); EKU comment wrong (SAN is the guard); cert folder leak if server start throws | FIXED (branch `5343782`): cleanup on any failure after generation (red without the fix), EKU comment corrected, lazy CA load documented; lead re-ran 57/57 |
-| P5-5 | Phase 5 spec review | S2 (raised: a misleading message, the P4-14 class) | a Windows delete still refused after the retry answers RESEARCH_KIT_UNAVAILABLE ("reinstall the kit") and never says that earlier packages were already deleted | lead contract: new public code `PURGE_INCOMPLETE` (spec updated, contract test); FIX to the B7a builder, batched with its unit review |
-| P5-6 | Phase 5 spec review | S3 / test gap | no test for a purge racing a review start's `verifyRetained`; the reader race only in one ordering; `keptShared` counts referenced digests with no file | FIX batched to the B7a builder |
+| P5-5 | Phase 5 spec review | S2 (raised: a misleading message, the P4-14 class) | a Windows delete still refused after the retry answers RESEARCH_KIT_UNAVAILABLE ("reinstall the kit") and never says that earlier packages were already deleted | FIXED (branch `622989c`): PURGE_INCOMPLETE after the retry; lead: removing the mapping turns its test red; Windows-only held-guard test (`9914f63`) runs on Windows CI |
+| P5-6 | Phase 5 spec review | S3 / test gap | no test for a purge racing a review start's `verifyRetained`; the reader race only in one ordering; `keptShared` counts referenced digests with no file | FIXED (branch `0e7ee21`): keptShared counts only stored files; review-start race both orders; reader under a held lock |
 | P5-7 | Phase 5 spec review | docs | spec divergences (keptBusy, NOT_FOUND, no-kit order, retry detail, disclosure, removed incl. orphans, projectId, no deleted state) and ARCHITECTURE wording | DOCS: "as built" in research-purge.md |
-| P5-8 | Phase 5 invariant audit | risk notes | the deleted fake test key remains in git history; invariant 4 (rows unchanged) proven only by a scratch test; a symlinked storage root is followed; AGENTS.md lacks a purge invariant row | history: kept (a throwaway key protecting nothing; rewriting shared history is never done). Byte-compare test: batched to the B7a builder. Storage-root link: belongs to the P4-23 task. AGENTS.md row: the docs unit |
+| P5-8 | Phase 5 invariant audit | risk notes | the deleted fake test key remains in git history; invariant 4 (rows unchanged) proven only by a scratch test; a symlinked storage root is followed; AGENTS.md lacks a purge invariant row | history: kept (a throwaway key protecting nothing; rewriting shared history is never done). Byte-compare test: FIXED (`93e93ed`). Storage-root link: belongs to the P4-23 task. AGENTS.md row: the docs unit |
 | P5-9 | lead | process | the full gate on `0f2b482` reported one new failure in `research-contracts`; it was the lead's own mid-run edit (the PURGE_INCOMPLETE assertion) read by the gate running in the main checkout, so the run was invalid | gates now run in a dedicated worktree pinned to the gated commit; re-run |
+| P5-10 | B7a builder | design note | two finished jobs that share a digest each keep it, so neither purge ever deletes it | KEPT: the user's 2026-10-03 rule (delete only when no other verification references the digest); sharing needs identical bytes, which UNIQUE client_ref makes rare; recorded in the spec's as built |
 
 ## Kit findings
 
@@ -224,3 +225,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: B7a integrated (46/46 with reader and main-kit; shared-digest guard removal red). All Phase 5 units in. Pushed; full Linux gate and Windows CI on this head; B7a unit review and the integration spec and invariant reviewers launched.
 - 2026-10-04: Phase 5 spec review: no S1/S2 in code; P5-5 (S2) needs contract `PURGE_INCOMPLETE` (lead, added); P5-6 test gaps; P5-7 docs.
 - 2026-10-04: Phase 5 invariant audit: all seven HOLD; P5-8 risk notes dispositioned.
+- 2026-10-04: B7a fix round integrated (98 passed + 1 Windows-only skipped; PURGE_INCOMPLETE mapping removed -> red). Pinned full gate on `0fa1966` equal to the baseline (1011 passed, 74 failed, 0 new). Windows CI green on `8edec7e`, `dc367ea` (generated certificates). Stage 5 DONE; Stage 6 break-test next.
