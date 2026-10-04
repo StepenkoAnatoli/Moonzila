@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { z } from 'zod';
-import type { MethodResult, Project, Research, ResearchCollector } from '../shared';
+import type { MethodResult, Profile, Project, Research, ResearchCollector } from '../shared';
 import { ResearchCollectorSaveParams, ResearchStartParams } from '../shared/params';
 import type { AppApi } from './App';
-import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, RESEARCH_STATUS, displayText, failureText } from './research-text';
+import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, READABLE_RESEARCH, RESEARCH_STATUS, REVIEWABLE_RESEARCH, cancelLabel, displayText, failureText } from './research-text';
 
 /** Notices can arrive before or after a list reply; the higher revision of a job always wins. */
 export function mergeResearch(current: Research[], incoming: Research[]): Research[] {
@@ -21,7 +21,73 @@ const issue = (error: z.ZodError, labels: Record<string, string>) => {
   return `${labels[key] ?? 'Request'}: ${first?.message ?? 'invalid value'}`;
 };
 
-export function ResearchPanel({ api, project }: { api: AppApi; project: Project }) {
+type ResearchDocument = MethodResult<'research.document.read'>;
+type DocumentName = 'brief' | 'evidence';
+/** The reader's text cap in characters: the reply is at most 262,144 UTF-8 bytes, so never fewer characters. */
+const DOCUMENT_CHARACTERS = 262_144;
+const DOCUMENT_NAMES: Record<DocumentName, string> = { brief: 'Brief', evidence: 'Evidence table' };
+const SOURCES: Record<ResearchDocument['source'], string> = { collected: 'collected package', workspace: 'review workspace', reviewed: 'reviewed package' };
+/** A reply belongs to the job exactly as it was when the request was sent; anything else is stale. */
+const jobKey = (job: Research) => `${job.id}\n${job.revision}\n${job.reviewedPackageDigest ?? ''}`;
+type Check = { key: string; state: 'checking' } | { key: string; state: 'ready' | 'unverified' } | { key: string; state: 'cannot'; message: string };
+
+/**
+ * The reviewed package is "Ready" only from a live check: `research.document.read` for the brief, answered `verified: true`
+ * for this job's id, revision and reviewed package digest. A rejected call is "Cannot check", never "Unverified".
+ */
+function ApprovedCheck({ api, job }: { api: AppApi; job: Research }) {
+  const key = jobKey(job);
+  const [check, setCheck] = useState<Check>({ key, state: 'checking' });
+  const [attempt, setAttempt] = useState(0);
+  const latest = useRef(key); latest.current = key;
+  const researchId = job.id;
+  useEffect(() => {
+    let alive = true;
+    setCheck({ key, state: 'checking' });
+    void api.invoke('research.document.read', { researchId, document: 'brief' }).then(result => {
+      if (!alive || latest.current !== key) return;
+      setCheck({ key, state: (result as ResearchDocument).verified === true ? 'ready' : 'unverified' });
+    }, reason => { if (alive && latest.current === key) setCheck({ key, state: 'cannot', message: message(reason, 'The check could not run.') }); });
+    return () => { alive = false; };
+  }, [api, key, researchId, attempt]);
+  const shown: Check = check.key === key ? check : { key, state: 'checking' };
+  const digest = job.reviewedPackageDigest ? ` · package ${job.reviewedPackageDigest.slice(0, 12)}` : '';
+  return <>
+    <p role="status" aria-live="polite" data-testid="research-status"><strong>{
+      shown.state === 'ready' ? 'Ready: approved by the Research Kit gate' : shown.state === 'unverified' ? 'Unverified: the reviewed package is missing or no longer matches'
+        : shown.state === 'cannot' ? 'Cannot check the reviewed package now' : 'Checking the reviewed package'}</strong>{shown.state === 'ready' ? digest : ''}</p>
+    {shown.state === 'cannot' && <div className="research-failure"><p>{displayText(shown.message, 512)}</p><button onClick={() => setAttempt(value => value + 1)}>Check again</button></div>}
+  </>;
+}
+
+/** Brief and evidence as untrusted plain text: no links, markdown or HTML; the source and verification above the text. */
+function DocumentReader({ api, job }: { api: AppApi; job: Research }) {
+  const key = jobKey(job);
+  const [open, setOpen] = useState<{ key: string; document: DocumentName; reply?: ResearchDocument; error?: string }>();
+  const latest = useRef(''); latest.current = key;
+  const request = useRef(0);
+  function read(document: DocumentName) {
+    const id = ++request.current; const sent = key;
+    setOpen({ key, document });
+    void api.invoke('research.document.read', { researchId: job.id, document }).then(result => {
+      if (id === request.current && latest.current === sent) setOpen({ key: sent, document, reply: result as ResearchDocument });
+    }, reason => { if (id === request.current && latest.current === sent) setOpen({ key: sent, document, error: message(reason, 'The document could not be read.') }); });
+  }
+  const shown = open?.key === key ? open : undefined;
+  const reply = shown?.reply;
+  return <div className="research-reader" data-testid="research-reader">
+    <div className="modal-actions"><button onClick={() => read('brief')}>Read the brief</button><button onClick={() => read('evidence')}>Read the evidence table</button></div>
+    {shown && !reply && !shown.error && <p className="muted" role="status">Reading the {shown.document === 'brief' ? 'brief' : 'evidence table'}…</p>}
+    {shown?.error && <p className="form-error" role="alert">{displayText(shown.error, 512)}</p>}
+    {shown && reply && <>
+      <p className="muted" data-testid="research-reader-source">{[DOCUMENT_NAMES[shown.document], SOURCES[reply.source], reply.verified ? 'verified by the Research Kit' : 'not verified', ...(reply.truncated ? ['shortened to the first 256 KiB'] : [])].join(' · ')}</p>
+      {reply.source === 'reviewed' && !reply.verified ? <p className="muted">Unverified: the reviewed package is missing or no longer matches, so nothing is shown.</p>
+        : <pre className="research-document" tabIndex={0}>{displayText(reply.text, DOCUMENT_CHARACTERS)}</pre>}
+    </>}
+  </div>;
+}
+
+export function ResearchPanel({ api, project, openConversation }: { api: AppApi; project: Project; openConversation?: (sessionId: string) => void }) {
   const [jobs, setJobs] = useState<Research[]>([]);
   const [collector, setCollector] = useState<ResearchCollector | null>();
   const [busy, setBusy] = useState(false);
@@ -52,6 +118,26 @@ export function ResearchPanel({ api, project }: { api: AppApi; project: Project 
   const current = jobs.find(job => ACTIVE_RESEARCH.includes(job.status)) ?? jobs[0];
   const active = !!current && ACTIVE_RESEARCH.includes(current.status);
   const ready = !!collector?.tokenConfigured;
+  // Start review only where the engine admits it: a collected or not ready job, in a trusted project with research on.
+  const reviewable = !!current && REVIEWABLE_RESEARCH.includes(current.status) && project.trusted && project.policy.research !== 'off';
+  const [profiles, setProfiles] = useState<Profile[]>();
+  const [reviewProfile, setReviewProfile] = useState('');
+  const localOnly = project.policy.inference === 'local-only';
+  const usable = (profile: Profile) => !(localOnly && profile.locality === 'external');
+  useEffect(() => {
+    if (!reviewable || profiles) return;
+    let alive = true;
+    void api.invoke('profile.list', {}).then(result => { if (alive) setProfiles((result as MethodResult<'profile.list'>).profiles); })
+      .catch(reason => { if (alive) { setProfiles([]); setError(message(reason, 'Model profiles are unavailable.')); } });
+    return () => { alive = false; };
+  }, [api, reviewable, profiles]);
+  const chosen = profiles?.find(profile => profile.id === reviewProfile && usable(profile)) ?? profiles?.find(usable);
+  async function startReview(job: Research) {
+    if (!chosen) return;
+    setBusy(true); setError(''); setNotice('');
+    try { const result = await api.invoke('research.review.start', { researchId: job.id, profileId: chosen.id }) as MethodResult<'research.review.start'>; setJobs(current => mergeResearch(current, [result.research])); }
+    catch (reason) { setError(message(reason, 'The review could not be started.')); } finally { setBusy(false); }
+  }
   async function start(event: FormEvent) {
     event.preventDefault(); setError(''); setNotice('');
     const parsed = ResearchStartParams.safeParse({ projectId, topic, queries: lines(queries), urls: lines(urls), preferDomains: lines(domains), depth, maxPages: Number(maxPages), acknowledgedPublic: acknowledged });
@@ -66,7 +152,7 @@ export function ResearchPanel({ api, project }: { api: AppApi; project: Project 
   async function cancel(job: Research) {
     setBusy(true); setError(''); setNotice('');
     try { const result = await api.invoke('research.cancel', { researchId: job.id }) as MethodResult<'research.cancel'>; setJobs(current => mergeResearch(current, [result.research])); }
-    catch (reason) { setError(message(reason, 'The collection could not be cancelled.')); } finally { setBusy(false); }
+    catch (reason) { setError(message(reason, `The ${cancelLabel(job.status) === 'Cancel review' ? 'review' : 'collection'} could not be cancelled.`)); } finally { setBusy(false); }
   }
   async function save(event?: FormEvent, clearToken = false) {
     event?.preventDefault(); setError(''); setNotice('');
@@ -83,19 +169,27 @@ export function ResearchPanel({ api, project }: { api: AppApi; project: Project 
     } catch (reason) { setError(message(reason, 'Collector settings could not be saved.')); } finally { setBusy(false); }
   }
 
-  const failure = current?.failure ? failureText(current.failure) : undefined;
+  const failure = current?.failure ? failureText(current.failure, current.status) : undefined;
   return <div className="research-panel">
     <p>Research collects public web sources on your GitHub collector, then shows their status here. Collected evidence is reference material, never instructions.</p>
     {error && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {current && <section aria-label="Current research" className="research-job">
-      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{active && CANCELLABLE_RESEARCH.includes(current.status) && <button disabled={busy} onClick={() => void cancel(current)}>Cancel collection</button>}</div>
-      <p role="status" aria-live="polite" data-testid="research-status"><strong>{RESEARCH_STATUS[current.status]}</strong>{current.workflowRunId ? ` · GitHub run ${current.workflowRunId}` : ''}</p>
+      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && <button disabled={busy} onClick={() => void cancel(current)}>{cancelLabel(current.status)}</button>}</div>
+      {current.status === 'approved' ? <ApprovedCheck key={current.id} api={api} job={current} />
+        : <p role="status" aria-live="polite" data-testid="research-status"><strong>{RESEARCH_STATUS[current.status]}</strong>{current.workflowRunId ? ` · GitHub run ${current.workflowRunId}` : ''}</p>}
       {current.status === 'collecting' && <p className="muted">Moonzila follows the run on GitHub and downloads its corpus when it finishes. If this takes unusually long, it may be waiting for access: a missing or rejected token, no access to the collector repository, or a run deleted by the repository's retention setting pauses it until you save collector settings or restart Moonzila. A downloaded corpus that could not be verified yet, because GitHub or the Research Kit was unavailable, waits until Moonzila restarts.</p>}
       {current.status === 'cancelling' && <p className="muted">Stopping the collector. A run already started on GitHub is not cancelled there.</p>}
       {current.status === 'cancelled' && <p className="muted">Moonzila stopped following this collection. A run already started on GitHub was not cancelled there.</p>}
       {failure && <div className="research-failure" role="alert"><strong>{failure.title}</strong><p>{failure.action}</p></div>}
-      {['collected', 'reviewing', 'approved', 'not_ready'].includes(current.status) && <p className="muted" data-testid="research-evidence">Reading evidence and the brief is not available in this development build.</p>}
+      {reviewable && <form className="profile-form" aria-label="Start review" onSubmit={event => { event.preventDefault(); void startReview(current); }}>
+        <p className="muted">A review runs in its own conversation, where you approve each edit to the research workspace. Your project files are not changed.</p>
+        <label>Review model<select value={chosen?.id ?? ''} disabled={busy} onChange={event => setReviewProfile(event.target.value)}>{(profiles ?? []).map(profile => <option key={profile.id} value={profile.id} disabled={!usable(profile)}>{displayText(profile.name, 128)}{usable(profile) ? '' : ' (cloud: this project allows local inference only)'}</option>)}</select></label>
+        {localOnly && profiles?.some(profile => !usable(profile)) && <p className="muted">This project allows local inference only, so cloud profiles cannot review it.</p>}
+        {profiles && !chosen && <p className="muted">Add a model profile this project allows before starting a review.</p>}
+        <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !chosen}>Start review</button></div>
+      </form>}
+      {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={current.id} api={api} job={current} />}
     </section>}
     {!project.trusted ? <p className="memory-notice">Trust this project before starting research.</p>
       : project.policy.research === 'off' ? <p className="memory-notice">Research is off for this project. Allow research in the project policy to start a collection.</p>
@@ -114,7 +208,7 @@ export function ResearchPanel({ api, project }: { api: AppApi; project: Project 
         {collector !== undefined && !ready && <p className="muted">{collector ? 'Save a collector token below before starting research.' : 'Set up the collector below before starting research.'}</p>}
         <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !ready || !acknowledged}>Start collection</button></div>
       </form>}
-    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure).title}` : ''}</span></li>)}</ul></details>}
+    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure, job.status).title}` : ''}</span></li>)}</ul></details>}
     <details className="research-collector" open={collector === null || (!!collector && !collector.tokenConfigured) || undefined}>
       <summary>Collector settings · {collector?.tokenConfigured ? 'token saved' : 'no token saved'}</summary>
       <form className="profile-form" aria-label="Collector settings" onSubmit={event => void save(event)}>

@@ -5,14 +5,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, expect, test } from 'vitest';
 import type { Research } from '../src/shared';
 import { ResearchPanel } from '../src/renderer/ResearchPanel';
-import { RESEARCH_FAILURES } from '../src/renderer/research-text';
+import { RESEARCH_FAILURES, failureText } from '../src/renderer/research-text';
+import { REVIEW_FAILURES } from '../src/engine/review-contract';
 
 afterEach(cleanup);
 const now = '2026-10-03T00:00:00Z';
 const project = { id: 'p1', name: 'My project', pathLabel: 'C:\\work\\my-project', trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only' as const, research: 'public-technical' as const }, missing: false, createdAt: now };
 const collector = { revision: 1, repository: 'octo/collector', workflow: 'collect.yml', ref: 'main', tokenConfigured: true };
 const job = (patch: Partial<Research> = {}): Research => ({ id: 'r1', projectId: project.id, revision: 1, status: 'queued', topic: 'Vector databases', clientRef: 'mz-abc', createdAt: now, updatedAt: now, ...patch });
-function bridge({ jobs = [] as Research[], saved = collector as typeof collector | null, routes = {} as Record<string, (params: Record<string, unknown>) => unknown> } = {}) {
+const localProfile = { id: 'local', name: 'Local model', kind: 'ollama', endpoint: 'http://127.0.0.1:11434', model: 'qwen', contextTokens: 8192, outputTokens: 1024, locality: 'local' as const, hasCredential: false, revision: 1, revisionId: 'rev-local', createdAt: now, updatedAt: now };
+const cloudProfile = { ...localProfile, id: 'cloud', name: 'Cloud model', kind: 'openai-compatible', endpoint: 'https://provider.example/v1', locality: 'external' as const, hasCredential: true, revisionId: 'rev-cloud' };
+function bridge({ jobs = [] as Research[], saved = collector as typeof collector | null, profiles = [localProfile, cloudProfile] as unknown[], routes = {} as Record<string, (params: Record<string, unknown>) => unknown> } = {}) {
   const calls: Array<{ method: string; params: Record<string, unknown> }> = []; let listener: ((research: Research) => void) | undefined;
   const api = {
     async invoke(method: string, params: Record<string, unknown> = {}) {
@@ -20,6 +23,7 @@ function bridge({ jobs = [] as Research[], saved = collector as typeof collector
       if (routes[method]) return routes[method](params);
       if (method === 'research.list') return { research: jobs };
       if (method === 'research.collector.read') return { collector: saved };
+      if (method === 'profile.list') return { profiles };
       throw new Error('Unexpected route');
     },
     onEvent: () => () => {},
@@ -163,9 +167,173 @@ test('research text is bounded plain text and no control can authorize or approv
   const heading = await screen.findByRole('heading', { level: 3 });
   expect(container.querySelector('img')).toBeNull();
   expect(heading.textContent).toMatch(/^<img src=x onerror="alert\(1\)">gpj\.exe x+…$/); expect(heading.textContent!.length).toBe(201);
-  expect(screen.getByTestId('research-evidence').textContent).toContain('not available');
-  expect(screen.getByText('Ready: approved by the Research Kit gate')).toBeTruthy();
-  for (const button of screen.getAllByRole('button')) expect(button.textContent).not.toMatch(/authori[sz]e|approve|review/i);
+  // An older approved job is never called ready from its status alone.
+  const history = (await screen.findByText(/^Earlier research/)).closest('details')!;
+  expect(history.textContent).not.toMatch(/Ready/);
+  for (const button of screen.getAllByRole('button')) expect(button.textContent).not.toMatch(/authori[sz]e|approve/i);
+});
+
+const REVIEW_BUTTONS = ['Start review', 'Open review', 'Cancel review'];
+test.each(['collected', 'reviewing', 'packaging', 'approved', 'not_ready'] as const)('a %s job offers only the allowed review controls', async status => {
+  render(<ResearchPanel api={bridge({ jobs: [job({ status, revision: 2, reviewSessionId: 's-review', reviewedPackageDigest: 'a'.repeat(64) })], routes: { 'research.document.read': () => ({ text: '', truncated: false, source: 'reviewed', verified: true }) } }).api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(screen.getByTestId('research-status')).toBeTruthy());
+  await waitFor(() => expect(screen.getAllByRole('button').length).toBeGreaterThan(0));
+  const expected = { collected: ['Start review'], not_ready: ['Start review'], reviewing: ['Open review', 'Cancel review'], packaging: ['Cancel review'], approved: [] }[status];
+  if (expected.length) await screen.findByRole('button', { name: expected[0]! });
+  const shown = screen.getAllByRole('button').map(button => button.textContent ?? '');
+  expect(shown.filter(text => /review/i.test(text)).sort()).toEqual([...expected].sort());
+  for (const text of shown) { expect(text).not.toMatch(/authori[sz]e|approve/i); if (/review/i.test(text)) expect(REVIEW_BUTTONS).toContain(text); }
+  expect(screen.queryByRole('button', { name: 'Cancel collection' })).toBeNull();
+});
+
+test('Start review lists the model profiles, disables cloud ones under local-only inference, and starts with the chosen one', async () => {
+  const { api, calls } = bridge({ jobs: [job({ status: 'collected', revision: 2 })], routes: { 'research.review.start': () => ({ research: job({ status: 'reviewing', revision: 3, reviewSessionId: 's-review', reviewRunId: 'run-1' }) }) } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  const picker = await screen.findByLabelText('Review model') as HTMLSelectElement;
+  await waitFor(() => expect(picker.options.length).toBe(2));
+  const cloud = [...picker.options].find(option => option.value === 'cloud')!;
+  expect(cloud.disabled).toBe(true); expect(cloud.textContent).toMatch(/local inference only/);
+  expect([...picker.options].find(option => option.value === 'local')!.disabled).toBe(false);
+  expect(picker.value).toBe('local');
+  expect(screen.getByText(/This project allows local inference only, so cloud profiles cannot review it/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Start review' }));
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toBe('Under review'));
+  expect(calls.find(call => call.method === 'research.review.start')!.params).toEqual({ researchId: 'r1', profileId: 'local' });
+  expect(screen.getByRole('button', { name: 'Open review' })).toBeTruthy(); expect(screen.getByRole('button', { name: 'Cancel review' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Start review' })).toBeNull();
+});
+
+test('a cloud-allowed project can pick a cloud profile, and a refused start shows the public message', async () => {
+  const { api, calls } = bridge({ jobs: [job({ status: 'not_ready', failure: 'REVIEW_STOPPED', revision: 4 })], routes: { 'research.review.start': () => { throw new Error('This research cannot be reviewed now. Only a collected corpus, or one that is not ready yet, can be reviewed.'); } } });
+  render(<ResearchPanel api={api} project={{ ...project, policy: { ...project.policy, inference: 'cloud-allowed' } }} openConversation={() => {}} />);
+  const picker = await screen.findByLabelText('Review model') as HTMLSelectElement;
+  await waitFor(() => expect(picker.options.length).toBe(2));
+  expect([...picker.options].every(option => !option.disabled)).toBe(true);
+  fireEvent.change(picker, { target: { value: 'cloud' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Start review' }));
+  expect(await screen.findByText(/This research cannot be reviewed now/)).toBeTruthy();
+  expect(calls.find(call => call.method === 'research.review.start')!.params).toEqual({ researchId: 'r1', profileId: 'cloud' });
+});
+
+test('Start review is not offered when no profile can run it', async () => {
+  render(<ResearchPanel api={bridge({ jobs: [job({ status: 'collected', revision: 2 })], profiles: [cloudProfile] }).api} project={project} openConversation={() => {}} />);
+  const button = await screen.findByRole('button', { name: 'Start review' });
+  await waitFor(() => expect((screen.getByLabelText('Review model') as HTMLSelectElement).options.length).toBe(1));
+  expect(button.hasAttribute('disabled')).toBe(true);
+});
+
+test('Open review hands the review conversation to the workbench', async () => {
+  const opened: string[] = [];
+  render(<ResearchPanel api={bridge({ jobs: [job({ status: 'reviewing', revision: 3, reviewSessionId: 's-review', reviewRunId: 'run-1' })] }).api} project={project} openConversation={id => opened.push(id)} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open review' }));
+  expect(opened).toEqual(['s-review']);
+});
+
+test('Cancel review cancels a packaging job through research.cancel', async () => {
+  const { api, calls } = bridge({ jobs: [job({ status: 'packaging', revision: 5 })], routes: { 'research.cancel': () => ({ research: job({ status: 'cancelling', revision: 6 }) }) } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Cancel review' }));
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toContain('Stopping'));
+  expect(calls.find(call => call.method === 'research.cancel')!.params).toEqual({ researchId: 'r1' });
+});
+
+function deferred<T>() { let resolve!: (value: T) => void; let reject!: (reason: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
+const DIGEST = '0123456789abcdef'.repeat(4);
+const approved = (patch: Partial<Research> = {}) => job({ status: 'approved', revision: 7, reviewSessionId: 's-review', reviewRunId: 'run-1', reviewedPackageDigest: DIGEST, ...patch });
+
+test('an approved job reads Checking until the reader answers, then Ready with the digest prefix only on verified: true', async () => {
+  const reply = deferred<unknown>();
+  const { api, calls } = bridge({ jobs: [approved()], routes: { 'research.document.read': () => reply.promise } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toBe('Checking the reviewed package'));
+  expect(screen.queryByText(/Ready/)).toBeNull();
+  expect(calls.filter(call => call.method === 'research.document.read').map(call => call.params)).toEqual([{ researchId: 'r1', document: 'brief' }]);
+  await act(async () => reply.resolve({ text: 'brief', truncated: false, source: 'reviewed', verified: true }));
+  expect(screen.getByTestId('research-status').textContent).toBe(`Ready: approved by the Research Kit gate · package ${DIGEST.slice(0, 12)}`);
+  expect(screen.getByTestId('research-status').textContent).not.toContain(DIGEST.slice(0, 13));
+  expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+});
+
+test('an approved job whose package no longer verifies reads Unverified, never Ready', async () => {
+  render(<ResearchPanel api={bridge({ jobs: [approved()], routes: { 'research.document.read': () => ({ text: '', truncated: false, source: 'reviewed', verified: false }) } }).api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toBe('Unverified: the reviewed package is missing or no longer matches'));
+  expect(screen.queryByText(/^Ready/)).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+});
+
+test('a rejected check reads Cannot check with the public message, neither Ready nor Unverified, and can be checked again', async () => {
+  let attempt = 0;
+  const { api, calls } = bridge({ jobs: [approved()], routes: { 'research.document.read': () => { attempt += 1; if (attempt === 1) throw new Error('Moonzila cannot check this document for saved keys right now, so it is not shown. Try again after restarting Moonzila.'); return { text: 'x', truncated: false, source: 'reviewed', verified: true }; } } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toBe('Cannot check the reviewed package now'));
+  expect(screen.getByText(/cannot check this document for saved keys/)).toBeTruthy();
+  expect(screen.queryByText(/^Ready|Unverified/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toContain('Ready: approved by the Research Kit gate'));
+  expect(calls.filter(call => call.method === 'research.document.read')).toHaveLength(2);
+});
+
+test('a check reply that arrives after the job changed is discarded', async () => {
+  const replies = [deferred<unknown>(), deferred<unknown>()]; let index = 0;
+  const { api, notify } = bridge({ jobs: [approved()], routes: { 'research.document.read': () => replies[index++]!.promise } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(index).toBe(1));
+  notify(approved({ revision: 8, reviewedPackageDigest: 'f'.repeat(64) }));
+  await waitFor(() => expect(index).toBe(2));
+  await act(async () => replies[0]!.resolve({ text: '', truncated: false, source: 'reviewed', verified: true }));
+  expect(screen.getByTestId('research-status').textContent).toBe('Checking the reviewed package');
+  await act(async () => replies[1]!.resolve({ text: '', truncated: false, source: 'reviewed', verified: false }));
+  expect(screen.getByTestId('research-status').textContent).toMatch(/^Unverified/);
+});
+
+const ADMISSION = ['POLICY_CHANGED', 'TRUST_CHANGED', 'RESEARCH_NOT_ALLOWED', 'PROJECT_UNTRUSTED', 'PROJECT_NOT_FOUND'];
+test('every review failure, admission code and RESEARCH_KIT_UNAVAILABLE has its own review explanation', () => {
+  expect(REVIEW_FAILURES.length).toBeGreaterThanOrEqual(12);
+  for (const code of REVIEW_FAILURES) expect(RESEARCH_FAILURES[code], code).toBeDefined();
+  const fallback = failureText('NOT_A_LISTED_CODE', 'not_ready');
+  for (const code of [...REVIEW_FAILURES, ...ADMISSION, 'RESEARCH_KIT_UNAVAILABLE']) {
+    const text = failureText(code, 'not_ready');
+    expect(text.title, code).not.toBe(fallback.title);
+    expect(text.action, code).toMatch(/review/i);
+  }
+  expect(fallback.action).toMatch(/\(NOT_A_LISTED_CODE\)/);
+});
+
+test('a not ready job explains its failure and offers a retry', async () => {
+  render(<ResearchPanel api={bridge({ jobs: [job({ status: 'not_ready', failure: 'REVIEW_GATE_FAILED', revision: 4 })] }).api} project={project} openConversation={() => {}} />);
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toContain(RESEARCH_FAILURES.REVIEW_GATE_FAILED!.title);
+  expect(await screen.findByRole('button', { name: 'Start review' })).toBeTruthy();
+});
+
+const HOSTILE = '<script>window.hacked = 1</script>\n[click me](https://evil.example) **bold** <a href="https://evil.example">x</a>\u202Eabc';
+test('the reader shows the brief as untrusted plain text in a pre, with its source and verification above it', async () => {
+  const { api, calls } = bridge({ jobs: [job({ status: 'collected', revision: 2 })], routes: { 'research.document.read': params => ({ text: params.document === 'brief' ? HOSTILE : '| U-1 | claim |', truncated: true, source: 'collected', verified: true }) } });
+  const { container } = render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Read the brief' }));
+  const reader = await screen.findByTestId('research-reader');
+  const pre = reader.querySelector('pre')!;
+  await waitFor(() => expect(pre.textContent).toContain('<script>'));
+  expect(pre.textContent).toBe(HOSTILE.replace('\u202E', ''));
+  expect(container.querySelector('script')).toBeNull(); expect(reader.querySelector('a')).toBeNull(); expect(reader.querySelector('strong, b, em')).toBeNull();
+  const meta = screen.getByTestId('research-reader-source');
+  expect(meta.textContent).toBe('Brief · collected package · verified by the Research Kit · shortened to the first 256 KiB');
+  expect(meta.compareDocumentPosition(pre) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(calls.filter(call => call.method === 'research.document.read').map(call => call.params)).toEqual([{ researchId: 'r1', document: 'brief' }]);
+  fireEvent.click(screen.getByRole('button', { name: 'Read the evidence table' }));
+  await waitFor(() => expect(reader.querySelector('pre')!.textContent).toBe('| U-1 | claim |'));
+});
+
+test('the reader shows workspace text as not verified, and a refused read shows its public message', async () => {
+  let refuse = false;
+  const { api } = bridge({ jobs: [job({ status: 'reviewing', revision: 3, reviewSessionId: 's-review' })], routes: { 'research.document.read': () => { if (refuse) throw new Error('The review workspace changed in a way Moonzila will not read through. Start the review again.'); return { text: 'draft', truncated: false, source: 'workspace', verified: false }; } } });
+  render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Read the brief' }));
+  await waitFor(() => expect(screen.getByTestId('research-reader-source').textContent).toBe('Brief · review workspace · not verified'));
+  refuse = true;
+  fireEvent.click(screen.getByRole('button', { name: 'Read the evidence table' }));
+  expect(await screen.findByText(/will not read through/)).toBeTruthy();
+  expect(screen.getByTestId('research-reader').querySelector('pre')).toBeNull();
 });
 
 test('saving a different collector repository withdraws the acknowledgement of the old destination', async () => {
@@ -190,9 +358,9 @@ test('saving a different collector repository withdraws the acknowledgement of t
   await waitFor(() => expect(calls.some(call => call.method === 'research.start')).toBe(true));
 });
 
-test.each(['queued', 'dispatching', 'collecting', 'reviewing'] as const)('a %s job can be cancelled and hides the start form', async status => {
+test.each([['queued', 'Cancel collection'], ['dispatching', 'Cancel collection'], ['collecting', 'Cancel collection'], ['reviewing', 'Cancel review'], ['packaging', 'Cancel review']] as const)('a %s job can be cancelled with %s and hides the start form', async (status, label) => {
   render(<ResearchPanel api={bridge({ jobs: [job({ status, revision: 2 })] }).api} project={project} />);
-  expect(await screen.findByRole('button', { name: 'Cancel collection' })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: label })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Start collection' })).toBeNull();
 });
 
