@@ -330,6 +330,10 @@ User direction, October 2: the mission should decide from the machine's resource
 - **The planner fills the approval card; the user still approves** (agent count, model per agent, parallel or sequential, local or cloud, step budget). Resources are rechecked under the lease before each agent starts; if they drop, the mission falls back to sequential instead of failing.
 - On the current PC (about 1.15 GiB free, below the reserve) the planner must report that no local agent fits and offer only policy-permitted cloud agents.
 
+## Linked parent above the data folder (found October 4 as P4-23; its own task)
+
+Main's folder guards refuse every storage path when any folder above Moonzila's data folder is a link (Fedora Atomic's `/home -> var/home`, a `C:\Users` junction): `privateDirectory` (`src/models/artifact-files.ts:16`, used by the model store, downloads, archives, the runtime, managed Ollama and the Research Kit store), `containedFolder` (`src/main/review-workspace.ts`) and the reader's walk all lstat from the filesystem root. The engine's `containedReviewWorkspace` checks only below the data folder and compares realpaths, which is what both specs say. Pre-existing since before Task 5; taken out of Phase 4 because the fix changes a security guard used across the app. To do: anchor each guard explicitly (models, downloads, runtime, research-kit storage), lstat only below the anchor, keep the realpath equality check, record the rule as a decision, and test both directions. Red tests: `docs/orchestration/2026-10-03-task5-research-review/reports/p4-23-red-tests.patch`.
+
 ## Self-unblocking with research (user request, October 4; its own task after Task 5)
 
 User request, October 4: when a Moonzila run is blocked, it first tries to resolve the blocker itself. If it cannot, it uses the research tool to find out how, applies the findings to the project, and pushes a pull request without merging. The user chose to make it its own task after Task 5 (not part of Phases 4-5). Its order relative to project memory and missions is decided when it is brainstormed.
