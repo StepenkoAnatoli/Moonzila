@@ -1,0 +1,8 @@
+# B12 builder report 1 (saved by the lead; structured sections kept)
+
+- Worktree `/home/user/task5-handoff/wt/p4-b12`, branch `build/p4-b12`, commit `00a04a7` on `0ccfcef`.
+- Blocker: the existing journey 2 stops at the import park (job still `collecting`); `research-journeys.md` lists a journey ending `collected` as Task 7 work. (1) `e2e/fixtures/collector-network.cjs` refuses main's non-loopback fetch, including the import's run read (`src/main/research-import.ts`, global `fetch`); (2) `tests/fixtures/fake-github.ts` answers the run with only `id`, `status`, `conclusion`, `html_url`, while the import's `RunSchema` needs `run_attempt`, `head_sha`, `head_branch`, `path`, `event`, `repository.full_name`.
+- Proposal: add the fields; an opt-in harness route through the loopback CONNECT proxy trusting the test CA; a network test case; update `research-journeys.md`. Lead: APPROVED.
+- Delivered so far: one journey in the Windows-only describe (trust, details "research is off", Allow research with four disclosures, confirm, on-state with Turn research off and the Start form, details pane refreshed, policy revision+1 with inference unchanged, nothing reached the fake). Step 4 (RUN_ACTIVE) unreachable without a model; left to unit tests.
+- Commands: typecheck (covers e2e), lint, eslint on the file, `--list` (4 tests) verified; Linux run: harness test passed, journeys skipped by platform (verified); platform skip removed: fails at trust (needs the helper), reverted; selectors checked with a throwaway jsdom render (verified). Windows CI only: the journey end to end (untested); guard removals expected, not run.
+- Mistake: first draft read the details pane under the open `aria-modal` dialog; now closes it first.
