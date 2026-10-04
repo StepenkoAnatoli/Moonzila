@@ -160,6 +160,7 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P4-10 | B8e unit review | S2 (proposed S3; raised: a regression of `run.start`) | the route learns a session's project and a project's active runs through the renderer's `session.read`, capped at 10000 runs: over the cap `run.start` and the research switch fail with INTERNAL_ERROR; one read per session, messages included, under the lock | FIX: lead adds internal engine controls `policy.guard {projectId}` and `session.project {sessionId}` (contract); the B8e builder implements them and moves the route onto them, red-first with the 10001-run case. FIXED (branch `8731f8e`, `254b049`; `Store.policyGuard` accepted); lead re-ran 38/38, dropping the mode filter turns its test red |
 | P4-11 | B8e unit review | S3 | main refuses `RUN_ACTIVE` before the engine's `REQUEST_CONFLICT` for a stale `expectedRevision` during a Build run | RECORDED: code differs only; nothing is stopped; the spec's "as built" says so |
 | P4-12 | B8e unit review | S3, pre-existing | a replayed `run.start` re-admits a capability for a run that already finished, never removed | RECORDED for Phase 5's gap-audit (present before Phase 4) |
+| P5-1 | P4-40 builder | process | `npm install --package-lock-only` also rewrote npm's hidden lockfile `node_modules/.package-lock.json` in the shared checkout; the builder stopped as briefed | ACCEPTED: npm's own regenerated cache; `npm ls` consistent (0 missing, invalid or extraneous). asn1js added to D-1 by hand edit, no further npm writes |
 
 ## Kit findings
 
@@ -205,3 +206,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: T1 integrated (touched files 107/107; `jobKey` revision removed -> 2 red). All Phase 4 findings now fixed or dispositioned. Final full gate (twice) and Windows CI on the final head next.
 - 2026-10-04: final re-review of P4-37/38/41: HOLD; P4-43 (S4) recorded. Every merge check held on `6a1fe4c` (Windows push and PR runs green, two full Linux gates equal to the baseline, mergeable, no threads, every S1/S2 fixed and re-reviewed). PR #36 merged by the lead as `cb343a2`. main-axuse rebased its two unpushed docs commits onto main. Check-in cancelled, PR unsubscribed.
 - 2026-10-04: auto-build Phase 5 started: stages 0-4 done (research SKIPPED with reason; standing mandate); contracts `7e1f4d9`; B7a, B7b, P4-40 launched.
+- 2026-10-04: P4-40 paused on npm's hidden-lockfile rewrite (P5-1), accepted; D-1 now covers asn1js 3.0.10.

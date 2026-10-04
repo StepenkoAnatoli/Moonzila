@@ -16,4 +16,4 @@ Task statement (verbatim): "Continue the auto-build: Moonzila Task 5 Phase 5 (re
 | S-1 | No path from the renderer; `research.retained` unreachable from the renderer | Phase 4 invariant 5; repo: `MethodSpec`/`parseRequest` |
 | T-1 | Every new test shown red with its guard removed; timing-sensitive tests repeated under load; Stores closed before cleanup | lead-orchestrator; P4-34, P4-35 |
 | A-1 | Full Linux gate equals the baseline; Windows CI green on the merged head | AGENTS.md merge rule |
-| D-1 | `pkijs` becomes an explicit devDependency at 3.4.1 (BSD-3-Clause) rather than a transitive one | engineering judgment: a transitive dependency of electron-builder can disappear in an upgrade |
+| D-1 | `pkijs` 3.4.1 and `asn1js` 3.0.10 (both BSD-3-Clause) become explicit devDependencies rather than transitive ones | engineering judgment: a transitive dependency of electron-builder can disappear in an upgrade |
