@@ -264,3 +264,10 @@ test('the package keeps asar on, which the asar-only and integrity fuses depend 
   const config = (await readFile(resolve('electron-builder.yml'), 'utf8')).replace(/\r\n/g, '\n');
   expect(config).toMatch(/^asar: true$/m);
 });
+
+test('CI packaging never publishes: both packaging scripts say --publish never', async () => {
+  // electron-builder 26 publishes implicitly when it detects CI and fails without GH_TOKEN (workflow_dispatch run 156:
+  // "GitHub Personal Access Token is not set"); its own log asks for --publish to be explicit.
+  const scripts = JSON.parse(await readFile(resolve('package.json'), 'utf8')).scripts as Record<string, string>;
+  for (const name of ['package:win', 'package:win-e2e']) expect(scripts[name], name).toMatch(/electron-builder [^&]*--publish never(\s|$)/);
+});
