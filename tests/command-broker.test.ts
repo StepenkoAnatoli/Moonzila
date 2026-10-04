@@ -9,7 +9,7 @@ import { safeCommandEnvironment, spawnOwned } from '../src/tools/commands';
 const directories: string[] = [];
 afterEach(async () => { for (const directory of directories.splice(0)) await rm(directory, { recursive: true, force: true }); });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'moonaliza-broker-')); directories.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'monnzila-broker-')); directories.push(root);
   const project = join(root, 'project'); await mkdir(project);
   const context: CommandContext = {
     run: { id: 'r', projectId: 'p', mode: 'build', status: 'running', trustRevision: 1, policyRevision: 1 },

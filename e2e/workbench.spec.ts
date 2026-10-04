@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 test('trusted project, encrypted profile, real IPC inference and durable history', async () => {
   // Includes two real desktop launches and shutdowns, including on an 8 GiB Windows host.
   test.setTimeout(120_000);
-  const directory = await mkdtemp(join(tmpdir(), 'moonaliza-e2e-'));
+  const directory = await mkdtemp(join(tmpdir(), 'monnzila-e2e-'));
   const project = join(directory, 'Example project'); await mkdir(project);
   const data = join(directory, 'app-data'); await mkdir(data);
   const server = createServer((request, response) => {
@@ -41,7 +41,7 @@ test('trusted project, encrypted profile, real IPC inference and durable history
     await page.getByLabel('API key').fill('test-only-credential-marker');
     await page.getByRole('button', { name: 'Save profile' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await page.getByLabel('Message MoonAliza').fill('Remember this conversation');
+    await page.getByLabel('Message Monnzila').fill('Remember this conversation');
     // A CI desktop can constrain the window below the details-pane breakpoint.
     // Exercise actual pointer hit testing, including the minimum supported width.
     for (const width of [960, 1180, 1440, 1024]) {
@@ -54,7 +54,7 @@ test('trusted project, encrypted profile, real IPC inference and durable history
     await page.getByRole('button', { name: 'Send message' }).click();
     await expect(page.getByText('Fixture model response', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Stop run' })).toHaveCount(0);
-    await page.screenshot({ path: 'test-results/moonaliza-workbench.png' });
+    await page.screenshot({ path: 'test-results/monnzila-workbench.png' });
     const invalid = await page.evaluate(async () => {
       try { await window.moonaliza.invoke('project.pick', { path: 'C:\\private' }); return false; } catch { return true; }
     });

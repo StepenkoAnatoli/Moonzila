@@ -112,7 +112,7 @@ test('status follows notices for this project by revision, and cancel is offered
   notify(job({ revision: 3, status: 'collecting', workflowRunId: '77' }));
   expect(screen.getByTestId('research-status').textContent).toBe('Collecting on GitHub · GitHub run 77');
   expect(screen.getByText(/run deleted by the repository's retention setting/)).toBeTruthy();
-  expect(screen.getByText(/could not be verified yet, because GitHub or the Research Kit was unavailable, waits until MoonAliza restarts/)).toBeTruthy();
+  expect(screen.getByText(/could not be verified yet, because GitHub or the Research Kit was unavailable, waits until Monnzila restarts/)).toBeTruthy();
   notify(job({ revision: 2, status: 'dispatching' }));
   notify(job({ id: 'other', projectId: 'p2', revision: 9, status: 'failed', failure: 'RUN_FAILED', createdAt: '2026-10-04T00:00:00Z' }));
   expect(screen.getByTestId('research-status').textContent).toBe('Collecting on GitHub · GitHub run 77');

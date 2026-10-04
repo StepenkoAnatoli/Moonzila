@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 async function fixture(mode = 'normal') {
-  const root = await mkdtemp(join(tmpdir(), 'moonaliza-managed-')); const directory = join(root, 'runtime'); await mkdir(directory);
+  const root = await mkdtemp(join(tmpdir(), 'monnzila-managed-')); const directory = join(root, 'runtime'); await mkdir(directory);
   await copyFile(process.execPath, join(directory, 'ollama.exe'));
   await copyFile(resolve('tests/fixtures/processes/ollama-fixture.mjs'), join(directory, 'serve'));
   await writeFile(join(directory, 'fixture.json'), JSON.stringify({ mode }));

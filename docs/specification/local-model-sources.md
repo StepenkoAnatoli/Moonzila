@@ -21,7 +21,7 @@ Implementation decisions: bound native helper execution and output; exclude soft
 
 Ollama documents a standalone Windows amd64 ZIP for embedding/service use, with separate ROCm and MLX packages when applicable. Its Windows requirements start at Windows 10 22H2. Inspect the exact pinned archive's backend inventory before claiming support. [Official Windows integration instructions](https://docs.ollama.com/windows)
 
-The official release page resolved to v0.34.4 during this review. The expanded asset list reports `ollama-windows-amd64.zip` at approximately 1.36 GB and SHA-256 `535193f38f3344e5b08f5d1c171c31ce11aa17f0124ff69ae26d8ec7fe06fa62`; the separate ROCm ZIP is approximately 244 MB. This records upstream published identity; no archive was downloaded or inspected during this research, and an upstream checksum is not MoonAliza signed activation metadata. [Pinned release](https://github.com/ollama/ollama/releases/tag/v0.34.4), [official asset identities](https://github.com/ollama/ollama/releases/expanded_assets/v0.34.4)
+The official release page resolved to v0.34.4 during this review. The expanded asset list reports `ollama-windows-amd64.zip` at approximately 1.36 GB and SHA-256 `535193f38f3344e5b08f5d1c171c31ce11aa17f0124ff69ae26d8ec7fe06fa62`; the separate ROCm ZIP is approximately 244 MB. This records upstream published identity; no archive was downloaded or inspected during this research, and an upstream checksum is not Monnzila signed activation metadata. [Pinned release](https://github.com/ollama/ollama/releases/tag/v0.34.4), [official asset identities](https://github.com/ollama/ollama/releases/expanded_assets/v0.34.4)
 
 Pinned source confirms environment controls for host binding, model directory, cloud disablement, concurrency, loaded-model count, queue and keep-alive. The managed runtime design uses loopback on an owned port, an owned model directory, `OLLAMA_NO_CLOUD=1`, `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_MAX_LOADED_MODELS=1`, and `OLLAMA_KEEP_ALIVE=0`, plus bounded queueing and explicit request context/output limits. Version 0.34.4 enables Vulkan by default when discovered; package contents and actual backend use still need inspection. [Pinned environment implementation](https://raw.githubusercontent.com/ollama/ollama/v0.34.4/envconfig/config.go)
 
@@ -39,7 +39,7 @@ The approved qualification targets remain: all 20 structured tool cases pass; te
 
 ## Ownership, integrity and remaining unknowns
 
-- User-owned runtimes are inspected or used through an explicit profile; MoonAliza must not kill, upgrade or remove their models as part of managed lifecycle actions.
+- User-owned runtimes are inspected or used through an explicit profile; Monnzila must not kill, upgrade or remove their models as part of managed lifecycle actions.
 - Managed runtime processes need ownership through the existing Windows Job Object supervisor, a verified dedicated loopback endpoint and an owned model directory. A listening port alone is not ownership proof.
 - HTTP cancellation is not sufficient proof that inference stopped. Keep the lease fenced until terminal completion/unload is confirmed or the owned process tree has exited; never use a lease heartbeat timeout to authorize overlapping inference.
 - Stream artifact hashing; pin manifest and blob identities instead of relying on mutable pull tags. Validate resumed-range identity, actual destination disk space, archive paths/links/expansion and atomic activation recovery. Preserve the previous working activation on failure.

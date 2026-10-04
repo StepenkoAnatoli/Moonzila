@@ -12,7 +12,7 @@ const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex
 const fixture = (name: string) => resolve('tests/fixtures/research-kit', name + '.zip');
 const binding = { projectId: 'project-one', projectRevision: 1, jobId: 'job-one', jobRevision: 1, ...provenance.identity };
 const config = () => ({ kitRoot: resolve('.build/research-kit-external/research-kit'), nodePath: process.execPath, nodeSha256, storageRoot: join(root, 'private'), helperPath: resolve('.build/native/MoonAlizaHost.exe') });
-beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'moonaliza-research-')); nodeSha256 = digest(await readFile(process.execPath)); kit = new ResearchKit(config()); }, 30000);
+beforeAll(async () => { root = await mkdtemp(join(tmpdir(), 'monnzila-research-')); nodeSha256 = digest(await readFile(process.execPath)); kit = new ResearchKit(config()); }, 30000);
 afterAll(async () => { await kit?.close(); if (root) { const rel = relative(resolve(tmpdir()), root); if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error('UNSAFE_TEST_CLEANUP'); await rm(root, { recursive: true, force: true }); } });
 
 test.each(provenance.fixtures)('real pinned validator matches exact golden $name bytes and report', async golden => {

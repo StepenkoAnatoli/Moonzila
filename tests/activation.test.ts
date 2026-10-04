@@ -27,7 +27,7 @@ function makeSet(sequence = 1, faults: { quality?: number; wrongRuntime?: boolea
   return { envelope, digest: sha(bytes), contents, payload };
 }
 async function fixture(withRuntimeStopped?: <T>(task: () => Promise<T>) => Promise<T>) {
-  const root = await mkdtemp(join(tmpdir(), 'moonaliza-activation-')); roots.push(root); const sets = new Map<string, ReturnType<typeof makeSet>>(); let requests = 0; let busy = false;
+  const root = await mkdtemp(join(tmpdir(), 'monnzila-activation-')); roots.push(root); const sets = new Map<string, ReturnType<typeof makeSet>>(); let requests = 0; let busy = false;
   const options = { trust, fetcher: async (url: string) => { requests++; const [, sequence, id] = new URL(url).pathname.split('/'); const contents = sets.get(sequence!)?.contents[id!]; return contents ? new Response(new Uint8Array(contents)) : new Response(null, { status: 404 }); }, withRuntimeStopped: async <T>(task: () => Promise<T>): Promise<T> => { if (busy) throw new Error('RUNTIME_BUSY'); busy = true; try { return await task(); } finally { busy = false; } } };
   if (withRuntimeStopped) options.withRuntimeStopped = withRuntimeStopped;
   return { root, sets, store: new ActivationStore(root, options), reopen: () => new ActivationStore(root, options), requests: () => requests, busy: (value: boolean) => { busy = value; } };
