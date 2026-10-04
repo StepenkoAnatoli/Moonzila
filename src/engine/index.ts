@@ -83,6 +83,8 @@ async function control(command: Control): Promise<unknown> {
     case 'research.context': return app.research.context(command.researchId);
     case 'research.transition': return app.research.transition(command);
     case 'research.recover': return app.research.recover(command.owned);
+    // Task 5 contracts are frozen; the engine side lands with schema v4 and the review run.
+    case 'research.review.begin': case 'research.review.context': throw new Error('NOT_IMPLEMENTED');
     case 'vault.references': return store.listSecretRefs();
     case 'request.lookup': return store.lookupAcceptedRequest({ method: command.requestMethod, clientRequestId: command.requestId, canonicalInputHash: command.inputHash }) ?? null;
     case 'shutdown': await app.shutdown(); store.close(); return { closed: true };
@@ -110,6 +112,8 @@ port.on('message', async event => {
     if (message.type === 'inference.result') waiter.resolve(message.result); else waiter.reject(new Error(message.code));
     return;
   }
+  // Kit tool replies have no waiter until the review run lands (Task 5); none can arrive before it asks.
+  if (message.type === 'research.tool.result' || message.type === 'research.tool.error') return;
   try {
     const result = message.type === 'request' ? await app.handle(message.request) : await control(message.control);
     port.postMessage({ type: 'reply', epoch, id: message.id, result });

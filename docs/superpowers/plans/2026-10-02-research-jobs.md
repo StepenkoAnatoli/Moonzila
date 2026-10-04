@@ -170,11 +170,72 @@ October 3, integration of the five build teams (import, collector items, small f
   - Resolved: the helper's admission timer takes `admissionMs`, so the whole pre-start step is bounded at 60 s.
   - Resolved: a job held after a commit error stays in `ownedIds()` until the next app start, so recovery after an engine-only restart (or at attach, after a failed replay) cannot fail it and drop its spooled run id.
   - Kept: `STOPPED` waits without counting; it only follows the supervisor's own stop, and counting it would let user holds fail a job.
+- **Decided by the user, October 3 (after PR #29):**
+  - The next cycle is Task 5, the research review.
+  - `research.purge` deletes only the retained ZIP. The job and its journal stay. It is allowed only for finished jobs whose digest no other verification references.
+  - Research is turned on through a confirmation dialog, as "Allow cloud inference" is, offering only `public-technical`.
+  - An inference-only policy edit no longer ends research jobs; only a change to the research setting or to trust does.
+- **Task 5 work breakdown (lead-orchestrator, October 3).**
+  - Prerequisites, all done:
+    - research: three corpora, `1202d5a` `7f361bd` `4b682ec`;
+    - decisions: `00daa0c`;
+    - frozen contracts: `fb34691`, `src/engine/review-contract.ts`;
+    - Q1 admission: `f582f16`.
+  - Units: one commit each, disjoint files, in this order.
+  - Wave 1, in parallel:
+    - **B0 schema v4.** Files: `migrations.ts`, `store.ts`, `research-state.ts`, `research.ts` transition writes, the shared status list, `tests/research-jobs-state.test.ts` and a `schema-v3.sql` fixture.
+      - Adds the `packaging` status, the `engine` actor and the review columns and checks.
+      - Replaces the readiness trigger with the digest-gated one, against the collected digest in the journal.
+      - Adds the reviewed-columns immutability trigger, the v4 review edges and per-edge review writes.
+      - Changes `recoverInterrupted` to keep a named `awaiting_review` run.
+      - Implements `research.review.context`.
+    - **B5 fuses.** `electron-builder.yml` `electronFuses`, plus a check script that reads the fuses back on the packaged exe.
+    - **B6 Windows guard tests.** A Windows-only test of the helper's guards (Q9 day-one check) and of replace-by-rename.
+  - Wave 2, after B0:
+    - **B2 engine review run.** Files: `src/engine/research-review.ts`, `application.ts`, `policy.ts`, `operations.ts`, `tools/files.ts`, `tools/reads.ts`.
+      - `research.review.begin`, mode `research` and `rootFor(run)`.
+      - The allowlist before prepare, the protected-root exemption, and `undoAuthority`.
+      - The cancel branch, run-end transitions, and the kit-tool port.
+    - **B3 main review supervisor.** Files: `src/main/review.ts`, `src/main/review-workspace.ts`, `adapter.ts` `prepareReview`, and the `index.ts` wiring.
+      - review.start, materialisation, the kit tools, freeze, packaging, recovery and sweep.
+    - **B4 renderer review UI** in `ResearchPanel.tsx`.
+    - **B8 research enable dialog.**
+  - Wave 3:
+    - **B7 `research.purge`** (retained ZIPs only);
+    - docs;
+    - Phase 4 review (spec, breaker, mutation, invariant) on the integrated branch.
+- **Resume here (October 4 handoff; the conversation was cleared).** The rest of Task 5 ships in phases. Each phase is one draft PR from `main-axuse`; the user merges it, then `main-axuse` is fast-forwarded to `main`, and the lead asks before starting the next phase.
+  - Skills, every phase:
+    - `lead-orchestrator`, with each sub-agent on the model most likely to succeed at its role;
+    - `careful-coding` in the lead's own work and in every brief;
+    - `brainstorming` at the start of a phase whose shape or a decision is open: ask, compare, and get the user's approval before building;
+    - `gap-audit` and `break-test` in the last phase, on the integrated feature.
+  - **Phase 0, in review:** the research corpora, the decisions, the frozen contracts, the Q1 admission fix, the lead-orchestrator skill update and a merge of `main` (PR #30). Gate on the merged head: typecheck, lint and build pass; 74 tests fail, all of them the Linux baseline.
+  - **Phase 1: schema v4 and the Windows guard tests.** Wave 1 already built B0 and B6 and reviewed them adversarially. They sit on the branches `build/b0-schema` (head `26f7420`) and `build/b6-guards` (head `2bb122c`); the full reports are outside the repository (see the session handoff). Before integrating:
+    - B0 still has two reds outside its files, to be fixed as part of the unit:
+      - `packaging` is missing from `RESEARCH_STATUS`, `ACTIVE_RESEARCH` and `CANCELLABLE_RESEARCH` in `src/renderer/research-text.ts`;
+      - the v3 status list in `tests/research-contracts.test.ts:115`.
+    - `src/engine/index.ts` still drops `reviewFolders` in `research.recover`; this needs a control-level test.
+    - The `FINISHED` sets in `src/main/collector-plan.ts` and `src/main/collector.ts` lack `packaging`.
+    - B0 is stricter than the spec in two places, both written under "Schema v4 as built": it refuses `RUN_ACTIVE` beside an active job, and a review ends only once its run holds no live engine work. As a result, B2 must append the run's terminal event before the job's edge, in the same transaction.
+    - B6's tests run only on Windows CI. Their directory-guard gap is recorded in the test file. If Windows CI shows a rename over a destination held open by a Node handle succeeding, revisit the brief's U-07/U-10 decision; do not weaken the test.
+  - **Decision D1, needed before B2/B3:** how a review run ends when main's step leaves the review. The spec says `run.failed` carries a public error code, but `ErrorCodeSchema` has none for the review failures. Either map them onto existing codes or add codes to the contract, and name the unit that owns the change. Until this is settled, after a refused freeze or a failed gate the run stays `awaiting_review` until restart.
+  - **Phase 2: Electron fuses (B5).** Branch `build/b5-fuses`, head `858ada4`.
+    - **Decision D2, needed:** turning off `enableNodeCliInspectArguments` stops Playwright from launching the packaged exe. It was reproduced on Linux: the stock exe started in 323 ms; with only that fuse off, the launch timed out after 15 s. So the packaged e2e step would fail on every `workflow_dispatch` run. The options:
+      - (a) keep that fuse on;
+      - (b) drop the packaged e2e step, or make it non-blocking;
+      - (c) build a second, test-only package with the fuse on (needs an ADR, because the e2e step would no longer test the shipped binary).
+    - The rename (PR #31) changed the packaged executable to `release/win-unpacked/Monnzila.exe`; B5's check step and its workflow test still name `MoonAliza.exe`, so the branch must be updated (read the path from `productName`, as its test already does) when it is integrated.
+    - Also open: pinning `eol=lf` for `electron-builder.yml` and the workflows; `grantFileProtocolExtraPrivileges` stays at Electron's default (enabled) because the renderer loads over `file://`.
+  - **Phase 3:** B2 engine review run and B3 main review supervisor, as in the breakdown above.
+  - **Phase 4:** B4 renderer review UI and B8 research enable dialog.
+  - **Phase 5:** B7 `research.purge`, docs, the four-role review, then `gap-audit` and `break-test`.
+  - **Watch:** draft PR #31 (another session) renames the product to Monnzila and specifies Operate mode. Check whether it has merged before each phase starts; merge `main` into `main-axuse` (never rebase) when it moves.
 - **Open after the October 3 integration (owner: the next research cycle unless the user decides otherwise).**
   - Decisions for the user:
     - `research.purge` semantics. The contract deletes the job; the source plan keeps the metadata. The import team recommends keeping the job and its journal and deleting only the retained ZIP, for finished jobs whose digest no other verification references.
     - How research is turned on: nothing in the app changes `policy.research` from `off`. The renderer team recommends a confirmation like "Allow cloud inference" that offers only `public-technical`.
-    - Whether an inference-only policy edit should still end research jobs. Today every policy revision does.
+    - Whether an inference-only policy edit should still end research jobs. Decided October 3: it does not; admission compares the research level and trust (done in the Task 5 cycle).
     - Whether `research.start` should carry the acknowledged repository, so that main refuses a stale acknowledgement.
   - Product work:
     - a park-reason field on the job DTO, so the panel can say why a collecting job waits;

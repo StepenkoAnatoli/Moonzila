@@ -332,18 +332,42 @@ Each new test is proven able to fail by a named mutation. Examples: accept `appr
 10. **`ON DELETE SET NULL` for the review run.** It would be an unjournaled update, which the v3 trigger aborts.
 11. **Keeping `reviewing` through packaging.** A crash could then not tell an unfrozen review from a frozen one, and the digest-gated rule would have no frozen digest to compare.
 
-## Open questions
+## Decisions (October 3, 2026)
 
-- **Q1 Review admission binding.** Collection binds a job strictly to the policy and trust revisions it was admitted under, so any later policy edit makes the admission non-null for good. Recommended: bind review effects to the review run's own revisions (as approvals do) and require only that the project is trusted and research is not `off`. Under the strict reading, an inference-only policy edit after collection makes a corpus unreviewable.
-- **Q2** Move `research.review.start` to main ownership (recommended), or keep it engine-owned with main preparing the workspace on the job notice. The latter adds a run that exists before its workspace.
-- **Q3** May the review edit `research/DISCOVERY.md` (marking an unknown `KNOWN-UNKNOWN` is a kit-endorsed fix) and `research/SOURCES.md`? Recommended: DISCOVERY yes, SOURCES no.
-- **Q4** Review step budget: the 24-step default is likely too small for more than a few rows. Recommended: a separate review budget setting, or rely on continued retries.
-- **Q5** Task 4 needs columns for the digest, validator identity and bound revision. One combined migration, or Task 4 as v4 and this as v5?
-- **Q6** After a restart, an `approved` job whose retained bytes no longer validate: show "stale" only (recommended), or add an `approved → not_ready` edge?
-- **Q7** Collection of unreferenced retained ZIPs from repeated packaging (with `research.purge`).
-- **Q8** Should `create` carry the collected manifest's `runUrl`, `htmlUrl` and `apiVersion`? The kit's own re-package command passes them when they differ from the defaults (`lib/artifact.mjs` `repackageArgs`). Monnzila's binding does not compare them, and `collect.yml` was not read for this design.
-- **Q9** Not determinable from code: whether the helper's directory guards stop new files being created in a locked folder on Windows. The design does not rely on it (inventory equality), but Windows CI should record it.
-- **Q10** A stale brief after the brief's judgements are answered (see *Instruction*). The kit approves it with a `hygiene/brief-stale` warning, and `create` records only failing findings, so the reviewed package cannot show it. Options: (a) let `research_draft_brief` take `force: true` in its scratch copy, offered as an exact approval that replaces the brief, after which the agent answers the **TODO** sections again; (b) have the freeze run `preflight.mjs --json` and refuse packaging with `REVIEW_INCOMPLETE` while `hygiene/brief-stale` is reported; (c) accept the kit's verdict and rely on the instruction's order. Recommended: (a) and (b) together, since (b) alone can leave the agent unable to fix what it is refused for.
+The open questions are settled here. The user decided the product questions; the lead decided the rest from the code maps and three Research-Kit corpora, each with a passing gate: [SQLite table rebuild](../research/2026-10-03-sqlite-table-rebuild/research/BRIEF.md), [Windows file semantics](../research/2026-10-03-windows-file-semantics/research/BRIEF.md) and [Electron fuses](../research/2026-10-03-electron-fuses/research/BRIEF.md). An external fact below names its corpus and evidence row.
+
+- **Q1, review admission (user).** An inference-only policy edit no longer ends research jobs. `researchAdmission` compares the research setting (`off` / the job's `research_level`) and the trust revision, not the whole policy revision. This applies to collection and review alike. The verification's `projectRevision` binding is unchanged: it stays the job's admitted policy revision.
+- **Q2.** `research.review.start` moves to main ownership.
+- **Q3.** The review may edit `research/DISCOVERY.md` but not `research/SOURCES.md`. The write allowlist is MAP, EVIDENCE, BRIEF and DISCOVERY, checked before an operation is prepared.
+- **Q4.** No new setting. The run uses `modelStepBudget` and `runDurationMinutes`, a budget end is `REVIEW_BUDGET_EXCEEDED`, and a retry continues with the kept edits.
+- **Q5.** One migration, v4. Task 4 put the verification in the journal, not a column, so `research_readiness_digest` compares `reviewed_package_sha256` with the collected digest read from that job's `collecting → collected` event (`json_extract(detail, '$.verification.artifactSha256')`).
+- **Q6.** After a restart, an `approved` job whose retained reviewed bytes no longer validate shows "stale". There is no `approved → not_ready` edge.
+- **Q7 (user).** `research.purge` deletes only retained ZIPs, including unreferenced ones from repeated packaging. The job and its journal stay, and only finished jobs are purged.
+- **Q8.** `create` carries `runUrl`, `htmlUrl` and `apiVersion` from the collected manifest when present, as the kit's own `repackageArgs` does. Otherwise the kit's defaults apply.
+- **Q9.** It is not documented whether a directory guard stops new entries being created in that directory ([Windows file semantics](../research/2026-10-03-windows-file-semantics/research/BRIEF.md), U-03: KNOWN-UNKNOWN). The design keeps relying on inventory equality (packaging step 5). A Windows CI test records the actual behaviour as its day-one check.
+- **Q10.** (a) and (b) together. `research_draft_brief` may take `force: true`, run only in its scratch copy and offered as an exact approval that replaces the brief. The freeze runs `preflight.mjs --json` and refuses packaging with `REVIEW_INCOMPLETE` while `hygiene/brief-stale` is reported.
+
+Corrections from the code maps and the research, which this design must honour:
+
+- **Migration (SQLite corpus).** Follow the documented order: E-01 (rebuild steps), E-02 and E-03 (`PRAGMA foreign_keys` is a no-op inside a transaction; `foreign_key_check` reports violations), E-04 (`DROP TABLE` removes the table's indexes and triggers), E-06 (better-sqlite3 transactions).
+  - Create `new_research` and `new_research_events` (the latter referencing `research`), copy with explicit column lists, drop the old tables, then rename the new ones. Never rename the old tables away first.
+  - Recreate every index and trigger. Assert the schema list and row counts before setting `user_version`.
+  - v3 rows in `reviewing` or `approved` cannot exist: no v3 edge reaches either, and `research_readiness_reserved` refuses `approved`. The migration refuses with `MIGRATION_RESEARCH_STATE` if it finds one, rather than guessing a mapping.
+  - Day one: `select sqlite_version()` under Electron must be at least 3.26.0 (corpus U-08).
+- **Restart.** `recoverInterrupted` interrupts every `awaiting_review` run today. It must keep a run that a `reviewing` or `packaging` job names as `review_run_id`, as this spec says.
+- **Cancel.** `run.cancel` of an `awaiting_review` run has no active execution. It needs its own branch, or the run stays `cancelling` and blocks the project with `RUN_ACTIVE`.
+- **Protected root.** Writes (`Operations.allowedPath`) and reads (`FileReader`) both treat the whole data folder as protected. Reads report `CONTEXT_PATH_EXCLUDED`, writes `PATH_OUTSIDE_PROJECT`. Both must exempt exactly the review workspace, and `undoAuthority` (which hard-codes `build` and the project root) must use `rootFor(run)`.
+- **Budget cause.** Today the step budget and the time limit both end as `BUDGET_EXCEEDED` with no detail. `REVIEW_BUDGET_EXCEEDED` covers both, and the event detail names which one ran out.
+- **Kit (code map of the pinned kit).**
+  - `artifact.mjs create` can exit 3 after writing its output, so packaging deletes the output on every non-zero exit.
+  - The brief's input hash also covers the capture count.
+  - Every kit argument is one `--name=value` element.
+- **Retained bytes (Windows corpus U-04, U-07, U-10).** Node's rename is `MoveFileExW(MOVEFILE_REPLACE_EXISTING)`. It is not documented as crash-atomic and fails while the destination is open. Describe it as "replace by rename". The re-validation after restart (Q6) and the torn-file replacement in `validate` are the guarantees.
+
+Added to this cycle (user, October 3): packaged builds turn off Electron's code-loading fuses, per the [Electron fuses](../research/2026-10-03-electron-fuses/research/BRIEF.md) corpus.
+- Fuses set: `runAsNode`, `enableNodeOptionsEnvironmentVariable` and `enableNodeCliInspectArguments` off; `onlyLoadAppFromAsar` and `enableEmbeddedAsarIntegrityValidation` on. Source: E-01 to E-05.
+- A packaged-build check reads them back.
+- With these fuses, the e2e `-r` preload cannot be active in a packaged build: `-r` is not an Electron switch (E-03), and `NODE_OPTIONS` is refused (E-01, E-02).
 
 ## Out of scope
 

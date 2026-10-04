@@ -325,7 +325,7 @@ describe('restart reconciliation and never dispatching twice', () => {
     const published: Research[] = [];
     const jobs = new ResearchJobs(store, r => published.push(r));
     const result = jobs.recover(['owned']);
-    expect(result).toEqual({ failed: ['dispatching'], cancelled: ['cancelling'], resume: [{ researchId: 'collecting', revision: 3, workflowRunId: '11' }], dispatchable: [{ researchId: 'queued', revision: 1 }], reviewing: ['reviewing'], unreadable: [] });
+    expect(result).toEqual({ failed: ['dispatching'], cancelled: ['cancelling'], resume: [{ researchId: 'collecting', revision: 3, workflowRunId: '11' }], dispatchable: [{ researchId: 'queued', revision: 1 }], reviewing: ['reviewing'], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] });
     expect(store.getResearch('dispatching')).toMatchObject({ status: 'failed', failure: 'REMOTE_STATE_UNKNOWN' });
     expect(store.researchEvents('dispatching').events.at(-1)).toMatchObject({ actor: 'recovery', to: 'failed' });
     expect(store.getResearch('owned')).toMatchObject({ status: 'dispatching' });
@@ -374,7 +374,7 @@ describe('restart reconciliation and never dispatching twice', () => {
     for (const change of ['policy', 'trust', 'off'] as const) {
       const { store } = open(); project(store); create(store);
       const current = store.getProject('p')!;
-      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2 } });
+      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2, research: 'private-connected' } });
       if (change === 'trust') store.putProject({ ...current, trustRevision: 2 });
       if (change === 'off') store.putProject({ ...current, policy: { ...current.policy, research: 'off' } });
       const jobs = new ResearchJobs(store, () => {});
@@ -393,7 +393,7 @@ describe('restart reconciliation and never dispatching twice', () => {
       jobs.transition({ method: 'research.transition', requestId: 'd', researchId: 'j1', expectedRevision: 1, to: 'dispatching', cause: 'DISPATCH', target });
       jobs.transition({ method: 'research.transition', requestId: 'c', researchId: 'j1', expectedRevision: 2, to: 'collecting', cause: 'KIT_DISPATCHED', workflowRunId: '5' });
       const current = store.getProject('p')!;
-      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2 } });
+      if (change === 'policy') store.putProject({ ...current, policy: { ...current.policy, revision: 2, research: 'private-connected' } });
       if (change === 'trust') store.putProject({ ...current, trustRevision: 2 });
       if (change === 'off') store.putProject({ ...current, policy: { ...current.policy, research: 'off' } });
       // The verification itself is valid: it names the job's revision, admitted policy revision, run and client ref.
@@ -403,6 +403,19 @@ describe('restart reconciliation and never dispatching twice', () => {
       expect(store.researchEvents('j1').events.at(-1)).toMatchObject({ from: 'collecting', to: 'failed', cause: 'ADMISSION_CHANGED' });
       expect(store.researchEvents('j1').events.some(e => e.to === 'collected')).toBe(false);
     }
+  });
+
+  test('an inference-only policy edit keeps research admitted: the dispatch and the package are still accepted', () => {
+    const { store } = open(); project(store); create(store);
+    const jobs = new ResearchJobs(store, () => {});
+    const current = store.getProject('p')!;
+    store.putProject({ ...current, policy: { ...current.policy, revision: 2, inference: 'cloud-allowed' } });
+    expect(jobs.context('j1').admission).toBeNull();
+    expect(jobs.transition({ method: 'research.transition', requestId: 'd', researchId: 'j1', expectedRevision: 1, to: 'dispatching', cause: 'DISPATCH', target }).outcome).toBe('applied');
+    jobs.transition({ method: 'research.transition', requestId: 'c', researchId: 'j1', expectedRevision: 2, to: 'collecting', cause: 'KIT_DISPATCHED', workflowRunId: '5' });
+    store.putProject({ ...store.getProject('p')!, policy: { ...store.getProject('p')!.policy, revision: 3, inference: 'local-only' } });
+    // The verification binds the admitted policy revision (1), which an inference edit does not change.
+    expect(jobs.transition({ method: 'research.transition', requestId: 'v', researchId: 'j1', expectedRevision: 3, to: 'collected', cause: 'PACKAGE_VERIFIED', verification: verification() }).outcome).toBe('applied');
   });
 
   test('a fact transition is still recorded after a policy change', () => {
@@ -482,7 +495,16 @@ describe('application and boundaries', () => {
   test('the control channel cannot produce readiness or carry secrets', () => {
     const base = { method: 'research.transition', requestId: 'r', researchId: 'j', expectedRevision: 1, cause: 'DISPATCH' };
     expect(ControlSchema.safeParse({ ...base, to: 'collected' }).success).toBe(true);
-    for (const to of ['approved', 'not_ready', 'reviewing', 'cancelling', 'queued']) expect(ControlSchema.safeParse({ ...base, to }).success, to).toBe(false);
+    for (const to of ['reviewing', 'cancelling', 'queued']) expect(ControlSchema.safeParse({ ...base, to }).success, to).toBe(false);
+    // Main may name the review outcomes (Task 5), so readiness is the engine's to refuse: no review edge exists before
+    // schema v4, and v4's readiness trigger demands a frozen digest, a packaging step and main's KIT_APPROVED journal row.
+    for (const to of ['approved', 'not_ready', 'packaging'] as const) {
+      const { store } = open(); project(store); create(store);
+      const jobs = new ResearchJobs(store, () => {});
+      expect(ControlSchema.safeParse({ ...base, to }).success, to).toBe(true);
+      expect(() => jobs.transition({ method: 'research.transition', requestId: `r-${to}`, researchId: 'j1', expectedRevision: 1, to, cause: 'KIT_APPROVED' }), to).toThrow('RESEARCH_TRANSITION_INVALID');
+      expect(store.getResearch('j1'), to).toMatchObject({ status: 'queued', revision: 1 }); expect(store.researchEvents('j1').events, to).toHaveLength(1);
+    }
     expect(ControlSchema.safeParse({ ...base, to: 'failed', failure: 'X_CODE', token: 'ghp_x' }).success).toBe(false);
     expect(ControlSchema.safeParse({ ...base, to: 'collecting', workflowRunId: '01' }).success).toBe(false);
     expect(ControlSchema.safeParse({ ...base, to: 'collecting', workflowRunId: '9007199254740993' }).success).toBe(false);

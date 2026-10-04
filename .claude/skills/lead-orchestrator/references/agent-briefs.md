@@ -4,7 +4,10 @@ Sub-agents start without any knowledge of the conversation, the plan or prior de
 must therefore be complete on its own: real file paths, real commands, real identifiers. Vague
 briefs are the most common cause of weak sub-agent output.
 
-Each brief covers exactly one unit of work or one review responsibility.
+Each brief covers exactly one unit of work or one review responsibility. Before launching,
+the lead selects the model for the agent according to the rule in SKILL.md ("Model selection
+and capacity"): the most capable model available unless the role's correctness cannot depend on
+capability.
 
 ## Contents
 

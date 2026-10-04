@@ -144,7 +144,7 @@ test.each([
   ['ARTIFACT_EXPIRED', 'Corpus expired', /keeps it for 7 days/],
   ['COLLECTION_EXPIRED', 'Collection timed out', /within 7 days/],
   ['REMOTE_STATE_UNKNOWN', 'Run state unknown', /no second run was started/],
-  ['POLICY_CHANGED', 'Project policy changed', /Any policy change ends/],
+  ['POLICY_CHANGED', 'Research setting changed', /Changing only the inference setting does not stop research/],
   ['RUN_IDENTITY_MISMATCH', 'Run did not match the request', /not the one it started/],
   ['PACKAGE_IDENTITY_MISMATCH', 'Corpus from another run', /different run, attempt or commit/],
   ['TRUST_CHANGED', 'Project trust changed', /Start a new collection once the project is trusted/],

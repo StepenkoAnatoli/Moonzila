@@ -14,7 +14,7 @@ afterEach(() => { stores.splice(0).forEach(s => s.close()); roots.splice(0).forE
 const target = { collectorRevision: 1, repository: 'owner/collector', workflow: 'collect.yml', ref: 'main' };
 const verification = (jobRevision: number) => ({ artifactSha256: 'a'.repeat(64), artifactBytes: 18127, validatorRevision: 'b'.repeat(40), nodeSha256: 'c'.repeat(64), state: 'REVIEW_IN_PROGRESS' as const,
   jobRevision, projectRevision: 1, repository: 'owner/collector', ref: 'main', workflow: 'collect.yml', commit: 'd'.repeat(40), runAttempt: 1, workflowRunId: '41', clientRef: 'mz-j', downloadDigest: 'unverified' as const });
-const policy = (revision: number, research: 'off' | 'public-technical' = 'public-technical') => ({ revision, inference: 'local-only' as const, research });
+const policy = (revision: number, research: 'off' | 'public-technical' | 'private-connected' = 'public-technical') => ({ revision, inference: 'local-only' as const, research });
 
 type Start = 'queued' | 'dispatching' | 'collecting' | 'cancelling-before-run' | 'cancelling-with-run' | 'collected' | 'failed' | 'cancelled';
 type Change = 'none' | 'policy' | 'trust' | 'research-off';
@@ -38,7 +38,8 @@ function setup(start: Start, change: Change = 'none') {
       }
     }
   }
-  if (change === 'policy') store.putProject({ ...store.getProject('p')!, policy: policy(2) });
+  // A change of research level; an inference-only edit no longer ends a job (see research-jobs-state).
+  if (change === 'policy') store.putProject({ ...store.getProject('p')!, policy: policy(2, 'private-connected') });
   if (change === 'research-off') store.putProject({ ...store.getProject('p')!, policy: policy(2, 'off') });
   if (change === 'trust') store.putProject({ ...store.getProject('p')!, trustRevision: 2 });
   return { store, jobs, context: () => ResearchContextSchema.parse(structuredClone(jobs.context('j'))) };
@@ -96,7 +97,7 @@ test('reply schemas accept the engine\'s real replies and refuse extra keys', ()
   const { jobs, context } = setup('collecting');
   expect(context().research).toMatchObject({ status: 'collecting', workflowRunId: '41', repository: 'owner/collector', inputs: { depth: 'quick' } });
   expect(context().admission).toBeNull();
-  expect(ResearchRecoverySchema.parse(structuredClone(jobs.recover([])))).toEqual({ failed: [], cancelled: [], resume: [{ researchId: 'j', revision: 3, workflowRunId: '41' }], dispatchable: [], reviewing: [], unreadable: [] });
+  expect(ResearchRecoverySchema.parse(structuredClone(jobs.recover([])))).toEqual({ failed: [], cancelled: [], resume: [{ researchId: 'j', revision: 3, workflowRunId: '41' }], dispatchable: [], reviewing: [], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] });
   expect(() => ResearchContextSchema.parse({ ...context(), extra: 1 })).toThrow();
   expect(() => ResearchContextSchema.parse({ ...context(), research: { ...context().research, token: 'x' } })).toThrow();
 });
