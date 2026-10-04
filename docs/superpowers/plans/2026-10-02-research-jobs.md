@@ -362,6 +362,12 @@ User direction, October 2: the mission should decide from the machine's resource
 - On the current PC (about 1.15 GiB free, below the reserve) the planner must report that no local agent fits and offer only policy-permitted cloud agents.
 - **Project lock (P4-27, recorded October 4).** Main's policy route (`src/main/policy-route.ts`) locks only `run.start`. Any mission path that creates a non-research run outside `run.start` must take the same per-project lock; otherwise a research-only policy change can pass main's check, so main aborts and holds before the engine's re-check refuses it.
 
+## Task 5 follow-ups (design changes found by the gap-audit, October 4)
+
+- **P5-15, retries without a reason.** A `not_ready` retry gets the same instruction as the first review, so the model is not told which part failed. The validated reviewed manifest already holds `review.mapClassified`, `review.findingsReviewed`, `review.briefReviewed` and `gate.blockingFindings`; main keeps only the failure code. To do: carry those flags, as labelled untrusted data, from main to `research.review.begin` and to `ResearchSchema` for the panel. An interface change, so it needs a frozen contract and the user's sight of the design.
+- **P5-16, stranded collected and not_ready corpora.** Such jobs can never be abandoned, so their retained ZIPs and review workspaces stay. Purging them changes the user's 2026-10-03 rule (only finished jobs); for the user to decide, with real package sizes measured first.
+- **P5-13 panel notice.** The panel cannot say that a retry rebuilt the workspace, because `ResearchSchema` carries no `workspace` field (the model is told, since Phase 5).
+
 ## More models (user request, October 4; its own task after Task 5)
 
 User request, October 4: add more models to Moonzila, as its own task after Task 5, research first. Today Moonzila already reaches many models through profiles (`ollama`, `openai-compatible`, `openai-responses`, `anthropic`; `ProfileKindSchema` in `src/shared/contracts.ts`) and a signed managed catalogue of local models and runtimes (`src/models/catalogue.ts`), hardware-qualified before use.
