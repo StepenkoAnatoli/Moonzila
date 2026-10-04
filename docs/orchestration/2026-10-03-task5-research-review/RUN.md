@@ -4,13 +4,13 @@
 |-----------------|-------|
 | Status          | ACTIVE |
 | Started         | 2026-10-03 (research cycle); ledger adopted 2026-10-04 12:50 UTC, mid-run |
-| Last checkpoint | 2026-10-04 13:20 UTC - Phase 4 design approved, spec written |
+| Last checkpoint | 2026-10-04 - Phase 4 spec revised after the second cross-vendor review; user: start the build |
 | Engagement      | Full |
 | Working branch  | `main-axuse`, from `main` @ `6d51dbb` (Phase 2 merge) |
 | Skill           | lead-orchestrator 2.0 (`.claude/skills/lead-orchestrator/references/changelog.md`) |
 
 ## Next action
-Wait for the user's approval of the revised `docs/specification/research-review-ui.md` (cross-vendor review folded in). On approval: commit the `research.document.read` contract (lead), write the briefs for B11, B4, B4b, B8e and B8 with their pre-mortems, launch B11, B4, B4b and B8e in parallel, then B8 after B4 and B8e.
+Build Phase 4 (the user said to start it once the spec revision was done): commit the `research.document.read` contract (lead), write the briefs for B11, B4, B4b, B8e and B8 with their pre-mortems, launch B11, B4, B4b and B8e in parallel, then B8 after B4 and B8e.
 
 ## Task statement
 - Goal: plan Task 5, the research review (`docs/specification/research-review.md`). A collected corpus is reviewed by a model run with user-approved edits, packaged by the kit's own `create`, and is research-ready only when the validator confirms the new package's exact bytes.
@@ -51,7 +51,7 @@ All four re-gated with Research-Kit `d00be07` on 2026-10-04: preflight 0, handof
 | 1 | schema v4 (B0), Windows guard tests (B6), Moonzila spelling | #33 | MERGED |
 | 2 | Electron fuses (B5), test-only package for packaged e2e (D2) | #34 | MERGED |
 | 3 | engine review run (B2), main supervisor (B3), e2e scenarios (B10), fix round | #35 | MERGED (710e083) |
-| 4 | review UI (B4, B4b), reader (B11), research switch (B8, B8e) | - | DESIGN APPROVED 2026-10-04; spec revised after cross-vendor review, in user review |
+| 4 | review UI (B4, B4b), reader (B11), research switch (B8, B8e) | - | DESIGN APPROVED 2026-10-04; spec revised after cross-vendor review, second review folded in; BUILDING |
 | 5 | `research.purge` (B7), docs, four-role review, gap-audit, break-test | - | PLANNED (offer the GPT reviewer for gap-audit) |
 
 ## Units (Phase 3)
@@ -87,3 +87,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04 12:55 UTC: lead-orchestrator 2.0 adopted mid-run; this ledger written from verified disk state (every commit above exists on `main-axuse`).
 - 2026-10-04: #35 merged; main merged into main-axuse (d8811ef). Phase 4 brainstorming: panel + conversation, brief/evidence reader, switch in the panel; design approved; spec written.
 - 2026-10-04: cross-vendor review of the Phase 4 spec: 6 findings (2 S1, 4 S2), all folded in; user decision: the research switch is blocked while other work runs (engine guard B8e).
+- 2026-10-04: second cross-vendor review of the Phase 4 spec: 4 findings (2 S1, 1 S2, 1 S3), all folded in: the research-switch check moves into main's route under a per-project lock, before any abort or revoke; redaction runs on the whole document before the cut; reader outcomes get their own codes and messages. The user said to start the build after the revision.
