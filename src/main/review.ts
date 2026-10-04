@@ -15,8 +15,8 @@ import { acceptsTree, copyWorkspace, foldAccepted, foldExpected, materialise, re
 /** What the supervisor needs from the Research Kit adapter (`ResearchKit` implements it). */
 export interface ReviewKit {
   prepareReview(signal?: AbortSignal): Promise<ReviewLaunch>;
-  verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal): Promise<{ receipt: Receipt; bytes: Buffer }>;
-  validate(file: string, binding: Binding, signal?: AbortSignal): Promise<Result>;
+  verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<{ receipt: Receipt; bytes: Buffer }>;
+  validate(file: string, binding: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<Result>;
   readVerified(id: string, binding: Binding): Promise<Buffer>;
   discardReview(names: readonly string[]): Promise<void>;
 }
@@ -361,11 +361,14 @@ export class ReviewSupervisor {
         // have moved the job), and nothing else ends it while main owns the job: not_ready, as recovery would record.
         if (ctx.reviewRunStatus !== null && LIVE_RUN.has(ctx.reviewRunStatus)) return;
         if (ctx.reviewRunStatus !== 'awaiting_review') transition = { to: 'not_ready', expectedRevision: ctx.revision, cause: 'RECOVERED', failure: 'REVIEW_INTERRUPTED' };
-        else transition = await this.freeze(job, ctx);
+        // The freeze's own children are admitted like packaging's: a changed admission ends the review, a hold waits.
+        else if (ctx.admission !== null) transition = { to: 'not_ready', expectedRevision: ctx.revision, cause: 'ADMISSION_CHANGED', failure: ctx.admission };
+        else if (this.held(job.projectId)) { await this.sleep(this.retry, job.wake.signal); continue; }
+        else transition = await this.step(job, signal => this.freeze(job, ctx, signal));
       } else if (ctx.status === 'packaging') {
         if (ctx.admission !== null) transition = { to: 'not_ready', expectedRevision: ctx.revision, cause: 'ADMISSION_CHANGED', failure: ctx.admission };
         else if (this.held(job.projectId)) { await this.sleep(this.retry, job.wake.signal); continue; }
-        else transition = await this.package(job, ctx);
+        else transition = await this.step(job, signal => this.package(job, ctx, signal));
       } else if (ctx.status === 'cancelling') {
         // A live review run is the engine's to finish first; it then commits the cancel itself.
         if (ctx.reviewRunStatus !== null && LIVE_RUN.has(ctx.reviewRunStatus)) return;
@@ -381,14 +384,14 @@ export class ReviewSupervisor {
   }
 
   /** The verified collected package's base inventory and the source values Q8 carries; or the failure to record. */
-  private async collected(job: Job, ctx: ResearchReviewContext, signal?: AbortSignal): Promise<{ base: Inventory; identity: ReviewIdentity } | Verdict> {
+  private async collected(job: Job, ctx: ResearchReviewContext, signal: AbortSignal): Promise<{ base: Inventory; identity: ReviewIdentity } | Verdict> {
     const kit = this.deps.kit; if (!kit) return { failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'NO_INSTALLATION' };
     const verification = ctx.verification; if (!verification) return { failure: 'REVIEW_PACKAGING_FAILED', cause: 'NO_VERIFICATION' };
     let bytes: Buffer;
-    try { ({ bytes } = await kit.verifyRetained(verification.artifactSha256, reviewBinding(job.projectId, job.id, verification, verification.jobRevision), signal)); }
+    try { ({ bytes } = await kit.verifyRetained(verification.artifactSha256, reviewBinding(job.projectId, job.id, verification, verification.jobRevision), signal, this.admit(job, ctx, signal))); }
     catch (error) {
       const code = message(error);
-      if (code === 'CANCELLED' || signal?.aborted) return null;
+      if (code === 'CANCELLED' || signal.aborted) return null;
       return code === 'INSTALLATION_INVALID' ? { failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'INSTALLATION_INVALID' } : { failure: 'REVIEW_PACKAGING_FAILED', cause: 'STALE_VERIFICATION' };
     }
     try {
@@ -402,9 +405,9 @@ export class ReviewSupervisor {
    * Step 1, the freeze: the workspace must equal fold(base, review changes) exactly, and the brief must not be stale
    * (Decisions, Q10 b). Then `reviewing -> packaging {reviewDigest}`.
    */
-  private async freeze(job: Job, ctx: ResearchReviewContext): Promise<Transition | null> {
+  private async freeze(job: Job, ctx: ResearchReviewContext, signal: AbortSignal): Promise<Transition | null> {
     const fail = (verdict: NonNullable<Verdict>): Transition => ({ to: 'not_ready', expectedRevision: ctx.revision, ...verdict });
-    const source = await this.collected(job, ctx); if (source === null) return null;
+    const source = await this.collected(job, ctx, signal); if (source === null) return null;
     if ('failure' in source) return fail(source);
     const launch = await this.launch(); if ('failure' in launch) return fail(launch);
     const folder = reviewFolder(launch.root, job.id);
@@ -415,26 +418,51 @@ export class ReviewSupervisor {
     let verdict: PreflightOutput | null = null; let cause = 'HELPER_FAILED';
     for (let attempt = 0; attempt < 2 && !verdict; attempt++) {
       const temp = join(folder.job, `temp-${randomUUID()}`);
-      const child = new AbortController(); job.child = child; job.reason = undefined;
+      const admit = this.admit(job, ctx, signal);
       try {
         await privateDirectory(temp);
         const run = await launch.run({ tool: 'preflight' }, { cwd: folder.project, temp, locks: frozen.map(entry => join(folder.project, ...entry.path.split('/'))), check: async () => {
           if (!sameInventory(await treeInventory(folder.project), frozen)) throw new Error('REVIEW_WORKSPACE_CHANGED');
-        }, signal: child.signal });
-        if (child.signal.aborted || run.cancelled) return null;
+          await admit();
+        }, signal });
+        if (signal.aborted || run.cancelled) return null;
         verdict = classifyPreflight(run); cause = launchCause(run) ?? 'KIT_PREFLIGHT_OUTPUT';
       } catch (error) {
-        if (child.signal.aborted) return null;
+        if (signal.aborted) return null;
         const code = message(error);
+        if (code === 'CANCELLED') return null;
         if (code === 'REVIEW_WORKSPACE_CHANGED') return fail({ failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'INVENTORY_MISMATCH' });
         if (code === 'INSTALLATION_INVALID') return fail({ failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'INSTALLATION_INVALID' });
         cause = 'HELPER_FAILED';
-      } finally { job.child = undefined; await rm(temp, { recursive: true, force: true }).catch(() => {}); }
+      } finally { await rm(temp, { recursive: true, force: true }).catch(() => {}); }
     }
     if (!verdict) return fail({ failure: 'REVIEW_PACKAGING_FAILED', cause });
     if (verdict.findings.some(finding => finding.check === 'hygiene' && finding.rule === 'brief-stale')) return fail({ failure: 'REVIEW_INCOMPLETE', cause: 'BRIEF_STALE' });
     if (!(await this.verifies(folder.project, frozen))) return fail({ failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'INVENTORY_MISMATCH' });
     return { to: 'packaging', expectedRevision: ctx.revision, cause: 'WORKSPACE_FROZEN', reviewDigest: reviewDigest(frozen) };
+  }
+  /**
+   * One step (the freeze, or packaging) under one abort signal shared by all its kit children: a notice that the job left
+   * the step's state, a hold and quit abort it (`stop`).
+   */
+  private async step(job: Job, run: (signal: AbortSignal) => Promise<Transition | null>): Promise<Transition | null> {
+    const child = new AbortController(); job.child = child; job.reason = undefined;
+    try { return await run(child.signal); } finally { if (job.child === child) job.child = undefined; }
+  }
+  /**
+   * The check inside every freeze and packaging child's guarded start, after the read locks are held and before the child
+   * exists: the job must still be in the state the step was planned from (status, revision, the run, a null admission),
+   * with no hold on its project, the step not stopped and main not quitting. Otherwise `CANCELLED`, and the driver re-reads.
+   */
+  private admit(job: Job, ctx: ResearchReviewContext, signal: AbortSignal): () => Promise<void> {
+    const stopped = () => signal.aborted || this.closing || this.held(job.projectId);
+    return async () => {
+      if (stopped()) throw new Error('CANCELLED');
+      let now: ResearchReviewContext;
+      try { now = await this.reviewContext(job.id); } catch { throw new Error('CANCELLED'); }
+      if (now.status !== ctx.status || now.revision !== ctx.revision || now.admission !== null || now.reviewRunId !== ctx.reviewRunId
+        || (ctx.status === 'reviewing' && now.reviewRunStatus !== 'awaiting_review') || stopped()) throw new Error('CANCELLED');
+    };
   }
   private async launch(signal?: AbortSignal): Promise<ReviewLaunch | NonNullable<Verdict>> {
     const kit = this.deps.kit; if (!kit) return { failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'NO_INSTALLATION' };
@@ -445,9 +473,9 @@ export class ReviewSupervisor {
    * Steps 2 to 6: `create` over the frozen workspace, the exit, validation of the produced bytes with the job's binding,
    * inventory equality, and the outcome. A child stopped by this supervisor records nothing; the driver re-reads.
    */
-  private async package(job: Job, ctx: ResearchReviewContext): Promise<Transition | null> {
+  private async package(job: Job, ctx: ResearchReviewContext, signal: AbortSignal): Promise<Transition | null> {
     const fail = (verdict: NonNullable<Verdict>): Transition => ({ to: 'not_ready', expectedRevision: ctx.revision, ...verdict });
-    const source = await this.collected(job, ctx); if (source === null) return null;
+    const source = await this.collected(job, ctx, signal); if (source === null) return null;
     if ('failure' in source) return fail(source);
     const launch = await this.launch(); if ('failure' in launch) return fail(launch);
     const folder = reviewFolder(launch.root, job.id);
@@ -458,34 +486,32 @@ export class ReviewSupervisor {
     const kit = this.deps.kit!;
     const binding = reviewBinding(job.projectId, job.id, ctx.verification!, ctx.revision);
     let cause = 'HELPER_FAILED';
+    const admit = this.admit(job, ctx, signal);
     for (let attempt = 0; attempt < 2; attempt++) {
       const id = randomUUID(); const out = join(folder.job, `out-${id}`); const temp = join(folder.job, `temp-${id}`); const output = join(out, 'reviewed.zip');
-      const child = new AbortController(); job.child = child; job.reason = undefined;
       try {
         await privateDirectory(out); await privateDirectory(temp);
         let run: OwnedResult;
         try {
           run = await launch.run({ tool: 'create', root: folder.project, output, identity: source.identity }, {
-            cwd: temp, temp, locks: frozen.map(entry => join(folder.project, ...entry.path.split('/'))), signal: child.signal,
+            cwd: temp, temp, locks: frozen.map(entry => join(folder.project, ...entry.path.split('/'))), signal,
             // Under the read locks, before the child exists: every frozen file rehashed, the folders listed, the job re-read.
             check: async () => {
               let now: Inventory;
               try { now = await treeInventory(folder.project); } catch { throw new Error('REVIEW_WORKSPACE_CHANGED'); }
               if (!sameInventory(now, frozen)) throw new Error('REVIEW_WORKSPACE_CHANGED');
-              const current = await this.reviewContext(job.id);
-              if (current.status !== 'packaging' || current.revision !== ctx.revision || current.admission !== null) throw new Error('REVIEW_STALE');
-              if (child.signal.aborted) throw new Error('CANCELLED');
+              await admit();
             },
           });
         } catch (error) {
-          if (child.signal.aborted) return null;
+          if (signal.aborted) return null;
           const code = message(error);
           if (code === 'REVIEW_WORKSPACE_CHANGED') return fail({ failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'INVENTORY_MISMATCH' });
-          if (code === 'REVIEW_STALE' || code === 'CANCELLED') return null;
+          if (code === 'CANCELLED') return null;
           if (code === 'INSTALLATION_INVALID') return fail({ failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'INSTALLATION_INVALID' });
           cause = 'HELPER_FAILED'; continue;
         }
-        if (child.signal.aborted || run.cancelled) return null;
+        if (signal.aborted || run.cancelled) return null;
         const launchFailure = launchCause(run);
         if (launchFailure) { cause = launchFailure; continue; }
         // create can exit non-zero after writing its output: the output is deleted on every non-zero exit (finally).
@@ -493,9 +519,8 @@ export class ReviewSupervisor {
           const exitCause = run.code !== null && run.code >= 0 && run.code <= 255 ? `KIT_CREATE_EXIT_${run.code}` : 'KIT_CREATE_EXIT_OTHER';
           return fail({ failure: run.code === 3 ? 'REVIEW_PACKAGE_BLOCKED' : 'REVIEW_PACKAGE_INVALID', cause: exitCause });
         }
-        return await this.outcome(ctx, kit, output, binding, frozen, child.signal);
+        return await this.outcome(ctx, kit, output, binding, frozen, signal, admit);
       } finally {
-        job.child = undefined;
         await rm(out, { recursive: true, force: true }).catch(() => {});
         await rm(temp, { recursive: true, force: true }).catch(() => {});
       }
@@ -503,9 +528,9 @@ export class ReviewSupervisor {
     return fail({ failure: 'REVIEW_PACKAGING_FAILED', cause });
   }
   /** Steps 4 to 6 over the bytes `create` wrote. Exit 0 is never readiness: only validation of those bytes counts. */
-  private async outcome(ctx: ResearchReviewContext, kit: ReviewKit, output: string, binding: Binding, frozen: Inventory, signal: AbortSignal): Promise<Transition | null> {
+  private async outcome(ctx: ResearchReviewContext, kit: ReviewKit, output: string, binding: Binding, frozen: Inventory, signal: AbortSignal, admit: () => Promise<void>): Promise<Transition | null> {
     const fail = (verdict: NonNullable<Verdict>): Transition => ({ to: 'not_ready', expectedRevision: ctx.revision, ...verdict });
-    const result = await kit.validate(output, binding, signal);
+    const result = await kit.validate(output, binding, signal, admit);
     if (signal.aborted || result.error === 'CANCELLED') return null;
     if (result.status !== 'PASS' || !result.receipt) return fail({ failure: 'REVIEW_PACKAGE_INVALID', cause: result.error === 'IDENTITY_MISMATCH' ? 'IDENTITY_MISMATCH' : result.error ?? `VALIDATOR_${result.status}` });
     const reviewedPackage: ReviewedPackage = { sha256: result.receipt.artifactSha256, validatorRevision: result.receipt.validatorRevision, boundRevision: ctx.revision };

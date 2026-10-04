@@ -156,7 +156,7 @@ export class ResearchKit {
     this.launches.add(task); void task.catch(() => {}).finally(() => this.launches.delete(task));
     return task;
   }
-  private async inspectOwned(bytes: Buffer, clientRef: string, signal?: AbortSignal): Promise<Report> {
+  private async inspectOwned(bytes: Buffer, clientRef: string, signal?: AbortSignal, admit?: () => Promise<void>): Promise<Report> {
     checkAbort(signal); if (bytes.length > MAX_ARCHIVE) throw new Error('INPUT_LIMIT');
     BindingSchema.shape.clientRef.parse(clientRef);
     const runtime = await this.prepare(signal);
@@ -166,7 +166,7 @@ export class ResearchKit {
       const temporary = await privateDirectory(join(work, 'temp'));
       const expected = hash(bytes);
       const result = await this.guardedRun(runtime, ['--max-old-space-size=256', join(runtime, 'bin/artifact.mjs'), 'validate', '--file', artifact, '--expect-client-ref', clientRef, '--json'], work, validatorEnvironment(temporary), { timeoutMs: 60000, maxOutputBytes: MAX_OUTPUT, stopOnOutputLimit: true }, {
-        locks: [artifact], check: async () => { if (hash(await capturedFile(artifact, MAX_ARCHIVE)) !== expected) throw new Error('ARTIFACT_INVALID'); },
+        locks: [artifact], check: async () => { if (hash(await capturedFile(artifact, MAX_ARCHIVE)) !== expected) throw new Error('ARTIFACT_INVALID'); await admit?.(); },
       }, signal);
       checkAbort(signal); return parseValidatorReport(result);
     } finally { await removeOwned(this.config.storageRoot, work); }
@@ -178,13 +178,17 @@ export class ResearchKit {
     const captured = Buffer.from(bytes);
     return serialized(this.config.storageRoot, () => this.inspectOwned(captured, clientRef, signal));
   }
-  validate(file: string, input: Binding, signal?: AbortSignal): Promise<Result> {
+  /**
+   * `admit` is the caller's own check, run in the guarded start after the artifact's rehash and before the child exists
+   * (the review supervisor re-reads its job there). It refuses by throwing `CANCELLED`; the result is then CANCELLED.
+   */
+  validate(file: string, input: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<Result> {
     const binding = BindingSchema.parse(input);
     return serialized(this.config.storageRoot, async () => {
       try {
         checkAbort(signal); const bytes = await capturedFile(file, MAX_ARCHIVE);
         const manifestValue = await packageContent(() => inspectArchive(bytes));
-        const report = await this.inspectOwned(bytes, binding.clientRef, signal);
+        const report = await this.inspectOwned(bytes, binding.clientRef, signal, admit);
         if (report.status !== 'PASS') return ResultSchema.parse({ status: report.status, state: null, researchReady: false, receipt: null, error: 'ARTIFACT_INVALID' });
         const manifest = await packageContent(() => ManifestProjection.parse(manifestValue));
         for (const key of ['repository', 'ref', 'commit', 'workflow', 'workflowRunId', 'runAttempt'] as const) if (manifest.source[key] !== binding[key]) throw new Error('IDENTITY_MISMATCH');
@@ -275,12 +279,12 @@ export class ResearchKit {
    * The verified bytes of a retained package: a fresh validation of storage/artifacts/<sha256>.zip under the binding,
    * whose receipt must name that same digest. Throws STALE_VERIFICATION, or INSTALLATION_INVALID for this machine's fault.
    */
-  async verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal): Promise<{ receipt: Receipt; bytes: Buffer }> {
+  async verifyRetained(artifactSha256: string, binding: Binding, signal?: AbortSignal, admit?: () => Promise<void>): Promise<{ receipt: Receipt; bytes: Buffer }> {
     DigestSchema.parse(artifactSha256);
     const file = join(this.config.storageRoot, 'artifacts', artifactSha256 + '.zip');
     // A retained package that is gone (purged, or never retained here) is a stale verification, not a broken installation.
     try { await lstat(file); } catch (error) { if (missing(error)) throw new Error('STALE_VERIFICATION', { cause: error }); throw new Error('INSTALLATION_INVALID', { cause: error }); }
-    const result = await this.validate(file, binding, signal);
+    const result = await this.validate(file, binding, signal, admit);
     if (result.status !== 'PASS' || !result.receipt) throw new Error(result.error === 'INSTALLATION_INVALID' ? 'INSTALLATION_INVALID' : result.error === 'CANCELLED' ? 'CANCELLED' : 'STALE_VERIFICATION');
     if (result.receipt.artifactSha256 !== artifactSha256) throw new Error('STALE_VERIFICATION');
     return { receipt: result.receipt, bytes: await this.readVerified(result.receipt.id, binding) };

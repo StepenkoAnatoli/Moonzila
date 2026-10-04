@@ -687,3 +687,100 @@ test('4d. the engine dies after committing research.review.begin, before its rep
   await startReview(w);
   expect(await settled(w)).toMatchObject({ status: 'approved' });
 }, 240000);
+
+// ------------------------------------------------------------------ 5. kit children after the job left its state
+
+/** Every kit child of the freeze and of packaging, in order, after the run's final answer: [kind, nth of that kind]. */
+const FREEZE_AND_PACKAGING: Array<[Kind, number, string]> = [
+  ['validate', 1, 'the freeze re-validating the collected package'], ['preflight', 1, 'the freeze preflight'],
+  ['validate', 2, 'packaging re-validating the collected package'], ['create', 1, 'create'], ['validate', 3, 'validation of the reviewed package'],
+];
+type Leave = 'cancel' | 'stop' | 'revoke';
+const LEFT: Record<Leave, { status: string; failure?: string }> = { cancel: { status: 'cancelled' }, stop: { status: 'not_ready', failure: 'REVIEW_STOPPED' }, revoke: { status: 'not_ready', failure: 'PROJECT_UNTRUSTED' } };
+for (const leave of ['cancel', 'stop', 'revoke'] as const) {
+  for (const [kind, nth, label] of FREEZE_AND_PACKAGING) {
+    test(`5. ${leave} just before ${label} starts: that child and every later one is refused in the guarded start (invariant 3)`, async () => {
+      // Guards: each freeze and packaging child re-reads the job (status, revision, admission) and the hold inside its
+      // guarded start (INV3a, INV3b); a step's children share one abort signal that a notice, a hold or quit aborts.
+      const w = await world(); approvable(w);
+      let answered = false; let seen = 0; let acted = false; const after: Kind[] = [];
+      w.onEvent = event => { if (event.type === 'run.status' && (event.payload as { status: string }).status === 'awaiting_review') answered = true; };
+      w.hooks.beforeCheck = async (_request, k) => {
+        if (!answered || k !== kind || ++seen !== nth || acted) return;
+        const job = store(w).getResearch(JOB)!;
+        if (leave === 'cancel') w.review.observe((await w.engine.request(request('research.cancel', { researchId: JOB })) as { research: Research }).research);
+        else if (leave === 'stop') await w.engine.request(request('run.cancel', { runId: job.reviewRunId! }));
+        else {
+          // As index.ts: the hold is taken before the engine applies the change and released after it.
+          const release = w.review.hold('p');
+          try { await w.engine.request(request('project.revokeTrust', { projectId: 'p' })); } finally { release(); }
+        }
+        acted = true;
+      };
+      w.hooks.whileRunning = (_request, k) => { if (acted) after.push(k); };
+      await startReview(w);
+      const job = await until(() => { const now = store(w).getResearch(JOB)!; return acted && ['approved', 'not_ready', 'cancelled'].includes(now.status) && now; }, 'the job to leave');
+      await idle(w);
+      expect(job).toMatchObject(LEFT[leave]);
+      expect(after).toEqual([]);
+      expect(journal(w).some(([, to]) => to === 'approved')).toBe(false);
+      if (leave !== 'cancel') expect(store(w).getResearch(JOB)!.status).toBe(LEFT[leave].status);
+    }, 180000);
+  }
+}
+
+// The same moves recorded by the engine with their notice still on its way to main: nothing has aborted the step, so only
+// the re-read inside the guarded start stands between the moved job and the child.
+type Unnoticed = 'stop' | 'revoke';
+for (const leave of ['stop', 'revoke'] as const satisfies readonly Unnoticed[]) {
+  for (const [kind, nth, label] of FREEZE_AND_PACKAGING) {
+    test(`5. ${leave}, its notice not yet in main, just before ${label} starts: the guarded start's re-read refuses it`, async () => {
+      // Guard: the job re-read (status, revision, admission) inside each freeze and packaging child's guarded start.
+      const w = await world(); approvable(w);
+      let answered = false; let seen = 0; let acted = false; const after: Kind[] = [];
+      w.onEvent = event => { if (event.type === 'run.status' && (event.payload as { status: string }).status === 'awaiting_review') answered = true; };
+      w.hooks.beforeCheck = (_request, k) => {
+        if (!answered || k !== kind || ++seen !== nth || acted) return;
+        const db = store(w); const job = db.getResearch(JOB)!;
+        if (leave === 'stop') {
+          db.appendEvent(job.reviewRunId!, 'run.cancelled', {}, { status: 'cancelled', finishedAt: new Date().toISOString() });
+          db.transitionResearch({ researchId: JOB, expectedRevision: job.revision, to: 'not_ready', actor: 'engine', cause: 'REVIEW_STOPPED', patch: { failure: 'REVIEW_STOPPED' } });
+        } else {
+          const project = db.getProject('p')!;
+          db.putProject({ ...project, trusted: false, trustRevision: project.trustRevision + 1 });
+        }
+        acted = true;
+      };
+      w.hooks.whileRunning = (_request, k) => { if (acted) after.push(k); };
+      await startReview(w);
+      const job = await until(() => { const now = store(w).getResearch(JOB)!; return acted && ['approved', 'not_ready', 'cancelled'].includes(now.status) && now; }, 'the job to leave');
+      await idle(w);
+      expect(job).toMatchObject(LEFT[leave]);
+      expect(after).toEqual([]);
+      expect(journal(w).some(([, to]) => to === 'approved')).toBe(false);
+    }, 180000);
+  }
+}
+
+for (const [kind, nth, label] of FREEZE_AND_PACKAGING.filter(([k]) => k === 'validate')) {
+  test(`5. quit while ${label} runs stops that child; the job is left for recovery`, async () => {
+    // Guard: verifyRetained and validate take the step's abort signal, which quit aborts (invariant 3).
+    const w = await world(); approvable(w);
+    let answered = false; let seen = 0; let running!: () => void; const reached = new Promise<void>(r => { running = r; });
+    let stopped: boolean | undefined;
+    w.onEvent = event => { if (event.type === 'run.status' && (event.payload as { status: string }).status === 'awaiting_review') answered = true; };
+    w.hooks.whileRunning = async (_request, k, signal) => {
+      if (!answered || k !== kind || ++seen !== nth) return;
+      running();
+      // The child runs until it is stopped, or 20 s pass.
+      stopped = await new Promise<boolean>(r => { const timer = setTimeout(() => r(false), 20000); if (signal?.aborted) { clearTimeout(timer); r(true); } else signal?.addEventListener('abort', () => { clearTimeout(timer); r(true); }, { once: true }); });
+    };
+    await startReview(w);
+    await reached;
+    const before = store(w).getResearch(JOB)!;
+    await w.review.close();
+    expect(stopped).toBe(true);
+    expect(w.review.busy()).toBe(false);
+    expect(store(w).getResearch(JOB)).toMatchObject({ status: before.status, revision: before.revision });
+  }, 180000);
+}
