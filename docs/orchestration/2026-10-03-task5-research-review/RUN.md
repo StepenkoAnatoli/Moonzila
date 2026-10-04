@@ -10,7 +10,7 @@
 | Skill           | lead-orchestrator 2.0 (`.claude/skills/lead-orchestrator/references/changelog.md`) |
 
 ## Next action
-Build Phase 4 (the user said to start it once the spec revision was done): commit the `research.document.read` contract (lead), write the briefs for B11, B4, B4b, B8e and B8 with their pre-mortems, launch B11, B4, B4b and B8e in parallel, then B8 after B4 and B8e.
+Wait for the B11, B4, B4b and B8e builders (worktrees `/home/user/task5-handoff/wt/p4-*`, briefs `/home/user/task5-handoff/p4/`). Then continue the B4 builder with B8, integrate one unit per commit through the gate, run the four-role review, offer the GPT reviewer, open the Phase 4 draft PR.
 
 ## Task statement
 - Goal: plan Task 5, the research review (`docs/specification/research-review.md`). A collected corpus is reviewed by a model run with user-approved edits, packaged by the kit's own `create`, and is research-ready only when the validator confirms the new package's exact bytes.
@@ -43,6 +43,7 @@ All four re-gated with Research-Kit `d00be07` on 2026-10-04: preflight 0, handof
 - `255d6e3`: D1, public code `REVIEW_NOT_READY`.
 - `d68eb57`: `research.review.context` carries the journaled verification.
 - `364bc55`: each review change carries `status` (`completed` / `unknown`).
+- `7bc04e6`: `research.document.read` and the `DOCUMENT_*` codes (Phase 4).
 
 ## Phases (one draft PR each; the user marks "Ready for review", the lead merges on green)
 | Phase | Content | PR | Status |
@@ -62,6 +63,15 @@ All four re-gated with Research-Kit `d00be07` on 2026-10-04: preflight 0, handof
 | B10 e2e scenarios | `tests/research-review-e2e.test.ts` | INTEGRATED, REVIEWED | `b156c88` | Opus |
 | FE engine fixes | engine files | INTEGRATED, RE-REVIEWED | `8bef5cf`, `74fda0f`, `6335563`, `527bb55` | Opus |
 | FM main fixes | main files | INTEGRATED, RE-REVIEWED | ten commits after `527bb55`, then `301177a` | Opus |
+
+## Units (Phase 4)
+| Unit | Owns | Status | Commit on main-axuse | Model |
+|------|------|--------|----------------------|-------|
+| B11 reader | `src/main/` reader, `index.ts` case, tests | BUILDING | - | Opus |
+| B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | BUILDING | - | Opus |
+| B4b card label | `ChangesPanel.tsx`, tests | BUILDING | - | Opus |
+| B8e policy guard | main route module, `index.ts`, engine re-check, tests | BUILDING | - | Opus |
+| B8 switch | `ResearchPanel.tsx` switch section | WAITING (after B4) | - | Opus |
 
 ## Reviews (Phase 3)
 | Scope | Role | Model | Status |
