@@ -171,6 +171,31 @@ describe('research.review.begin', () => {
     expect(h.store.researchEvents('j1').events.at(-1)).toMatchObject({ cause: 'REVIEW_RESTARTED', detail: { reviewRunId: restart.run.id, workspace: 'fresh' } });
   });
 
+  test('a fresh retry in the reused session says the workspace was rebuilt and earlier edits are gone; a first review and a continued retry do not (P5-13)', async () => {
+    // Guard: the rebuilt notice for a fresh begin on a job that already has a review session (mutation: never add it, or
+    // add it for every fresh begin, or for every retry).
+    const h = harness();
+    const instruction = (runId: string) => h.store.listMessages(h.store.getRun(runId)!.sessionId).find(message => message.runId === runId && message.role === 'user')!.content;
+    const REBUILT = /rebuilt from the collected corpus/;
+    h.script.push(() => { throw new Error('PROVIDER_ERROR'); });
+    const first = await h.begin(); await finished(h, first.run.id);
+    expect(instruction(first.run.id)).not.toMatch(REBUILT);
+    h.script.push(() => { throw new Error('PROVIDER_ERROR'); });
+    const continued = await h.begin('continued'); await finished(h, continued.run.id);
+    expect(h.store.getResearch('j1')).toMatchObject({ status: 'not_ready' });
+    expect(instruction(continued.run.id)).not.toMatch(REBUILT);
+    const fresh = await h.begin('fresh');
+    expect(fresh.run.sessionId).toBe(first.run.sessionId);
+    const text = instruction(fresh.run.id);
+    expect(text).toMatch(REBUILT);
+    expect(text).toMatch(/earlier edits[^.]*are gone/i);
+    expect(text).toMatch(/re-read/i);
+    // The notice comes before the review steps, and the fixed instruction is otherwise unchanged.
+    expect(text.indexOf('rebuilt')).toBeLessThan(text.indexOf('Classify every row'));
+    expect(text.endsWith(instruction(first.run.id))).toBe(true);
+    h.app.handle(request('run.cancel', { runId: fresh.run.id }, 'stop')); await finished(h, fresh.run.id);
+  });
+
   test('the edge into reviewing refuses a reused, terminal or non-research run (breaker F5)', () => {
     const h = harness();
     const job = () => h.store.getResearch('j1')!;
