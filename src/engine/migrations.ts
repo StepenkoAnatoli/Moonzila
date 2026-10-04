@@ -290,7 +290,7 @@ CREATE TRIGGER research_readiness_digest BEFORE UPDATE OF status ON research
     OR NEW.reviewed_package_sha256 IS NULL
     OR NOT EXISTS(SELECT 1 FROM research_events WHERE research_id = NEW.id AND from_status = 'collecting' AND to_status = 'collected'
       AND json_extract(detail, '$.verification.artifactSha256') IS NOT NULL
-      AND json_extract(detail, '$.verification.artifactSha256') IS NOT NEW.reviewed_package_sha256)
+      AND lower(json_extract(detail, '$.verification.artifactSha256')) IS NOT NEW.reviewed_package_sha256)
     OR NOT EXISTS(SELECT 1 FROM research_events WHERE research_id = NEW.id AND revision = NEW.revision
       AND from_status = 'packaging' AND to_status = 'approved' AND actor = 'main' AND cause = 'KIT_APPROVED'
       AND json_extract(detail, '$.reviewedPackage.sha256') = NEW.reviewed_package_sha256))

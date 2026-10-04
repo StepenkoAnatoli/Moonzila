@@ -6,6 +6,8 @@ import { ACTIVE_RESEARCH } from './research-state';
 import type { Store, StoreProject, StoreResearch, StoreResearchEvent } from './store';
 import { REVIEW_WRITE_ALLOWLIST, ReviewChangeSchema, type ResearchReviewContext, type ReviewChange, type ReviewedPackage } from './review-contract';
 
+/** A review folder name: one plain path segment (job ids are UUIDs), never '.', '..', a separator or a drive. */
+const REVIEW_FOLDER = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const { queries, urls, preferDomains, depth, maxPages } = ResearchStartParams.shape;
 /** The collector inputs kept with a job. Strict, so nothing else (such as a token) can be stored beside them. */
 export const ResearchInputsSchema = z.object({ queries, urls, preferDomains, depth, maxPages }).strict().refine(value => value.urls.length <= value.maxPages, 'Each known URL counts against the page budget');
@@ -211,6 +213,8 @@ export class ResearchJobs {
         } catch { result.unreadable.push(job.id); }
       }
       for (const folder of new Set(reviewFolders)) {
+        // Main deletes storage/review/<name> for each name returned, so only a plain folder name is ever returned.
+        if (!REVIEW_FOLDER.test(folder)) continue;
         // A job main still owns may have a live child using its workspace (an engine-only restart): never name it.
         if (skip.has(folder)) continue;
         const status = this.store.getResearch(folder)?.status;

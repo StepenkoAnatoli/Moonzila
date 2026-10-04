@@ -882,6 +882,37 @@ describe('schema v4 engine review controls', () => {
     expect(step(third, 'j1', 'not_ready', 'recovery', { failure: 'REVIEW_INTERRUPTED' }).research.status).toBe('not_ready');
   });
 
+  test('a cancelled review is committed only once its review run holds no live engine work', () => {
+    // Spec, "Streaming research.status": the engine commits cancelled once the run is terminal. Freeing the project's
+    // slot (and letting recovery discard the workspace) while the run still works would let it write into a deleted folder.
+    for (const live of ['queued', 'running', 'awaiting_approval', 'cancelling'] as const) {
+      const { store } = open(); collectedJob(store); reviewRun(store, 'r1', live); startReview(store, 'j1', 'r1');
+      step(store, 'j1', 'cancelling', 'user');
+      const before = { job: store.getResearch('j1'), journal: store.researchEvents('j1') };
+      for (const actor of ['engine', 'main', 'recovery'] as const) expect(() => step(store, 'j1', 'cancelled', actor), `${live} ${actor}`).toThrow(/^RUN_ACTIVE$/);
+      expect({ job: store.getResearch('j1'), journal: store.researchEvents('j1') }, live).toEqual(before);
+      expect(store.hasActiveResearch('p'), live).toBe(true);
+      store.appendEvent('r1', 'run.cancelled', {}, { status: 'cancelled' });
+      expect(step(store, 'j1', 'cancelled', 'engine').research.status, live).toBe('cancelled');
+      expect(store.hasActiveResearch('p'), live).toBe(false);
+    }
+    // A cancelled collection has no review run and is never held.
+    const { store } = open(); project(store); create(store, 'c1'); step(store, 'c1', 'dispatching', 'main', { target }); step(store, 'c1', 'cancelling', 'user');
+    expect(step(store, 'c1', 'cancelled', 'main').research.status).toBe('cancelled');
+  });
+
+  test('approval refuses the collected package itself, whatever the case of its journaled digest', () => {
+    // research_readiness_digest: a reviewed package must be a new package, not the collected one. Hex case does not
+    // make two digests different packages; only the control schema checks the case of a collected digest.
+    const { store } = open(); project(store); create(store, 'j1');
+    step(store, 'j1', 'dispatching', 'main', { target }); step(store, 'j1', 'collecting', 'main', { workflowRunId: '5' });
+    step(store, 'j1', 'collected', 'main', { verification: { ...verification(3, 1, '5', 'mz-j1'), artifactSha256: 'E'.repeat(64) } });
+    reviewRun(store, 'r1'); startReview(store, 'j1', 'r1'); step(store, 'j1', 'packaging', 'main', { reviewDigest: D1 });
+    expect(() => approve(store, 'j1', 'e'.repeat(64))).toThrow('RESEARCH_READINESS_UNVERIFIED');
+    expect(store.getResearch('j1')).toMatchObject({ status: 'packaging' });
+    expect(approve(store, 'j1', digestOf('f')).research.status).toBe('approved');
+  });
+
   test('research.cancel stops a packaging job', () => {
     const { store } = open(); collectedJob(store); reviewRun(store, 'r1'); startReview(store, 'j1', 'r1'); step(store, 'j1', 'packaging', 'main', { reviewDigest: D1 });
     const { jobs: research } = jobs(store);
@@ -962,6 +993,13 @@ describe('schema v4 engine review controls', () => {
     expect(published.map(r => [r.id, r.status])).toEqual([['interrupted', 'not_ready']]);
     // Idempotent: nothing more to interrupt; the lists that need main's work are offered again.
     expect(research.recover(['owned'])).toMatchObject({ reviewing: [], freeze: ['freeze'], packaging: ['packaging'], reviewDiscard: [] });
+  });
+
+  test('research.recover names only plain folder names, never a path that leaves the review folder', () => {
+    // Main joins each name onto storage/review/ and deletes it; '..' there is storage/ itself.
+    const { store } = open(); const { jobs: research } = jobs(store);
+    const unsafe = ['..', '.', 'a/../..', 'a/b', 'a\\b', '..\\x', 'C:', '', ' x', '-x'];
+    expect(research.recover([], [...unsafe, 'absent-1']).reviewDiscard).toEqual(['absent-1']);
   });
 
   test('research.recover never names the review folder of a job main still owns', () => {

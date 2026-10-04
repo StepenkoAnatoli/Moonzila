@@ -277,10 +277,12 @@ export class Store {
       // A review takes the project's single research slot. While another job holds it (a new collection beside a
       // collected or not_ready job), starting or retrying the review is refused with the domain code, not the index's.
       if (step.to === 'reviewing' && this.hasActiveResearch(existing.projectId)) throw new Error('RUN_ACTIVE');
-      // A review ends (not_ready or approved) only once its run holds no live engine work: terminal, absent, or having
-      // given its final answer (awaiting_review). The engine records a run's terminal event before the job's edge.
-      if ((existing.status === 'reviewing' || existing.status === 'packaging') && (step.to === 'not_ready' || step.to === 'approved') && existing.reviewRunId !== undefined
-        && LIVE_REVIEW_RUN.has(this.getRun(existing.reviewRunId)?.status ?? 'completed')) throw new Error('RUN_ACTIVE');
+      // A review ends (not_ready, approved, or cancelled after a cancel) only once its run holds no live engine work:
+      // terminal, absent, or having given its final answer (awaiting_review). The engine records a run's terminal event
+      // before the job's edge. Ending earlier would free the project's slot and the workspace while the run still writes.
+      const endsReview = ((existing.status === 'reviewing' || existing.status === 'packaging') && (step.to === 'not_ready' || step.to === 'approved'))
+        || (existing.status === 'cancelling' && step.to === 'cancelled');
+      if (endsReview && existing.reviewRunId !== undefined && LIVE_REVIEW_RUN.has(this.getRun(existing.reviewRunId)?.status ?? 'completed')) throw new Error('RUN_ACTIVE');
       // Derive the step from the caller's expectation, so the journal trigger and the WHERE clause also refuse a stale caller.
       const revision = step.expectedRevision + 1; const iso = new Date(at).toISOString();
       const event: StoreResearchEvent = { researchId: existing.id, revision, from: existing.status, to: step.to, actor: step.actor, requestId: step.requestId, cause: step.cause, detail: patch, engineEpoch: this.engineEpoch, at };
