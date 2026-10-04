@@ -18,6 +18,7 @@ import { CollectorSupervisor } from './collector';
 import { packageImporter } from './research-import';
 import { ReviewSupervisor } from './review';
 import { listReviewFolders } from './review-workspace';
+import { readResearchDocument } from './research-document';
 import { ResearchRecoverySchema } from '../engine/research';
 import { ResearchKit, readResearchInstallation } from '../adapters/research-kit/adapter';
 import { ProjectTickets } from './projects';
@@ -287,6 +288,8 @@ if (ownsInstance) void app.whenReady().then(async () => {
         if (!active.has(run.id) && ['queued', 'running'].includes(run.status)) active.set(run.id, { run, stop: new AbortController(), github: new GitHubReader() });
         return { research };
       }
+      // The renderer names a document, never a path; the job's status picks the source, validated in this call (B11).
+      case 'research.document.read': return readResearchDocument({ control: control => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.control(control); }, kit: researchKit, reviewRoot, redact: text => vault.redact(text) }, request.params.researchId, request.params.document);
       case 'external.open': await shell.openExternal(request.params.url); return { opened: true };
       default: throw new Error('NOT_IMPLEMENTED');
     }
