@@ -1,0 +1,9 @@
+# B7a unit review 1 (saved by the lead; structured sections kept)
+
+- Reviewed `6d60f48` in `/home/user/task5-handoff/wt/p5-rev-b7a` at `0f2b482`; tree clean. No S1/S2.
+- F1 (S3): the spec's Windows test (a held handle) is only simulated through the injected `unlink`. The design fits E-01 (no FILE_SHARE_DELETE -> sharing violation), but the corpus has no libuv unlink codes (E-08 is rename only), nothing on delete-pending or the 100 ms pause. EBUSY/EPERM expected, not verified. Only a foreign process can block (the app's readers share delete and run under the lock). Fix: a Windows-only test holding the native helper's read guard.
+- F2 (S3): `adapter.ts:360-365` lists `artifacts/` before `decide`; a listing failure (junction at `artifacts`) answers RESEARCH_KIT_UNAVAILABLE for an unknown or collected job instead of NOT_FOUND / PURGE_NOT_ALLOWED; nothing deleted.
+- F3 (S3): `verifyRetained` now checks the binding first (`adapter.ts:317`); an invalid binding with a missing file throws a ZodError instead of STALE_VERIFICATION; no real input known.
+- F4 Rejected: spec says "nothing half done", the brief "what was deleted stays deleted"; the spec page to reconcile (done by the lead in `b4cfab7`).
+- Concerns: P4-41 classification unchanged (same `retainedFailure`, single capture; lock scope moved); the lock (`artifact-files.ts:59`) is not re-entrant (a `decide` calling `verifyRetained` deadlocks; no production path does); a purge can wait ~60 s behind a validator, holds the lock at most the 30 s control timeout plus 100 ms; `{ unlink }` test-only (`index.ts:58` passes two arguments); no data loss (one collected read; malformed verification -> RESEARCH_STATE_INVALID; active jobs keep orphans; an engine error deletes nothing; a hard link in `artifacts/` loses only its name).
+- Re-run: 46/46; 100/100 related suites; typecheck, lint clean; PURGE_NOT_ALLOWED guard removal red.

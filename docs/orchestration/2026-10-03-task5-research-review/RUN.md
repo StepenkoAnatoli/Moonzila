@@ -169,6 +169,7 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-6 | Phase 5 spec review | S3 / test gap | no test for a purge racing a review start's `verifyRetained`; the reader race only in one ordering; `keptShared` counts referenced digests with no file | FIX batched to the B7a builder |
 | P5-7 | Phase 5 spec review | docs | spec divergences (keptBusy, NOT_FOUND, no-kit order, retry detail, disclosure, removed incl. orphans, projectId, no deleted state) and ARCHITECTURE wording | DOCS: "as built" in research-purge.md |
 | P5-8 | Phase 5 invariant audit | risk notes | the deleted fake test key remains in git history; invariant 4 (rows unchanged) proven only by a scratch test; a symlinked storage root is followed; AGENTS.md lacks a purge invariant row | history: kept (a throwaway key protecting nothing; rewriting shared history is never done). Byte-compare test: batched to the B7a builder. Storage-root link: belongs to the P4-23 task. AGENTS.md row: the docs unit |
+| P5-9 | lead | process | the full gate on `0f2b482` reported one new failure in `research-contracts`; it was the lead's own mid-run edit (the PURGE_INCOMPLETE assertion) read by the gate running in the main checkout, so the run was invalid | gates now run in a dedicated worktree pinned to the gated commit; re-run |
 
 ## Kit findings
 
