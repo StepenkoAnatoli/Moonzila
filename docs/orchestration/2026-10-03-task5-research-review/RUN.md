@@ -164,7 +164,7 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-1 | P4-40 builder | process | `npm install --package-lock-only` also rewrote npm's hidden lockfile `node_modules/.package-lock.json` in the shared checkout; the builder stopped as briefed | ACCEPTED: npm's own regenerated cache; `npm ls` consistent (0 missing, invalid or extraneous). asn1js added to D-1 by hand edit, no further npm writes |
 | P5-2 | B7b unit review | S3 (x4, batched) | purge refusal overwritten by an automatic error; the Unverified disclosure overstates (history rows, failed/cancelled, shared digest); plural wording; formatting | FIX ROUND sent to the B7b builder (one commit) |
 | P5-3 | lead | process | the B7b reviewer's launch message named a placeholder commit ("85b..."); the reviewer found the real one (`b010a3b`) | launch messages name commits from `git log`, never from memory |
-| P5-4 | P4-40 unit review | S3 (x3, batched) | `NODE_EXTRA_CA_CERTS` read lazily (CA must outlive each child's first handshake; undocumented); EKU comment wrong (SAN is the guard); cert folder leak if server start throws | FIX ROUND sent to the P4-40 builder (one commit) |
+| P5-4 | P4-40 unit review | S3 (x3, batched) | `NODE_EXTRA_CA_CERTS` read lazily (CA must outlive each child's first handshake; undocumented); EKU comment wrong (SAN is the guard); cert folder leak if server start throws | FIXED (branch `5343782`): cleanup on any failure after generation (red without the fix), EKU comment corrected, lazy CA load documented; lead re-ran 57/57 |
 
 ## Kit findings
 
@@ -214,3 +214,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: B7b and P4-40 integrated (88/88 and 56/56; one guard removal each red). Kit doctor READY. Waiting for B7a.
 - 2026-10-04: B7b unit review: no S1/S2; P5-2 (four S3) batched to the builder; P5-3 recorded.
 - 2026-10-04: P4-40 unit review: no S1/S2; P5-4 (three S3) batched to the builder. Pushes batched from now to keep Windows CI from queueing a run per checkpoint.
+- 2026-10-04: P5-4 fixed and integrated (57/57).
