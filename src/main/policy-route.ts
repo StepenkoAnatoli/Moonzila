@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { ProjectSchema, RunSchema, SessionSchema, type Request, type Run } from '../shared';
+import { RunSchema, type Request, type Run } from '../shared';
+import { PolicyGuardResultSchema, SessionProjectResultSchema, type Control } from '../engine/control';
 
 /** A run main holds a capability for (index.ts keeps a GitHub reader beside these). */
 export interface ActiveRun { run: Run; stop: AbortController }
@@ -9,6 +9,8 @@ type RunStart = Extract<Request, { method: 'run.start' }>;
 export interface PolicyRouteHost {
   /** Forwards a request to the engine. */
   request(request: Request): Promise<unknown>;
+  /** Sends an internal control to the engine; the route uses only `policy.guard` and `session.project`. */
+  control(control: Control): Promise<unknown>;
   active: Map<string, ActiveRun>;
   revokeContext(runId: string): void;
   holdCollector(projectId: string): () => void;
@@ -18,12 +20,6 @@ export interface PolicyRouteHost {
   /** Installs main's capability for a run the engine admitted. */
   admit(run: Run): void;
 }
-
-const terminal = new Set<Run['status']>(['completed', 'failed', 'cancelled', 'interrupted']);
-const ProjectListSchema = z.object({ projects: z.array(ProjectSchema) });
-const SessionListSchema = z.object({ sessions: z.array(SessionSchema) });
-const SessionRunsSchema = z.object({ runs: z.array(RunSchema) });
-const SessionProjectSchema = z.object({ session: z.object({ projectId: z.string().nullable() }) });
 
 /** One FIFO lock per project: a task runs only after every earlier task for that project has settled. */
 export class ProjectLocks {
@@ -46,25 +42,13 @@ export class ProjectLocks {
  */
 export function createPolicyRoute(host: PolicyRouteHost) {
   const locks = new ProjectLocks();
-  const read = (method: 'project.list' | 'session.list' | 'session.read', params: unknown) =>
-    host.request({ protocolVersion: 1, clientRequestId: randomUUID(), method, params } as Request);
-
-  async function nonResearchRunActive(projectId: string): Promise<boolean> {
-    const { sessions } = SessionListSchema.parse(await read('session.list', { projectId }));
-    for (const session of sessions) {
-      const { runs } = SessionRunsSchema.parse(await read('session.read', { sessionId: session.id }));
-      if (runs.some(run => run.mode !== 'research' && !terminal.has(run.status))) return true;
-    }
-    return false;
-  }
-
   async function updatePolicy(request: PolicyUpdate): Promise<unknown> {
     const { projectId } = request.params;
     return locks.run(projectId, async () => {
-      const { projects } = ProjectListSchema.parse(await read('project.list', {}));
-      const current = projects.find(project => project.id === projectId);
-      // An unknown project is the engine's PROJECT_NOT_FOUND, answered as before.
-      if (current && request.params.policy.inference === current.policy.inference && await nonResearchRunActive(projectId)) throw new Error('RUN_ACTIVE');
+      // One read: the stored inference and whether a non-research run is unfinished. A null guard (no such project) is
+      // the engine's PROJECT_NOT_FOUND, answered as before.
+      const guard = PolicyGuardResultSchema.parse(await host.control({ method: 'policy.guard', projectId }));
+      if (guard && request.params.policy.inference === guard.inference && guard.nonResearchRunActive) throw new Error('RUN_ACTIVE');
       for (const [id, item] of host.active) if (item.run.projectId === projectId) { item.stop.abort(); host.revokeContext(id); }
       // Collectors stop and launch nothing until the change is applied; on release each job re-reads its admission.
       const releaseCollector = host.holdCollector(projectId); const releaseReview = host.holdReview(projectId);
@@ -82,15 +66,10 @@ export function createPolicyRoute(host: PolicyRouteHost) {
 
   async function startRun(request: RunStart): Promise<unknown> {
     if (host.commandsExecuting()) throw new Error('RUN_ACTIVE');
-    let projectId: string | null;
-    try {
-      projectId = SessionProjectSchema.parse(await read('session.read', { sessionId: request.params.sessionId })).session.projectId;
-    } catch (error) {
-      // A missing session admits no run; the engine answers it (a replayed request included) as before.
-      if (error instanceof Error && error.message === 'SESSION_NOT_FOUND') return forwardStart(request);
-      throw error;
-    }
-    return projectId === null ? forwardStart(request) : locks.run(projectId, () => forwardStart(request));
+    const session = SessionProjectResultSchema.parse(await host.control({ method: 'session.project', sessionId: request.params.sessionId }));
+    // A missing session (null) admits no run; the engine answers it (a replayed request included) as before, unlocked.
+    if (session === null || session.projectId === null) return forwardStart(request);
+    return locks.run(session.projectId, () => forwardStart(request));
   }
 
   return { updatePolicy, startRun };

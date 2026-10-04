@@ -184,6 +184,7 @@ if (ownsInstance) void app.whenReady().then(async () => {
   // project.policy.update and run.start share a per-project lock; the research switch refuses before stopping anything.
   const policyRoute = createPolicyRoute({
     request: request => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.request(request); },
+    control: control => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.control(control); },
     active, revokeContext: runId => vault.revokeContext(runId),
     holdCollector: projectId => supervisor.hold(projectId), holdReview: projectId => reviewSupervisor.hold(projectId),
     commandsExecuting: () => executingCommands.size > 0,

@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
 import { Store } from '../src/engine/store';
 import { Application } from '../src/engine/application';
+import { createControl } from '../src/engine/control-dispatch';
+import { ControlSchema } from '../src/engine/control';
 import { createPolicyRoute, type ActiveRun } from '../src/main/policy-route';
 import { parseRequest, type Request, type Run } from '../src/shared';
 
@@ -29,7 +31,8 @@ function fixture() {
   // A started run's model step waits until it is stopped, so the run stays live for the whole test.
   const app = new Application(store, { publish() {}, infer: (_run, _messages, signal) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('RUN_CANCELLED')), { once: true })) });
   cleanups.push(async () => { await app.shutdown(); store.close(); });
-  const forwarded: string[] = []; const gates = new Map<string, Promise<void>>();
+  const forwarded: string[] = []; const controls: string[] = []; const gates = new Map<string, Promise<void>>();
+  const dispatch = createControl(store, app);
   const active = new Map<string, ActiveRun>();
   const revoked: string[] = []; const held: string[] = []; const released: string[] = [];
   const route = createPolicyRoute({
@@ -38,6 +41,7 @@ function fixture() {
       await gates.get(input.method);
       return app.handle(input);
     },
+    async control(input) { controls.push(input.method); return dispatch(ControlSchema.parse(input)); },
     active,
     revokeContext: runId => { revoked.push(runId); },
     holdCollector: projectId => { held.push(`collector:${projectId}`); return () => { released.push(`collector:${projectId}`); }; },
@@ -50,7 +54,9 @@ function fixture() {
     store.putRun(run); const stop = new AbortController(); active.set(id, { run, stop }); return stop.signal;
   };
   const update = (inference: 'local-only' | 'cloud-allowed', research: 'off' | 'public-technical') => request('project.policy.update', { projectId: 'p1', expectedRevision: store.getProject('p1')!.policy.revision, policy: { inference, research } });
-  return { store, app, route, active, revoked, held, released, forwarded, gates, liveRun, update };
+  /** Many finished runs in one session: more than any renderer result can carry (P4-10). */
+  const history = (sessionId: string, count = 10_001) => store.transaction(() => { for (let i = 0; i < count; i++) store.putRun({ id: `done-${sessionId}-${i}`, projectId: 'p1', sessionId, mode: 'build', status: 'completed', profileId: 'profile1', profileRevisionId: 'v1', policyRevision: 1, trustRevision: 1, createdAt: at }); });
+  return { store, app, route, active, revoked, held, released, forwarded, controls, gates, liveRun, update, history };
 }
 
 test('a research-only change during a Build run is refused in main before anything is stopped', async () => {
@@ -106,15 +112,15 @@ test('a run.start issued while a policy update holds the lock is admitted only a
 });
 
 test('a research-only change arriving while a run.start holds the lock sees that run and is refused untouched', async () => {
-  const { store, route, active, revoked, held, forwarded, gates, update } = fixture();
+  const { store, route, active, revoked, held, controls, gates, update } = fixture();
   const gate = deferred(); gates.set('run.start', gate.promise);
   const starting = route.startRun(request('run.start', { sessionId: 's1', profileId: 'profile1', mode: 'ask', prompt: 'Explain the project.' }));
   await settle();
   const updating = route.updatePolicy(update('cloud-allowed', 'public-technical'));
   const refused = expect(updating).rejects.toThrow('RUN_ACTIVE');
   await settle();
-  // The update waits for the lock: it has not even read the project yet.
-  expect(forwarded).not.toContain('project.list');
+  // The update waits for the lock: it has not even read the guard yet.
+  expect(controls).not.toContain('policy.guard');
   gate.resolve();
   const { run } = await starting as { run: Run };
   await refused;
@@ -126,9 +132,37 @@ test('a research-only change arriving while a run.start holds the lock sees that
 test('run.start keeps refusing RUN_ACTIVE while a command executes in main, without forwarding', async () => {
   const forwarded: string[] = [];
   const route = createPolicyRoute({
-    async request(input) { forwarded.push(input.method); if (input.method === 'session.read') return { session: { projectId: 'p1' } }; throw new Error('unexpected'); },
+    async request(input) { forwarded.push(input.method); throw new Error('unexpected'); },
+    async control(input) { forwarded.push(input.method); if (input.method === 'session.project') return { projectId: 'p1' }; throw new Error('unexpected'); },
     active: new Map(), revokeContext() {}, holdCollector: () => () => {}, holdReview: () => () => {}, commandsExecuting: () => true, admit() {},
   });
   await expect(route.startRun(request('run.start', { sessionId: 's1', profileId: 'profile1', mode: 'ask', prompt: 'Hi' }))).rejects.toThrow('RUN_ACTIVE');
   expect(forwarded).not.toContain('run.start');
+});
+
+test('a research-only update and a run.start work in a project whose session holds 10001 finished runs', async () => {
+  const { store, route, active, history, update } = fixture();
+  history('s1');
+  await route.updatePolicy(update('cloud-allowed', 'public-technical'));
+  expect(store.getProject('p1')?.policy).toEqual({ revision: 2, inference: 'cloud-allowed', research: 'public-technical' });
+  const { run } = await route.startRun(request('run.start', { sessionId: 's1', profileId: 'profile1', mode: 'ask', prompt: 'Explain the project.' })) as { run: Run };
+  expect(active.has(run.id)).toBe(true);
+});
+
+test('an update reads the engine once, through policy.guard, and never through session.read or session.list', async () => {
+  const { route, forwarded, controls, history, update } = fixture();
+  history('s1', 3); history('s2', 3);
+  await route.updatePolicy(update('cloud-allowed', 'public-technical'));
+  await route.updatePolicy(update('local-only', 'public-technical'));
+  expect(controls).toEqual(['policy.guard', 'policy.guard']);
+  expect(forwarded).toEqual(['project.policy.update', 'project.policy.update']);
+});
+
+test('run.start learns its project through session.project only, and a missing session is forwarded for the engine to answer', async () => {
+  const { route, forwarded, controls } = fixture();
+  await route.startRun(request('run.start', { sessionId: 's1', profileId: 'profile1', mode: 'ask', prompt: 'Explain the project.' }));
+  expect(controls).toEqual(['session.project']);
+  expect(forwarded).toEqual(['run.start']);
+  await expect(route.startRun(request('run.start', { sessionId: 'missing', profileId: 'profile1', mode: 'ask', prompt: 'Hi' }))).rejects.toThrow('SESSION_NOT_FOUND');
+  expect(forwarded).toEqual(['run.start', 'run.start']);
 });
