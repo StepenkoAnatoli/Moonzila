@@ -422,6 +422,20 @@ test('a Stop committed by the engine during packaging (not_ready / REVIEW_STOPPE
   expect((await readdir(join(h.storage, 'review', h.id))).filter(name => name !== 'project')).toEqual([]);
 }, 180000);
 
+test('a review job cancelled under an interrupted run (no live run, no driver) is committed cancelled by main without an app start', async () => {
+  // Guard (breaker F2): a cancelling review job is owned on its notice, and its driver commits cancelled once no run is live.
+  const h = await harness();
+  await begin(h);
+  // An engine-only restart interrupted the run at its start; the job is still reviewing, and nothing in main owns it.
+  h.store.appendEvent(h.runId!, 'run.interrupted', { reason: 'engine_interrupted' }, { status: 'interrupted', finishedAt: at });
+  const { research } = h.jobs.cancel(h.id, randomUUID(), []);
+  expect(research.status).toBe('cancelling');
+  h.review.observe(research);
+  await until(h, status => status === 'cancelled', 20000);
+  expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ from: 'cancelling', to: 'cancelled', actor: 'main', cause: 'REVIEW_CANCELLED' });
+  await expect.poll(() => readdir(join(h.storage, 'review')), { timeout: 10000 }).toEqual([]);
+}, 120000);
+
 test('a retry continues a verified workspace with its edits; a workspace changed while not ready is rebuilt fresh', async () => {
   const h = await harness();
   await begin(h); await rewriteFinding(h);

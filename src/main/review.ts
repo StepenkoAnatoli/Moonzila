@@ -146,9 +146,16 @@ export class ReviewSupervisor {
     let workspace: ReviewWorkspace = ctx.status === 'not_ready' && await this.keeps(folder.project, base, ctx.changes) ? 'continued' : 'fresh';
     for (let attempt = 0; ; attempt++) {
       if (workspace === 'fresh') await this.materialise(bytes, folder.job);
+      // One request id per planned begin, kept across the engine's restarts: a begin committed whose reply was lost replays.
+      const control = ControlSchema.parse({ method: 'research.review.begin', requestId: randomUUID(), researchId, profileId, workspace });
+      let retried = false;
       try {
-        const reply = ResearchReviewBeginReplySchema.parse(await this.engine(() => this.deps.control({ method: 'research.review.begin', requestId: randomUUID(), researchId, profileId, workspace })));
+        const reply = ResearchReviewBeginReplySchema.parse(await this.engine(() => this.deps.control(control), () => { retried = true; }));
         this.runs.set(reply.run.id, researchId);
+        // After an engine restart the reply may be a replay naming a run the new engine interrupted at its start: the job
+        // is then left reviewing under a terminal run, and recovery skipped it while this start owned it. Checked once the
+        // reply is returned, so the run's capability is installed before its first step, as for any start.
+        if (retried) void Promise.resolve().then(() => this.afterReplay(researchId, reply.run.id)).catch(() => {});
         return reply;
       } catch (error) {
         // The engine found an earlier review write it cannot reconcile with the kept workspace: rebuild from the package.
@@ -156,6 +163,11 @@ export class ReviewSupervisor {
         throw error;
       }
     }
+  }
+  /** Owns a job left reviewing under the begun run once that run is terminal; the driver then ends it (REVIEW_INTERRUPTED). */
+  private async afterReplay(researchId: string, runId: string): Promise<void> {
+    const now = await this.reviewContext(researchId);
+    if (now.status === 'reviewing' && now.reviewRunId === runId && (now.reviewRunStatus === null || !(LIVE_RUN.has(now.reviewRunStatus) || now.reviewRunStatus === 'awaiting_review'))) this.own(researchId);
   }
   private async materialise(bytes: Buffer, job: string): Promise<void> {
     try { await materialise(bytes, job); }
@@ -249,7 +261,9 @@ export class ReviewSupervisor {
   observe(research: Research): void {
     const job = this.jobs.get(research.id);
     if (job && research.status !== 'packaging' && research.status !== 'reviewing') this.stop(job, 'cancel');
-    if (!job && research.reviewRunId !== undefined && (research.status === 'approved' || research.status === 'cancelled') && !this.starting.has(research.id) && !this.heldIds.has(research.id)) this.own(research.id);
+    // A finished review job, to discard its folder; a cancelling one, to commit cancelled once no run is live (a run that
+    // was interrupted has no end that would do it).
+    if (!job && research.reviewRunId !== undefined && (research.status === 'approved' || research.status === 'cancelled' || research.status === 'cancelling') && !this.starting.has(research.id) && !this.heldIds.has(research.id)) this.own(research.id);
   }
   /**
    * The review part of `research.recover`'s reply: freeze and package what nobody owns, and discard the job folders
@@ -295,12 +309,13 @@ export class ReviewSupervisor {
   private held(projectId: string) { return (this.holds.get(projectId) ?? 0) > 0; }
 
   /** Retries only an engine that is restarting; every other failure is the caller's. */
-  private async engine<T>(call: () => Promise<T>): Promise<T> {
+  private async engine<T>(call: () => Promise<T>, onRetry?: () => void): Promise<T> {
     let delay = this.retry;
     for (;;) {
       try { return await call(); }
       catch (error) {
         if (engineFailureCode(error) !== 'ENGINE_UNAVAILABLE' || this.closing) throw error;
+        onRetry?.();
         const timer = new AbortController();
         await Promise.race([new Promise<void>(resolve => this.readyWaiters.add(resolve)), this.sleep(delay, timer.signal)]); timer.abort();
         delay = Math.min(delay * 2, 60_000);
@@ -342,8 +357,11 @@ export class ReviewSupervisor {
       try { ctx = await this.reviewContext(job.id); } catch { return; }
       let transition: Transition | null;
       if (ctx.status === 'reviewing') {
-        if (ctx.reviewRunStatus !== 'awaiting_review') return;
-        transition = await this.freeze(job, ctx);
+        // A live run is the engine's; a terminal one under a job still reviewing was interrupted (the run's own end would
+        // have moved the job), and nothing else ends it while main owns the job: not_ready, as recovery would record.
+        if (ctx.reviewRunStatus !== null && LIVE_RUN.has(ctx.reviewRunStatus)) return;
+        if (ctx.reviewRunStatus !== 'awaiting_review') transition = { to: 'not_ready', expectedRevision: ctx.revision, cause: 'RECOVERED', failure: 'REVIEW_INTERRUPTED' };
+        else transition = await this.freeze(job, ctx);
       } else if (ctx.status === 'packaging') {
         if (ctx.admission !== null) transition = { to: 'not_ready', expectedRevision: ctx.revision, cause: 'ADMISSION_CHANGED', failure: ctx.admission };
         else if (this.held(job.projectId)) { await this.sleep(this.retry, job.wake.signal); continue; }

@@ -81,7 +81,8 @@ function runner(seen: Seen[], hooks: Hooks): OwnedRunner {
 
 /** The utility process handle main holds. Messages cross as structured clones, in order, on a later turn. */
 class Child extends EventEmitter {
-  pid = 4242; dead = false; private exited = false;
+  /** As Electron's UtilityProcess: undefined once the process has exited. */
+  pid: number | undefined = 4242; dead = false; private exited = false;
   receive: (message: unknown) => Promise<void> = async () => {};
   postMessage(message: unknown): void {
     // A crashed process takes nothing: posting to it ends it, as a dead port would.
@@ -89,7 +90,7 @@ class Child extends EventEmitter {
     const copy = structuredClone(message);
     setImmediate(() => { if (!this.dead) void this.receive(copy); });
   }
-  kill(): boolean { if (!this.exited) { this.exited = true; this.dead = true; setImmediate(() => this.emit('exit', 0)); } return true; }
+  kill(): boolean { if (!this.exited) { this.exited = true; this.dead = true; setImmediate(() => { this.pid = undefined; this.emit('exit', 0); }); } return true; }
 }
 /** One engine process: what src/engine/index.ts sets up over its parent port. */
 interface EngineSide { store: Store; app: Application; epoch: string }
@@ -158,6 +159,8 @@ interface World {
   onEvent?: (event: RunEvent) => void;
   /** A stand-in for an engine reply the engine does not give yet (see `withUnknownWrites`); never changes a reply it gives. */
   reply?: (control: Control, reply: unknown) => unknown;
+  /** Every control the supervisor sends, each attempt included, in order. */
+  sent: Control[];
 }
 const worlds: World[] = [];
 const side = (world: World) => world.sides.at(-1)!;
@@ -169,14 +172,14 @@ async function boot(data: string): Promise<World> {
   const seen: Seen[] = []; const hooks: Hooks = {};
   const kit = new ResearchKit({ kitRoot, nodePath: process.execPath, nodeSha256, storageRoot: storage, helperPath: resolve('.build/native/MoonAlizaHost.exe') }, runner(seen, hooks));
   await kit.sweep();
-  const world = { data, storage, workspace: join(storage, 'review', JOB, 'project'), project: join(data, 'project-root'), seen, hooks, kit, sides: [], script: [], inferences: [], events: [], notices: [], active: new Map(), approve: () => true, approved: [] } as unknown as World;
+  const world = { data, storage, workspace: join(storage, 'review', JOB, 'project'), project: join(data, 'project-root'), seen, hooks, kit, sides: [], script: [], inferences: [], events: [], notices: [], active: new Map(), approve: () => true, approved: [], sent: [] } as unknown as World;
   const signalOf = (runId: string, epoch: string) => {
     const stop = world.active.get(runId);
     if (!stop || world.engine.epoch !== epoch || stop.signal.aborted) throw new Error('RUN_CANCELLED');
     return stop.signal;
   };
   world.review = new ReviewSupervisor({
-    control: async control => { const reply = await world.engine.control(control); return world.reply ? world.reply(control, reply) : reply; },
+    control: async control => { world.sent.push(control); const reply = await world.engine.control(control); return world.reply ? world.reply(control, reply) : reply; },
     kit, runSignal: signalOf, redact: async text => text, retryDelayMs: 10,
   });
   const fork = engineProcess(world.sides);
@@ -655,4 +658,32 @@ test('4c. a crash between an approved edit\'s rename and its record keeps the ed
   expect(drafts[0]).toContain(REVIEWED_FINDING);
   const packaged = new Map((await readPackage(await readFile(join(second.storage, 'artifacts', `${job.reviewedPackageSha256}.zip`)))).base.map(entry => [entry.path, entry.sha256]));
   expect(packaged.get('research/EVIDENCE.md')).toBe((store(second).getOperation(rewrite)!.input as { afterHash: string }).afterHash);
+}, 240000);
+
+test('4d. the engine dies after committing research.review.begin, before its reply: the retry replays that request, and main ends the interrupted review', async () => {
+  // Guards (breaker F2, probe P10): begin keeps one request id across its retries; a job left reviewing under an
+  // interrupted run is ended not_ready / REVIEW_INTERRUPTED by main, not left until the next app start. The collector's
+  // research.recover is not called here: while the start is in flight it carries this job as owned and skips it.
+  const w = await world(); approvable(w);
+  const child = w.child!; const receive = child.receive;
+  child.receive = async message => {
+    await receive(message);
+    const sent = message as { type?: string; control?: { method?: string } };
+    // The accepted begin's reply is posted on a later turn; the process dies first, so it never reaches main.
+    if (sent.type === 'control' && sent.control?.method === 'research.review.begin') child.kill();
+  };
+  const outcome = await w.review.start(JOB, PROFILE).then(reply => reply.run.id, (error: Error) => error.message);
+  const begins = w.sent.filter(control => control.method === 'research.review.begin') as Array<{ requestId: string }>;
+  expect(begins.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(begins.map(control => control.requestId)).size).toBe(1);
+  // The replayed reply names the run the first begin created, which the new engine interrupted at its start.
+  const job = await settled(w);
+  expect(outcome).toBe(job.reviewRunId);
+  expect(job).toMatchObject({ status: 'not_ready', failure: 'REVIEW_INTERRUPTED' });
+  expect(journal(w).slice(-2)).toEqual([['collected', 'reviewing', 'user', 'REVIEW_STARTED'], ['reviewing', 'not_ready', 'main', 'RECOVERED']]);
+  expect(store(w).listRuns(job.reviewSessionId!).map(run => run.status)).toEqual(['interrupted']);
+  await idle(w);
+  // And the job is reviewable again: the retry continues and is approved.
+  await startReview(w);
+  expect(await settled(w)).toMatchObject({ status: 'approved' });
 }, 240000);
