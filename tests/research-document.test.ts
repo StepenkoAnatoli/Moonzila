@@ -49,10 +49,12 @@ function cryptor(broken = false) {
 
 interface World { folder: string; store: Store; jobs: ResearchJobs; kit: ResearchKit; storage: string; reviewRoot: string; vault: Vault; id: string; job: string; project: string; runId?: string; verifications: number; stalled: boolean }
 let count = 0;
+// Every world's database stays open for its test; closed before the root is removed, since Windows cannot delete an open file.
+const stores: Store[] = [];
 /** A job collected from collected.zip (retained under the collecting revision's binding), as Task 4's import leaves it. */
 async function world(options: { secrets?: string[]; brokenVault?: boolean; nodeSha256?: string; collect?: boolean } = {}): Promise<World> {
   const folder = join(root, `w${++count}`); await mkdir(folder);
-  const store = new Store(join(folder, 'state.sqlite')); const jobs = new ResearchJobs(store, () => {});
+  const store = new Store(join(folder, 'state.sqlite')); stores.push(store); const jobs = new ResearchJobs(store, () => {});
   store.putProject({ id: 'p', name: 'p', rootPath: join(folder, 'project-root'), pathLabel: 'p', trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'public-technical' }, missing: false, createdAt: at });
   store.putProfile({ id: 'm', name: 'Local', kind: 'ollama', endpoint: 'http://localhost:11434', model: 'test', contextTokens: 8192, outputTokens: 512, locality: 'local', revision: 1, revisionId: 'pv', createdAt: at, updatedAt: at });
   const id = 'j1';
@@ -141,7 +143,7 @@ beforeAll(async () => {
 /** FIFOs a test planted: a reader blocked on one is released by a non-blocking writer open, so no thread stays stuck. */
 const fifos: string[] = [];
 afterAll(async () => { for (const fifo of fifos) await open(fifo, constants.O_WRONLY | constants.O_NONBLOCK).then(handle => handle.close(), () => {}); });
-afterAll(async () => { if (root) { const rel = relative(resolve(tmpdir()), root); if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error('UNSAFE_TEST_CLEANUP'); await rm(root, { recursive: true, force: true }); } });
+afterAll(async () => { for (const store of stores) store.close(); if (root) { const rel = relative(resolve(tmpdir()), root); if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error('UNSAFE_TEST_CLEANUP'); await rm(root, { recursive: true, force: true }); } });
 
 // ------------------------------------------------------------------ sources by status
 
