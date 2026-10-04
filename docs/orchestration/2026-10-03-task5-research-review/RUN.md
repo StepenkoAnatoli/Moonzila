@@ -10,7 +10,7 @@
 | Skill           | lead-orchestrator 2.0 (`.claude/skills/lead-orchestrator/references/changelog.md`) |
 
 ## Next action
-Wait for the B11, B4, B4b and B8e builders (worktrees `/home/user/task5-handoff/wt/p4-*`, briefs `/home/user/task5-handoff/p4/`). Then continue the B4 builder with B8, integrate one unit per commit through the gate, run the four-role review, offer the GPT reviewer, open the Phase 4 draft PR.
+Wait for the B11, B4, B4b and B8e builder reports (worktrees `/home/user/task5-handoff/wt/p4-*`, branches `build/p4-*`). On each: save it verbatim to `reports/p4-<unit>-builder-1.md`, check it against the acceptance rules, re-run its key test, cherry-pick onto `main-axuse`, launch its unit reviewer (`briefs/p4-<unit>-reviewer.md`). When B4 lands, continue the B4 builder with `briefs/p4-b8-builder.md`. Then the integration review (`briefs/p4-integration-reviewers.md`), docs (`briefs/p4-docs.md`), offer the GPT reviewer, gate, draft PR.
 
 ## Task statement
 - Goal: plan Task 5, the research review (`docs/specification/research-review.md`). A collected corpus is reviewed by a model run with user-approved edits, packaged by the kit's own `create`, and is research-ready only when the validator confirms the new package's exact bytes.
@@ -65,13 +65,14 @@ All four re-gated with Research-Kit `d00be07` on 2026-10-04: preflight 0, handof
 | FM main fixes | main files | INTEGRATED, RE-REVIEWED | ten commits after `527bb55`, then `301177a` | Opus |
 
 ## Units (Phase 4)
+Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), each with its pre-mortem. Waves: B11, B4, B4b, B8e in wave 1 (disjoint files, frozen contract `7bc04e6`); B8 in wave 2 after B4 (same files).
 | Unit | Owns | Status | Commit on main-axuse | Model |
 |------|------|--------|----------------------|-------|
 | B11 reader | `src/main/` reader, `index.ts` case, tests | BUILDING | - | Opus |
 | B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | BUILDING | - | Opus |
 | B4b card label | `ChangesPanel.tsx`, tests | BUILDING | - | Opus |
 | B8e policy guard | main route module, `index.ts`, engine re-check, tests | BUILDING | - | Opus |
-| B8 switch | `ResearchPanel.tsx` switch section | WAITING (after B4) | - | Opus |
+| B8 switch | `ResearchPanel.tsx` switch section | BRIEFED (after B4) | - | Opus |
 
 ## Reviews (Phase 3)
 | Scope | Role | Model | Status |
@@ -98,3 +99,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: #35 merged; main merged into main-axuse (d8811ef). Phase 4 brainstorming: panel + conversation, brief/evidence reader, switch in the panel; design approved; spec written.
 - 2026-10-04: cross-vendor review of the Phase 4 spec: 6 findings (2 S1, 4 S2), all folded in; user decision: the research switch is blocked while other work runs (engine guard B8e).
 - 2026-10-04: second cross-vendor review of the Phase 4 spec: 4 findings (2 S1, 1 S2, 1 S3), all folded in: the research-switch check moves into main's route under a per-project lock, before any abort or revoke; redaction runs on the whole document before the cut; reader outcomes get their own codes and messages. The user said to start the build after the revision.
+- 2026-10-04: lead-orchestrator re-applied mid-phase. Corrected two gaps: builders now commit to their own branches (the first rules said leave uncommitted; all four told before their first commit), and every Phase 4 brief is written to `briefs/` before launch.
