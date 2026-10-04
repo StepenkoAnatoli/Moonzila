@@ -2,6 +2,7 @@ import { GitHubErrorCodeSchema, type GitHubInput } from '../shared/github';
 import { randomUUID } from 'node:crypto';
 import { utilityProcess, type UtilityProcess } from 'electron';
 import { FromEngineSchema, ToEngineSchema, type Control } from '../engine/control';
+import { ReviewToolErrorSchema, type ReviewToolResult } from '../engine/review-contract';
 import type { Request, Research, RunEvent, ToolSpec } from '../shared';
 import { inferenceErrorCode, type Completion, type InferenceMessage } from './inference';
 import type { CommandInput, CommandPlan } from '../shared/commands';
@@ -19,7 +20,10 @@ interface EngineHooks {
   prepareCommand(runId: string, input: CommandInput, epoch: string): Promise<CommandPlan>;
   executeCommand(runId: string, operationId: string, epoch: string): Promise<OwnedResult>;
   inspectGit(runId: string, name: string, input: unknown, epoch: string): Promise<OwnedResult>;
+  /** A kit tool for a review run (`research_preflight`, `research_draft_brief`); main runs it, the engine never does. */
+  reviewTool(runId: string, name: 'research_preflight' | 'research_draft_brief', input: { force?: true }, epoch: string): Promise<ReviewToolResult>;
 }
+type Fork = (modulePath: string, args: string[], options: Parameters<typeof utilityProcess.fork>[2]) => UtilityProcess;
 export class Engine {
   epoch = randomUUID();
   private child?: UtilityProcess;
@@ -27,13 +31,14 @@ export class Engine {
   private stopping = false;
   private attempts = 0;
   private ready: Promise<void> = Promise.resolve();
-  constructor(private readonly entry: string, private readonly database: string, private readonly hooks: EngineHooks) {}
+  /** `fork` is Electron's utility process launcher; a test substitutes it, never an installation input. */
+  constructor(private readonly entry: string, private readonly database: string, private readonly hooks: EngineHooks, private readonly fork: Fork = (...args) => utilityProcess.fork(...args)) {}
   start(): void {
     this.epoch = randomUUID(); const epoch = this.epoch;
     this.hooks.restarted(epoch);
     const env: NodeJS.ProcessEnv = {};
     for (const name of ['SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'PATH', 'USERPROFILE', 'LOCALAPPDATA']) if (process.env[name]) env[name] = process.env[name];
-    const child = utilityProcess.fork(this.entry, [this.database, epoch], { env, stdio: 'ignore', serviceName: 'Moonzila engine' });
+    const child = this.fork(this.entry, [this.database, epoch], { env, stdio: 'ignore', serviceName: 'Moonzila engine' });
     this.child = child;
     this.ready = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => { reject(new Error('ENGINE_UNAVAILABLE')); child.kill(); }, 20_000);
@@ -65,6 +70,14 @@ export class Engine {
             const reason = error instanceof Error ? error.message : '';
             const code = ['RUN_CANCELLED', 'COMMAND_UNAVAILABLE', 'COMMAND_CHANGED', 'APPROVAL_STALE', 'GIT_UNAVAILABLE', 'GIT_UNSAFE_REPOSITORY', 'GIT_INSPECTION_LIMIT'].includes(reason) ? reason : 'COMMAND_UNKNOWN';
             if (this.epoch === epoch) child.postMessage({ type: 'command.error', epoch, id: message.id, code });
+          });
+        }
+        else if (message.type === 'research.tool') {
+          void this.hooks.reviewTool(message.runId, message.name, message.input, epoch).then(result => {
+            if (this.epoch === epoch) child.postMessage(ToEngineSchema.parse({ type: 'research.tool.result', epoch, id: message.id, result }));
+          }).catch(error => {
+            const code = ReviewToolErrorSchema.safeParse(error instanceof Error ? error.message : '');
+            if (this.epoch === epoch) child.postMessage({ type: 'research.tool.error', epoch, id: message.id, code: code.success ? code.data : 'REVIEW_TOOL_FAILED' });
           });
         }
         else if (message.type === 'inference') {
