@@ -96,6 +96,19 @@ export function notReadyFailure(state: Result['state']): string {
   return 'REVIEW_PACKAGE_INVALID';
 }
 
+/** Validation errors that are this machine's (storage, bounds, the validator's own output), never a verdict on the package. */
+const MACHINE_FAULTS: ReadonlySet<string> = new Set(['STORAGE_LIMIT', 'TIMEOUT', 'OUTPUT_LIMIT', 'VALIDATOR_OUTPUT', 'STALE_VERIFICATION']);
+/**
+ * packaging's outcome for a validation of the produced bytes that gave no receipt (spec "Packaging", step 4). Only the
+ * package's own faults (ARTIFACT_INVALID, INPUT_LIMIT, IDENTITY_MISMATCH, a non-PASS verdict) are REVIEW_PACKAGE_INVALID;
+ * an invalid installation is RESEARCH_KIT_UNAVAILABLE, and any other fault of this machine REVIEW_PACKAGING_FAILED.
+ */
+export function validationFailure(result: Pick<Result, 'status' | 'error'>): { failure: string; cause: string } {
+  if (result.error === 'INSTALLATION_INVALID') return { failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'INSTALLATION_INVALID' };
+  if (result.error !== null && MACHINE_FAULTS.has(result.error)) return { failure: 'REVIEW_PACKAGING_FAILED', cause: result.error };
+  return { failure: 'REVIEW_PACKAGE_INVALID', cause: result.error ?? `VALIDATOR_${result.status}` };
+}
+
 /**
  * The review supervisor (plan Task 5, B3): `research.review.start`, the private workspace, the kit tools served to the
  * engine, the freeze, packaging and validation of the new package, recovery adoption and cancel. Main owns the
@@ -564,7 +577,7 @@ export class ReviewSupervisor {
     const fail = (verdict: NonNullable<Verdict>): Transition => ({ to: 'not_ready', expectedRevision: ctx.revision, ...verdict });
     const result = await kit.validate(output, binding, signal, admit);
     if (signal.aborted || result.error === 'CANCELLED') return null;
-    if (result.status !== 'PASS' || !result.receipt) return fail({ failure: 'REVIEW_PACKAGE_INVALID', cause: result.error === 'IDENTITY_MISMATCH' ? 'IDENTITY_MISMATCH' : result.error ?? `VALIDATOR_${result.status}` });
+    if (result.status !== 'PASS' || !result.receipt) return fail(validationFailure(result));
     const reviewedPackage: ReviewedPackage = { sha256: result.receipt.artifactSha256, validatorRevision: result.receipt.validatorRevision, boundRevision: ctx.revision };
     let produced: Inventory;
     try { produced = (await readPackage(await kit.readVerified(result.receipt.id, binding))).base; }

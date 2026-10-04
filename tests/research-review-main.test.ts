@@ -3,14 +3,15 @@ import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import provenance from './fixtures/research-kit/provenance.json';
 import { ResearchKit } from '../src/adapters/research-kit/adapter';
 import type { OwnedCommand, OwnedOptions, OwnedResult, OwnedRunner } from '../src/tools/commands';
 import { Store } from '../src/engine/store';
 import { ResearchJobs, researchDto } from '../src/engine/research';
 import type { Control } from '../src/engine/control';
-import { ReviewSupervisor } from '../src/main/review';
+import { ReviewSupervisor, type ReviewKit } from '../src/main/review';
+import type { Binding, Result } from '../src/adapters/research-kit/contracts';
 import { readPackage, reviewDigest, treeInventory } from '../src/main/review-workspace';
 import { RunSchema, type Research, type RunEvent } from '../src/shared';
 
@@ -81,7 +82,9 @@ interface Harness {
 }
 const harnesses: Harness[] = [];
 let count = 0;
-async function harness(options: { kit?: boolean; trusted?: boolean } = {}): Promise<Harness> {
+/** The reviewed package's validation, given the real one to call and the binding main passed; the collected package's is always real. */
+type Reviewed = (real: () => Promise<Result>, binding: Binding) => Promise<Result> | Result;
+async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: Reviewed } = {}): Promise<Harness> {
   const name = `h${++count}`; const folder = join(root, name); await mkdir(folder);
   const store = new Store(join(folder, 'state.sqlite'));
   const notices: Research[] = []; const jobs = new ResearchJobs(store, research => notices.push(research));
@@ -104,11 +107,26 @@ async function harness(options: { kit?: boolean; trusted?: boolean } = {}): Prom
   const begins: Control[] = []; const signals = new Map<string, AbortController>();
   const h: Harness = { store, jobs, kit, seen, hooks, notices, begins, storage, id, project: join(storage, 'review', id, 'project'), signals, review: undefined as unknown as ReviewSupervisor };
   h.review = new ReviewSupervisor({
-    control: async control => engine(h, control), kit: options.kit === false ? null : kit, redact: async text => text.replaceAll(SENTINEL, '[redacted]'),
+    control: async control => engine(h, control), kit: options.kit === false ? null : options.reviewed ? reviewedBy(kit, options.reviewed) : kit, redact: async text => text.replaceAll(SENTINEL, '[redacted]'),
     runSignal: runId => { const signal = signals.get(runId)?.signal; if (!signal || signal.aborted) throw new Error('RUN_CANCELLED'); return signal; },
     retryDelayMs: 10,
   });
   harnesses.push(h); return h;
+}
+/** The real kit, except that the validation of packaging's own output (`reviewed.zip`) goes through `reviewed`. */
+function reviewedBy(kit: ResearchKit, reviewed: Reviewed): ReviewKit {
+  return {
+    prepareReview: signal => kit.prepareReview(signal), verifyRetained: (sha, binding, signal, admit) => kit.verifyRetained(sha, binding, signal, admit),
+    readVerified: (id, binding) => kit.readVerified(id, binding), discardReview: names => kit.discardReview(names),
+    validate: (file, binding, signal, admit) => (basename(file) === 'reviewed.zip' ? Promise.resolve(reviewed(() => kit.validate(file, binding, signal, admit), binding)) : kit.validate(file, binding, signal, admit)),
+  };
+}
+/** A job found in packaging at recovery, frozen over the workspace as begun: the fastest way to packaging's outcome. */
+async function packagingNow(h: Harness) {
+  await begin(h);
+  h.store.appendEvent(h.runId!, 'run.status', { status: 'awaiting_review' }, { status: 'awaiting_review' });
+  h.store.transitionResearch({ researchId: h.id, expectedRevision: h.store.getResearch(h.id)!.revision, to: 'packaging', actor: 'main', cause: 'WORKSPACE_FROZEN', patch: { reviewDigest: reviewDigest(await treeInventory(h.project)) } });
+  await h.review.recovered(h.jobs.recover([], []));
 }
 /** The engine as the contract says it behaves, over the real Store and ResearchJobs; `begin` stands in for B2's review run. */
 async function engine(h: Harness, control: Control): Promise<unknown> {
@@ -657,3 +675,17 @@ test('a retry over a junction: at the workspace root it is not continued but rep
     expect(await ofTree(tree)).toEqual(before);
   }
 }, 180000);
+
+test('a validation fault of this machine is never blamed on the package: REVIEW_PACKAGING_FAILED or RESEARCH_KIT_UNAVAILABLE; only the package\'s own faults are REVIEW_PACKAGE_INVALID', async () => {
+  // Guard: packaging's mapping of a validation without a receipt (spec review 2, vocabulary).
+  for (const [error, failure] of [
+    ['STORAGE_LIMIT', 'REVIEW_PACKAGING_FAILED'], ['TIMEOUT', 'REVIEW_PACKAGING_FAILED'], ['OUTPUT_LIMIT', 'REVIEW_PACKAGING_FAILED'], ['VALIDATOR_OUTPUT', 'REVIEW_PACKAGING_FAILED'],
+    ['INSTALLATION_INVALID', 'RESEARCH_KIT_UNAVAILABLE'], ['ARTIFACT_INVALID', 'REVIEW_PACKAGE_INVALID'], ['INPUT_LIMIT', 'REVIEW_PACKAGE_INVALID'], ['IDENTITY_MISMATCH', 'REVIEW_PACKAGE_INVALID'],
+  ] as const) {
+    const h = await harness({ reviewed: () => ({ status: 'BLOCKED', state: null, researchReady: false, receipt: null, error }) });
+    await packagingNow(h);
+    expect(await until(h, settled), error).toMatchObject({ status: 'not_ready', failure });
+    expect(h.store.researchEvents(h.id).events.at(-1), error).toMatchObject({ from: 'packaging', to: 'not_ready', cause: error });
+    await h.review.close(); await h.kit.close();
+  }
+}, 300000);
