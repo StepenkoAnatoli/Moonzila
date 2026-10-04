@@ -477,3 +477,13 @@ test.each([['off'], ['public-technical']] as const)('an untrusted project with r
   expect(screen.queryByRole('button', { name: 'Allow research' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Turn research off' })).toBeNull();
 });
+
+// Unit review P4-7: the engine refuses a review for an untrusted project or with research off, so none is offered.
+test.each([['untrusted', { ...project, trusted: false }], ['research off', offProject]] as const)('a collected job in a project that is %s offers no Start review', async (_case, shown) => {
+  const { api, calls } = bridge({ jobs: [job({ status: 'collected', revision: 2 })] });
+  render(<ResearchPanel api={api} project={shown} openConversation={() => {}} />);
+  await waitFor(() => expect(screen.getByTestId('research-status').textContent).toBe('Collected'));
+  await waitFor(() => expect(calls.some(call => call.method === 'research.collector.read')).toBe(true));
+  expect(screen.queryByRole('button', { name: 'Start review' })).toBeNull();
+  expect(screen.queryByLabelText('Review model')).toBeNull();
+});
