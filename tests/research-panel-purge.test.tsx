@@ -175,6 +175,13 @@ test('the Unverified line is shown for every approved job, current or history, w
     cleanup();
     render(<ResearchPanel api={bridge({ jobs: [job({ status })] }).api} project={project} />);
     expect((await openConfirmation()).textContent).not.toContain('Unverified');
+    // The same status as a history row behind an approved job (P5-23 re-review: mutation `unverified={true}` for
+    // history rows survived without this).
+    cleanup();
+    render(<ResearchPanel api={bridge({ jobs: [approved(), job({ status, id: 'r0', topic: 'Older one', createdAt: '2026-10-01T00:00:00Z' })] }).api} project={project} openConversation={() => {}} />);
+    const older = (await screen.findByText(/^Earlier research/)).closest('details')!;
+    fireEvent.click(within(older).getByRole('button', { name: 'Delete stored corpus' }));
+    expect(within(older).getByRole('group', { name: PURGE_TEXT.title }).textContent, status).not.toContain('Unverified');
   }
 });
 
