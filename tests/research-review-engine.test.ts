@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -826,5 +826,60 @@ describe('engine guards (Phase 3 mutation survivors)', () => {
     await expect(journal.prepareUndo(op.id, sha('classified\n'))).rejects.toThrow('UNDO_UNAVAILABLE');
     expect(h.store.listOperations(run.id).filter(item => item.kind === 'write').map(item => item.id)).toEqual([op.id]);
     expect(readFileSync(join(h.workspace, 'research/MAP.md'), 'utf8')).toBe('classified\n');
+  });
+});
+
+/**
+ * Phase 3 independent review (S1, containment): the review workspace root and each folder between it and the data folder
+ * must be real folders, and realpath(root) must be the derived workspace path. A link there would carry an approved
+ * "workspace" edit, or a read, to the link's destination.
+ */
+describe('review workspace containment (links at or above the workspace root)', () => {
+  const SIBLING_MAP = '| Subtopic | Status |\n| --- | --- |\n| sibling | untouched |\n';
+  /** Replace `linked` (the workspace root or an ancestor) with a junction to a sibling holding the same tree. */
+  /** The moved tree keeps the workspace's bytes (so an edit's before hash still matches); `mark` makes a read tell them apart. */
+  function link(h: ReturnType<typeof harness>, level: 'root' | 'ancestor', mark = false) {
+    const linked = level === 'root' ? h.workspace : join(h.data, 'research-kit', 'storage', 'review', h.jobId);
+    const sibling = join(h.root, 'sibling', level);
+    mkdirSync(join(sibling, '..'), { recursive: true });
+    renameSync(linked, sibling);
+    const map = join(sibling, ...(level === 'root' ? [] : ['project']), 'research', 'MAP.md');
+    if (mark) writeFileSync(map, SIBLING_MAP);
+    symlinkSync(sibling, linked, 'junction');
+    expect(lstatSync(linked).isSymbolicLink()).toBe(true);
+    expect(realpathSync(join(h.workspace, 'research', 'MAP.md'))).toBe(realpathSync(map));
+    return map;
+  }
+
+  test.each(['root', 'ancestor'] as const)('a link at the workspace %s before the proposal: the edit is refused PATH_OUTSIDE_PROJECT, nothing prepared', async level => {
+    const h = harness(); const results: Array<Record<string, unknown>> = [];
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), messages => { results.push(toolResult(messages)); return answer(); });
+    const map = link(h, level);
+    const { run } = await h.begin(); await finished(h, run.id);
+    expect(results.map(result => result.error)).toEqual(['PATH_OUTSIDE_PROJECT']);
+    expect(h.store.listOperations(run.id).filter(op => op.kind === 'write')).toEqual([]);
+    expect(readFileSync(map, 'utf8')).toBe(FILES['research/MAP.md']);
+  });
+
+  test.each(['root', 'ancestor'] as const)('a link at the workspace %s swapped in after the proposal: the approved edit is refused PATH_OUTSIDE_PROJECT and the sibling is unchanged', async level => {
+    const h = harness(); const results: Array<Record<string, unknown>> = [];
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), messages => { results.push(toolResult(messages)); return answer(); });
+    const { run } = await h.begin();
+    await until(async () => (await h.pending(run.id)).length === 1, 'the approval');
+    const map = link(h, level);
+    const op = await h.decide(run.id); await finished(h, run.id);
+    expect(results.map(result => result.error)).toEqual(['PATH_OUTSIDE_PROJECT']);
+    expect(h.store.getOperation(op.id)!.status).toBe('failed');
+    expect(readFileSync(map, 'utf8')).toBe(FILES['research/MAP.md']);
+    expect(readdirSync(join(map, '..')).filter(name => name.endsWith('.tmp'))).toEqual([]);
+  });
+
+  test.each(['root', 'ancestor'] as const)('a read through a link at the workspace %s is refused PATH_OUTSIDE_PROJECT and returns nothing', async level => {
+    const h = harness(); const results: Array<Record<string, unknown>> = [];
+    h.script.push(() => call('r', 'read_file', { path: 'research/MAP.md' }), messages => { results.push(toolResult(messages)); return answer(); });
+    link(h, level, true);
+    const { run } = await h.begin(); await finished(h, run.id);
+    expect(results.map(result => result.error)).toEqual(['PATH_OUTSIDE_PROJECT']);
+    expect(JSON.stringify(results)).not.toContain('untouched');
   });
 });

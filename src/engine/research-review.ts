@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { lstatSync, realpathSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { Message, Profile, Run, ToolSpec } from '../shared';
 import type { Store, StoreEvent, StoreProject, StoreResearch, StoreRun } from './store';
@@ -19,6 +20,34 @@ export function reviewWorkspacePath(dataDirectory: string, researchId: string): 
   return join(dataDirectory, 'research-kit', 'storage', 'review', researchId, 'project');
 }
 
+/**
+ * The review workspace of `researchId`, contained: the workspace root and every folder between it and the data folder is
+ * a real directory (no symbolic link or junction), and realpath(root) is exactly the derived path under realpath(data).
+ * A link there would carry an approved edit, or a read, to its destination (Phase 3 review, containment S1). Checked on
+ * every resolution, so the journal's re-check just before its rename sees a link swapped in after the proposal.
+ */
+export function containedReviewWorkspace(dataDirectory: string, researchId: string): string {
+  const root = reviewWorkspacePath(dataDirectory, researchId);
+  const parts = ['research-kit', 'storage', 'review', researchId, 'project'];
+  let canonical: string;
+  try {
+    let current = resolve(dataDirectory);
+    for (const part of parts) {
+      current = join(current, part);
+      const stats = lstatSync(current);
+      if (stats.isSymbolicLink() || !stats.isDirectory()) throw new Error('PATH_OUTSIDE_PROJECT');
+    }
+    canonical = realpathSync(root);
+    const expected = join(realpathSync(dataDirectory), ...parts);
+    const same = process.platform === 'win32' ? canonical.toLowerCase() === expected.toLowerCase() : canonical === expected;
+    if (!same) throw new Error('PATH_OUTSIDE_PROJECT');
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PATH_OUTSIDE_PROJECT') throw error;
+    throw new Error('PROJECT_UNAVAILABLE', { cause: error });
+  }
+  return root;
+}
+
 /** Where a run's files resolve. `current`: a review run that is still its job's review run while the job is `reviewing`. */
 export interface RunRoot { root: string; review: boolean; current: boolean }
 export type RunRootResolver = (run: StoreRun, project: StoreProject) => RunRoot;
@@ -34,13 +63,13 @@ export function reviewJobOf(store: Store, run: Pick<StoreRun, 'mode' | 'projectI
   return store.listResearch(run.projectId).find(job => job.reviewSessionId === run.sessionId);
 }
 
-/** rootFor(run): the project root for every other mode, and the job's review workspace for a review run. */
+/** rootFor(run): the project root for every other mode, and the job's review workspace for a review run, contained. */
 export function createRootResolver(store: Store, dataDirectory?: string): RunRootResolver {
   return (run, project) => {
     if (run.mode !== 'research') return projectRoot(run, project);
     const job = reviewJobOf(store, run);
     if (!job || dataDirectory === undefined) throw new Error('PROJECT_UNAVAILABLE');
-    return { root: reviewWorkspacePath(dataDirectory, job.id), review: true, current: job.status === 'reviewing' && job.reviewRunId === run.id };
+    return { root: containedReviewWorkspace(dataDirectory, job.id), review: true, current: job.status === 'reviewing' && job.reviewRunId === run.id };
   };
 }
 
