@@ -1,12 +1,12 @@
 {
-  "name": "monnzila",
-  "productName": "Monnzila",
+  "name": "moonzila",
+  "productName": "Moonzila",
   "version": "0.8.1",
   "description": "A durable Windows coding-agent workbench with interchangeable API and local models",
   "private": true,
   "type": "module",
   "main": "dist/main.cjs",
-  "author": "Monnzila",
+  "author": "Moonzila",
   "engines": {
     "node": ">=24.20.0 <25"
   },

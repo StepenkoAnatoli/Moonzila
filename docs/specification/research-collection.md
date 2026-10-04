@@ -1,10 +1,10 @@
 # Research collection process
 
-This is the behaviour contract of the collection process that Monnzila owns (plan Task 3). It describes what the code does. Where the code and the design differ, the code is described and the difference is listed at the end.
+This is the behaviour contract of the collection process that Moonzila owns (plan Task 3). It describes what the code does. Where the code and the design differ, the code is described and the difference is listed at the end.
 
 ## Purpose and scope
 
-A research job collects a corpus on GitHub. Monnzila does not dispatch or download through its own GitHub calls: it runs the pinned Research Kit collector (`bin/collect-remote.mjs`) as a child process, once to dispatch a workflow run and then repeatedly to watch that run and download its package. Its only GitHub request is the verified import's read of the run (below). The pinned kit and its trust model are described in [Offline Research Kit consumer](research-kit-offline.md).
+A research job collects a corpus on GitHub. Moonzila does not dispatch or download through its own GitHub calls: it runs the pinned Research Kit collector (`bin/collect-remote.mjs`) as a child process, once to dispatch a workflow run and then repeatedly to watch that run and download its package. Its only GitHub request is the verified import's read of the run (below). The pinned kit and its trust model are described in [Offline Research Kit consumer](research-kit-offline.md).
 
 The work is split this way:
 
@@ -266,7 +266,7 @@ A started dispatcher keeps the token copy in its environment. Watches restart wi
 
 ### Cancel
 
-`observe()` with status `cancelling` for an owned job stops a watch and an unstarted dispatcher. A started dispatcher is not stopped; the driver waits for it to finish, then commits `cancelling → cancelled` with any learned run id and, if the dispatch was ambiguous, failure `REMOTE_STATE_UNKNOWN`. A `cancelling` job this process does not own is ignored. Monnzila does not cancel the remote GitHub run.
+`observe()` with status `cancelling` for an owned job stops a watch and an unstarted dispatcher. A started dispatcher is not stopped; the driver waits for it to finish, then commits `cancelling → cancelled` with any learned run id and, if the dispatch was ambiguous, failure `REMOTE_STATE_UNKNOWN`. A `cancelling` job this process does not own is ignored. Moonzila does not cancel the remote GitHub run.
 
 ### Hold on trust or policy change
 

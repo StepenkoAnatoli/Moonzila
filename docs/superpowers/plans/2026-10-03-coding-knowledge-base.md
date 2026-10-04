@@ -63,7 +63,7 @@ From the corpus [`docs/research/2026-10-03-coding-knowledge-base`](../../researc
   - MDN code samples (E-04): CC0 if added on or after 2010-08-20, MIT before that.
   - DevDocs' OpenJDK sets are "extracted from Debian's OpenJDK Development Kit package", GPLv2 with the Classpath Exception (E-07). Their attribution adds: "Various third party code in OpenJDK is licensed under different licenses (see Debian package)" (E-02, E-07).
   - Each catalogue entry carries its own `attribution` HTML string (E-02).
-- **F6 Oracle (E-06).** Oracle's Java SE documentation may not be copied or distributed except as its licence or law allows. DevDocs' scraper names `docs.oracle.com` as its `base_url` (E-07), but the sets it ships are built from the Debian package. Monnzila never fetches from `docs.oracle.com`.
+- **F6 Oracle (E-06).** Oracle's Java SE documentation may not be copied or distributed except as its licence or law allows. DevDocs' scraper names `docs.oracle.com` as its `base_url` (E-07), but the sets it ships are built from the Debian package. Moonzila never fetches from `docs.oracle.com`.
 - **F7 Declared versions.**
   - **Node:** `package.json` `engines.node`, for example `">=0.10.3 <15"`. Without it, or with `"*"`, "any version of node will do" (E-16).
     - The same page defines `devEngines` with a `runtime` object: `name` required, `version` and `onFail` optional. It is meant "to alert people interacting with the source code" (E-16).
@@ -161,11 +161,11 @@ The corpus does not support these, so no task may guess them. The day-one checks
   - that attribution, the DevDocs credit and, for MDN sets, "Mozilla Contributors";
   - the page title;
   - the original-document link DevDocs embeds (F1);
-  - the note "converted to plain text by Monnzila".
+  - the note "converted to plain text by Moonzila".
 
   Together these cover MDN's requirement of attribution to "Mozilla Contributors", the title, a link and a note of changes (F5).
 - The name DevDocs is used only as attribution, never in a way that suggests endorsement (F1).
-- Nothing is placed in the installer, so Monnzila itself never redistributes a set. Sets are downloaded to the user's PC on the user's approval.
+- Nothing is placed in the installer, so Moonzila itself never redistributes a set. Sets are downloaded to the user's PC on the user's approval.
 
 **Fetching.**
 - Main owns all knowledge-base network access:

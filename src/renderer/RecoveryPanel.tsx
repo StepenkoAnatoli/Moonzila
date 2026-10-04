@@ -36,7 +36,7 @@ export function RecoveryPanel({ api, projectId, runId, changed }: { api: AppApi;
         return <article className="recovery-item" key={item.operation.id}>
           <h3>{item.operation.kind === 'write' ? 'Interrupted file edit' : 'Command outcome unknown'}</h3>
           <pre tabIndex={0}>{item.summary}</pre><p className="muted">{item.operation.createdAt ? new Date(item.operation.createdAt).toLocaleString() : 'Time unavailable'}</p>
-          <p>{item.operation.kind === 'write' ? observations[item.observation] : 'Monnzila could not confirm how this command ended. Check its effects in your project.'}</p>
+          <p>{item.operation.kind === 'write' ? observations[item.observation] : 'Moonzila could not confirm how this command ended. Check its effects in your project.'}</p>
           {item.inspectedAt && <p className="muted">Last inspected: {new Date(item.inspectedAt).toLocaleString()}. The file may have changed since then.</p>}
           {pending ? <>
             {item.operation.kind === 'write' && <button disabled={busy || !!runId} onClick={() => void act(item, 'recovery.inspect')}>Inspect current file</button>}

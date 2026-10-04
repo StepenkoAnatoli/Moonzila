@@ -9,7 +9,7 @@ import { FileJournal } from '../src/tools/files';
 const cleanups: Array<() => void> = [];
 afterEach(() => cleanups.splice(0).forEach(cleanup => cleanup()));
 function fixture(limit?: number) {
-  const root = mkdtempSync(join(tmpdir(), 'monnzila-files-')); const store = new Store(join(root, 'state.sqlite')); const at = new Date().toISOString();
+  const root = mkdtempSync(join(tmpdir(), 'moonzila-files-')); const store = new Store(join(root, 'state.sqlite')); const at = new Date().toISOString();
   cleanups.push(() => { store.close(); rmSync(root, { recursive: true, force: true }); });
   store.putProject({ id: 'p1', name: 'Project', pathLabel: root, rootPath: root, trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'off' }, missing: false, createdAt: at });
   store.putSession({ id: 's1', projectId: 'p1', title: 'Work', createdAt: at, updatedAt: at });

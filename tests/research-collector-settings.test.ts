@@ -14,7 +14,7 @@ const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-collector-settings-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-collector-settings-')); roots.push(root);
   const key = randomBytes(32);
   const cryptor = {
     isEncryptionAvailable: () => true,

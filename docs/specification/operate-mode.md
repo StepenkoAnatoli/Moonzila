@@ -2,7 +2,7 @@
 
 ## User requirement and current status
 
-On October 3 the user asked whether Monnzila could later serve the KashMula project, a
+On October 3 the user asked whether Moonzila could later serve the KashMula project, a
 fully automated multi-agent online income bot whose phase-1 research is complete
 ([KashMula `docs/PLAN.md`](https://github.com/StepenkoAnatoli/KashMula/blob/main/docs/PLAN.md)),
 and then asked for a mode that allows it. This specification defines that mode. It is
@@ -10,7 +10,7 @@ and then asked for a mode that allows it. This specification defines that mode. 
 schedules it after the research-jobs phase, and nothing in it claims that any part exists
 today.
 
-The same request renamed the product from MoonAliza to Monnzila. The rename is recorded in
+The same request renamed the product from MoonAliza to Moonzila. The rename is recorded in
 [decisions](decisions.md) item 12; identifiers that would break installed apps or links
 (the Windows app ID `com.moonaliza.desktop`, the native helper file name, the GitHub
 repository name, historical snapshots and research corpora) keep their old spelling.
@@ -18,9 +18,9 @@ repository name, historical snapshots and research corpora) keep their old spell
 ## What Operate mode is
 
 Operate mode is the sixth value of `Mode` (`ask`, `plan`, `research`, `build`, `mission`,
-`operate`). It turns Monnzila into the operator's seat for a business bot that runs
+`operate`). It turns Moonzila into the operator's seat for a business bot that runs
 elsewhere: the operator reviews what the bot wants to do, sees what it costs and earns,
-can stop it, and reviews the evidence and code changes it proposes. Monnzila is the
+can stop it, and reviews the evidence and code changes it proposes. Moonzila is the
 client; the bot's loop runs on its own server (for KashMula: a DBOS Transact worker on
 Postgres, hosted on Fly.io, per its plan). A desktop application that sleeps and
 restarts must never be the process that keeps a business alive, and keeping that line is
@@ -40,7 +40,7 @@ instead of the local workspace.
 2. **Status board and Stop.** Cost per 1,000 results, paid users, spend against the
    provider cap, payout status, last run per agent, and the runtime's own kill switch.
    Stop in Operate mode is the runtime's loop stop (it halts the scheduler and the
-   queues), not merely a trigger disable; Monnzila shows the runtime's confirmation, never
+   queues), not merely a trigger disable; Moonzila shows the runtime's confirmation, never
    its own assumption.
 3. **Evidence review.** A research job (the current phase) can be started for the bot's
    next niche, followed durably, and its reviewed package attached to the approval that
@@ -69,7 +69,7 @@ main-owned secret handling and bound to the endpoint by the network broker (deci
 the renderer never sees it, and a request to any other host with it is refused before it
 is sent.
 
-The runtime exposes a small HTTPS API, served by the bot's own worker. Monnzila consumes
+The runtime exposes a small HTTPS API, served by the bot's own worker. Moonzila consumes
 it; it does not define the bot. The contract is frozen in Task 1 of the stage plan and
 mirrored in the KashMula repository so both sides build to one document:
 
@@ -111,7 +111,7 @@ decisions.
 - A decision is sent only after the journal row is durable; a crash between journal and
   send is recovered by re-sending the same decision, which the runtime treats as a repeat.
 - Evidence shown on a card is data, never an instruction: a gate's text cannot change
-  what Monnzila does.
+  what Moonzila does.
 
 ## Acceptance
 
@@ -128,7 +128,7 @@ this passes the Windows verification workflow on the exact head.
 The runtime side of this specification rests on KashMula's reviewed corpus (its
 `research/EVIDENCE.md`: DBOS durable queues, notifications and scheduled workflows,
 E-51 and E-52; Fly.io Machines, E-49; Anthropic spend caps and stop signals, E-43; the
-AI-disclosure duty, E-40). Monnzila's own external facts for the implementation (the DBOS
+AI-disclosure duty, E-40). Moonzila's own external facts for the implementation (the DBOS
 HTTP and notification surface, Fly.io access from a desktop client, the Anthropic
 provider contract) are collected through Research-Kit in Task 0 of the stage plan before
 any code is written, following this repository's rule.

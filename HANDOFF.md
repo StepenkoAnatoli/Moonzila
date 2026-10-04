@@ -1,10 +1,10 @@
-# Monnzila: start here
+# Moonzila: start here
 
 This is the continuation guide for a new developer or AI. Everything required to understand and build the current source is in this repository. You do not need the original conversation, the original PC, or the sibling `work` and `outputs` directories.
 
 ## Product and user intent
 
-Build the full Windows desktop coding-agent workbench named **Monnzila**, following the reviewed Rework plan. The user explicitly chose working stages to catch problems early, and rejected a reduced product scope. The first usable target is their own Windows PC; broader release qualification remains necessary. The intended product includes local and API models, one owned agent engine, reviewed coding tools, research, skills, bounded teams, durable missions and a Windows installer.
+Build the full Windows desktop coding-agent workbench named **Moonzila**, following the reviewed Rework plan. The user explicitly chose working stages to catch problems early, and rejected a reduced product scope. The first usable target is their own Windows PC; broader release qualification remains necessary. The intended product includes local and API models, one owned agent engine, reviewed coding tools, research, skills, bounded teams, durable missions and a Windows installer.
 
 New user requirement (September 30): [folder-free chat](docs/specification/folder-free-chat.md). Users must be able to discuss and plan without choosing a project, then attach or create a workspace when needed. Implemented in the 0.7 development phase on `feat/folder-free-chat`; see the specification for explicit privacy and workspace-branch behavior. Research jobs/review UI remain separate.
 
@@ -12,7 +12,7 @@ The repository is [StepenkoAnatoli/MoonAliza](https://github.com/StepenkoAnatoli
 
 ```powershell
 git -c core.longpaths=true clone --branch main https://github.com/StepenkoAnatoli/MoonAliza.git
-cd Monnzila
+cd Moonzila
 node scripts/check-handoff.mjs
 ```
 
@@ -22,7 +22,7 @@ The [0.8 release record](docs/releases/0.8.1-dev.1.md) identifies the installer 
 
 ## Product name and Operate mode (October 3)
 
-The product is now called **Monnzila** (previously MoonAliza; [decision 12](docs/specification/decisions.md)). Only user-facing names and current documents changed; the app ID, `app.setName`, partitions, IPC names, the native helper file name, fixture identities, repository URLs and the immutable records under `docs/handoff`, `docs/research` and `docs/releases` keep the old spelling on purpose, so an installed 0.8 app keeps its data and update path. The Windows workflow expects `release/win-unpacked/Monnzila.exe`, which follows from the new `productName`.
+The product is now called **Moonzila** (previously MoonAliza; [decision 12](docs/specification/decisions.md)). Only user-facing names and current documents changed; the app ID, `app.setName`, partitions, IPC names, the native helper file name, fixture identities, repository URLs and the immutable records under `docs/handoff`, `docs/research` and `docs/releases` keep the old spelling on purpose, so an installed 0.8 app keeps its data and update path. The Windows workflow expects `release/win-unpacked/Moonzila.exe`, which follows from the new `productName`.
 
 [Operate mode](docs/specification/operate-mode.md) is specified as the sixth mode: the operator's seat for a business bot that runs elsewhere (first: [KashMula](https://github.com/StepenkoAnatoli/KashMula)), with an approval queue, a status board and Stop, evidence review through research jobs, and change proposals through Build-mode review. Its [stage plan](docs/superpowers/plans/2026-10-03-operate-mode.md) starts with a Research-Kit collection and is scheduled after the research-jobs phase; nothing of it is implemented.
 
@@ -80,7 +80,7 @@ Inspect the current branch/PR checks and [0.8 development release record](docs/r
 
 Next continue the full approved plan:
 
-Public GitHub reading is merged (PR #14); folder-free chat is merged (PR #13). The desktop-test completion correction is merged (PR #16), and `main` passed both Windows runs at `b439ac4`. PR #15 merged `main` back into the old `feat/public-github-reading` branch; that branch carries no new work and is not a continuation point. Research jobs and review UI are the current phase, following [the research jobs plan](docs/superpowers/plans/2026-10-02-research-jobs.md). Task 1 (contracts) merged in PR #20 and Task 2 (durable job state, schema v3) in PR #21. Task 3 (the owned collection process) is in progress. Part 1 is the validator re-pin to `fcde0e6` and the pure collector protocol (`src/adapters/research-kit/collector.ts`, tested against the real pinned kit through a loopback fake GitHub). Part 2 is the job state machine, collector settings and the supervisor. `main-axuse` is the user's chosen working branch for all continuing work; after each merge it restarts from `main`. The phase order the user confirmed on October 2 is research, then project memory, then missions (beginning with background tasks, always approved by the user), then sandbox-only computer use. The plan records each decision. The app keeps the name Monnzila. Do not let research become mandatory for ordinary chat or existing projects. The long-term work below remains open.
+Public GitHub reading is merged (PR #14); folder-free chat is merged (PR #13). The desktop-test completion correction is merged (PR #16), and `main` passed both Windows runs at `b439ac4`. PR #15 merged `main` back into the old `feat/public-github-reading` branch; that branch carries no new work and is not a continuation point. Research jobs and review UI are the current phase, following [the research jobs plan](docs/superpowers/plans/2026-10-02-research-jobs.md). Task 1 (contracts) merged in PR #20 and Task 2 (durable job state, schema v3) in PR #21. Task 3 (the owned collection process) is in progress. Part 1 is the validator re-pin to `fcde0e6` and the pure collector protocol (`src/adapters/research-kit/collector.ts`, tested against the real pinned kit through a loopback fake GitHub). Part 2 is the job state machine, collector settings and the supervisor. `main-axuse` is the user's chosen working branch for all continuing work; after each merge it restarts from `main`. The phase order the user confirmed on October 2 is research, then project memory, then missions (beginning with background tasks, always approved by the user), then sandbox-only computer use. The plan records each decision. The app keeps the name Moonzila. Do not let research become mandatory for ordinary chat or existing projects. The long-term work below remains open.
 
 1. Finish D3 genuine lab qualification and monitored machine probes. Preserve the original 20 tool cases, 10 coding fixtures repeated three times, 85% quality, zero unauthorized effects/writes after cancellation, load <=90 seconds, first token <=30 seconds, throughput >=4 tokens/sec and host reserve targets. Do not create production receipts from test fixtures.
 2. Supply production catalogue/trust inputs and connect verified activation, selection and the managed provider to main, engine, IPC and setup. Absence of these real inputs is not permission to fabricate them or activate an unqualified candidate. CPU lifecycle/storage checks do not establish inference quality or GPU attestation.

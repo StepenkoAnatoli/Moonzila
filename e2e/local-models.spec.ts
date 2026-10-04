@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 
 test('Local model readiness reads real Windows hardware and leaves model profiles available', async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), 'monnzila-hardware-e2e-'));
+  const directory = await mkdtemp(join(tmpdir(), 'moonzila-hardware-e2e-'));
   const packaged = process.env.MOONALIZA_TEST_EXECUTABLE;
   const app = await electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...(packaged ? [] : [resolve('.')]), `--user-data-dir=${directory}`] });
   try {
@@ -14,7 +14,7 @@ test('Local model readiness reads real Windows hardware and leaves model profile
     const panel = page.getByRole('dialog', { name: 'Local model readiness' });
     await expect(panel.getByText('Total RAM', { exact: true })).toBeVisible({ timeout: 20000 });
     await expect(panel.getByText('Available now', { exact: true })).toBeVisible();
-    await page.screenshot({ path: 'test-results/monnzila-hardware.png' });
+    await page.screenshot({ path: 'test-results/moonzila-hardware.png' });
     await panel.getByRole('button', { name: 'Check Ollama' }).click();
     await expect(panel.getByTestId('runtime-status')).toBeVisible({ timeout: 15000 });
     await expect(panel.getByTestId('runtime-status')).toContainText(/No Ollama runtime|Connected|service responded/);

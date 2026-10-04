@@ -2,7 +2,7 @@
 
 **Status:** in progress. The user said "start" on October 2; Task 1 follows the D2 and D3 recommendations. D1 and D4 are not needed until Tasks 3 and 4. This is Stage 2 of the [integration review](../../specification/research-kit-integration-review.md), building on the [offline consumer](../../specification/research-kit-offline.md). Decisions D1–D4 below were answered on October 2 (see "Decisions recorded October 2").
 
-**Goal:** a project can start a Research Kit collection, follow it durably through restarts, read its evidence and brief, have the corpus reviewed, and end with a verified package whose readiness Monnzila can show. Ordinary chat and existing projects behave exactly as today when research is off.
+**Goal:** a project can start a Research Kit collection, follow it durably through restarts, read its evidence and brief, have the corpus reviewed, and end with a verified package whose readiness Moonzila can show. Ordinary chat and existing projects behave exactly as today when research is off.
 
 **Out of scope here:** Build admission that depends on research (Stage 3), bundled kit provisioning and release qualification (Stage 4), private-repository GitHub reading, and live text display.
 
@@ -12,7 +12,7 @@
 - Schema v2 already has a `research` table (`id`, `project_id`, nullable `run_id`, `status`, JSON `state`) and store methods `putResearch/getResearch/listResearch`. Project policy already carries `research: 'off' | 'public-technical' | 'private-connected'`, and `assertToolPolicy` refuses research tools when it is `off`.
 - `src/shared/params.ts` declares `research.provision/start/read/cancel/review/purge`, and `src/shared/events.ts` declares `research.status`. These come from the original source plan, are only listed by `tests/contracts.test.ts`, and have no handler. Three of them conflict with the later integration review and must be revised, not implemented as declared:
   - `research.provision` accepts `provisioningSecret` and `runtimeSecret` as renderer strings. Credentials must enter through main-owned secret handling, never as general IPC payload.
-  - `research.review` records a user `sufficient/insufficient` decision. Readiness is the kit's `APPROVED_BRIEF` with `buildAuthorized: true`, produced by its own gate. A Monnzila-side switch is the "mutable Authorize" control the review rejects (correction 8).
+  - `research.review` records a user `sufficient/insufficient` decision. Readiness is the kit's `APPROVED_BRIEF` with `buildAuthorized: true`, produced by its own gate. A Moonzila-side switch is the "mutable Authorize" control the review rejects (correction 8).
   - `research.start` takes a free-text `brief`. The collector takes a topic, queries, known URLs and preferred domains, all of which become readable by anyone who can read the collector repository.
 
 ## Research Kit facts this plan depends on
@@ -21,7 +21,7 @@ Read directly from Research-Kit `main` at `fcde0e6` on October 2.
 
 - `lib/artifact-validator.mjs`, `lib/artifact-zip.mjs`, `bin/artifact.mjs`, every schema, `test/artifact-fixtures.mjs` and `.github/workflows/collect.yml` are byte-identical to the earlier pin `5588ce3`. The producer `lib/artifact.mjs` changed (+24/-2: it now refuses FIFOs and folder cycles). The offline consumer's fixtures stay valid: all 15 recorded reports reproduce at `fcde0e6`. Corrected October 2; this line first said `artifact.mjs` was identical without naming which.
 - `bin/collect-remote.mjs` (present at the pin) dispatches `collect.yml` on GitHub Actions, downloads and validates the package. In text mode it prints the run id before waiting; under `--json` it prints one payload at exit, so Task 3 dispatches with `--no-wait --json` and then watches with `--run-id`. Exit codes: 0 valid, 1 invalid, 2 run failed/incomplete, 3 could not start, 4 still running. `--json` gives a machine-readable result, `--run-id` resumes an existing run, `--no-wait` dispatches only. `--client-ref` is public: it names the run and artifact.
-- The token comes only from `RESEARCH_KIT_GITHUB_TOKEN` or `GITHUB_TOKEN`; there is no token flag. It needs one permission, Actions read and write, on the collector repository. Firecrawl and SerpApi keys are repository secrets of the collector, so Monnzila never holds them.
+- The token comes only from `RESEARCH_KIT_GITHUB_TOKEN` or `GITHUB_TOKEN`; there is no token flag. It needs one permission, Actions read and write, on the collector repository. Firecrawl and SerpApi keys are repository secrets of the collector, so Moonzila never holds them.
 - Since the pin, collection gained `--run-id` pickup of an already-dispatched run (`bf60e21`) and survives transient polling failures (`49d3b6e`), plus several dispatch error fixes. `--run-id` is absent at the pin, and restart-safe resume depends on it, so Stage 2 must re-pin to a revision that has these changes.
 - A freshly collected package is never `buildAuthorized`. Approval comes only from `artifact.mjs create --root <project>` after the kit's gate passes on a reviewed project: map classified, findings rewritten, brief TODOs answered and `Reviewed by: agent` declared.
 - Research-Kit still has no LICENSE file, so redistribution rights remain unestablished.
@@ -30,7 +30,7 @@ Read directly from Research-Kit `main` at `fcde0e6` on October 2.
 
 - **D1 Collector repository.** Recommended: a private repository the user owns that carries Research-Kit's `collect.yml` and the Firecrawl/SerpApi secrets. Topics and queries are readable by anyone who can read that repository, so a public collector only suits `public-technical` research.
 - **D2 Collector token.** Recommended: a fine-grained token with only Actions read/write on that one repository, entered once through a dedicated main-owned field and stored in the existing encrypted vault. It must never be typed into chat, a model profile or a general IPC payload.
-- **D3 Review mechanism.** Recommended: (a) unpack the collected corpus into a private research workspace outside project folders. The agent performs the three review steps there with Monnzila's existing reviewed edit tools and exact approvals, then the owned process runs the kit's own `preflight.mjs` and `artifact.mjs create`. This needs no Research-Kit change. Alternative (b): first add machine-readable review operations to Research-Kit in a separate PR, as the integration review allows. (b) gives a narrower interface, but the kit would need new design and tests first.
+- **D3 Review mechanism.** Recommended: (a) unpack the collected corpus into a private research workspace outside project folders. The agent performs the three review steps there with Moonzila's existing reviewed edit tools and exact approvals, then the owned process runs the kit's own `preflight.mjs` and `artifact.mjs create`. This needs no Research-Kit change. Alternative (b): first add machine-readable review operations to Research-Kit in a separate PR, as the integration review allows. (b) gives a narrower interface, but the kit would need new design and tests first.
 - **D4 Kit pin and licence.** Recommended: re-pin to Research-Kit `fcde0e6` or later with deliberate fixture review, and add a LICENSE to Research-Kit now. Its owner is the same user, so this is a decision rather than research. Without a licence, Stage 4 must keep the kit as a user-provided external installation.
 
 ## Constraints
@@ -58,18 +58,18 @@ Read directly from Research-Kit `main` at `fcde0e6` on October 2.
 - With research off, all existing tests and desktop journeys pass unchanged.
 - A job survives restart at every state and never dispatches twice.
 - No token appears in the database, events, logs, renderer state or PR artifacts.
-- `approved` is reachable only through the kit's own gate and a fresh validation of exact bytes. No Monnzila control can produce it.
+- `approved` is reachable only through the kit's own gate and a fresh validation of exact bytes. No Moonzila control can produce it.
 
 ## Progress
 
 October 2, Task 1: `tests/research-contracts.test.ts` failed first because the new methods did not exist, then passed (7 tests). The credential test starts from a valid input for each research method, so only the added field can cause a rejection. A deliberate mutation that let `research.read` accept extra fields made it fail. Typecheck, lint and `check-handoff` pass. Review of the diff found that the kit's flag parser would read a query such as `--runner=windows-latest` as a flag; the contract now refuses such values and comma-bearing domains, and Task 3 must pass `--name=value`. On Linux the full suite runs 518 tests in 38 files: 442 pass, and the same 76 native/validator tests fail with and without this change (identical failure lists). They need the Windows helper and the prepared kit, so exact-head Windows CI is the acceptance check.
 
-October 2, Task 2: `tests/research-jobs-state.test.ts` (29 tests) failed first because `src/engine/research` did not exist, then passed after implementation. The design came from a judged panel of three alternatives (explicit columns, a typed state document, a transition journal), synthesized into this one; it was rechecked against the files before coding. The v2 fixture `tests/fixtures/schema-v2.sql` was dumped from the unmodified code at `950479f` and reproduces all 48 schema objects. Eight deliberate mutations were each caught: dropping the v1->v2 version chain, the single-dispatch index, admission on dispatch or the research-off refusal; allowing `approved` through the control; publishing on replay; re-queueing an ambiguous dispatch; and removing the explicit stale-revision check. Under the last, a racing second dispatch is still refused by the edge check and nothing is written; only the error code differs. That check exposed that the store derived the next revision from the current row; it now derives it from the caller's expected revision, so the database refuses a stale writer too. Mistakes caught during the work: two test bugs (a duplicate client ref hit the one-active-job index first; a reused run id hit the run-id uniqueness) and one code bug (the DTO carried `undefined` optional keys). Typecheck, lint and `check-handoff` pass; cwd `/home/user/monnzila`. On Linux the full suite runs 547 tests in 39 files: 471 pass, and the same 76 native/validator tests fail as before (identical failure lists). Exact-head Windows CI is the acceptance check.
+October 2, Task 2: `tests/research-jobs-state.test.ts` (29 tests) failed first because `src/engine/research` did not exist, then passed after implementation. The design came from a judged panel of three alternatives (explicit columns, a typed state document, a transition journal), synthesized into this one; it was rechecked against the files before coding. The v2 fixture `tests/fixtures/schema-v2.sql` was dumped from the unmodified code at `950479f` and reproduces all 48 schema objects. Eight deliberate mutations were each caught: dropping the v1->v2 version chain, the single-dispatch index, admission on dispatch or the research-off refusal; allowing `approved` through the control; publishing on replay; re-queueing an ambiguous dispatch; and removing the explicit stale-revision check. Under the last, a racing second dispatch is still refused by the edge check and nothing is written; only the error code differs. That check exposed that the store derived the next revision from the current row; it now derives it from the caller's expected revision, so the database refuses a stale writer too. Mistakes caught during the work: two test bugs (a duplicate client ref hit the one-active-job index first; a reused run id hit the run-id uniqueness) and one code bug (the DTO carried `undefined` optional keys). Typecheck, lint and `check-handoff` pass; cwd `/home/user/moonzila`. On Linux the full suite runs 547 tests in 39 files: 471 pass, and the same 76 native/validator tests fail as before (identical failure lists). Exact-head Windows CI is the acceptance check.
 
 October 2, D4 re-pin (Task 3's first commit): the validator pin moved from `5588ce3` to `fcde0e6`, which descends from it by 64 commits and adds the collector's `--run-id` (`bf60e21`) and poll retries (`49d3b6e`).
 - Facts: 31 runtime files are modified and none added or removed. The fixture identity (`identity.commit = 5588ce3`) and every ZIP are unchanged.
 - Generator: `scripts/generate-research-fixtures.mjs` gained `--inventory-only`, parses its option before any write, and keeps the recorded identity in both partial modes. Without that, a re-pin wrote `identity.commit = fcde0e6` and failed the consumer-binds tests with IDENTITY_MISMATCH.
-- Checks on Linux, Node 24.21.0, cwd `/home/user/monnzila`:
+- Checks on Linux, Node 24.21.0, cwd `/home/user/moonzila`:
   - a mistyped option writes nothing;
   - a tampered expectation is refused, names `legacy-review` and writes nothing;
   - a control run at `5588ce3` leaves both files byte-identical;
@@ -97,7 +97,7 @@ How it was tested:
   - `--topic` on a watch;
   - kit text as a cause;
   - a fresh approval accepted.
-- Full Linux gate, cwd `/home/user/monnzila`: 506 passed and 75 failed, all 75 on the Windows baseline, with no leftover temp directories.
+- Full Linux gate, cwd `/home/user/moonzila`: 506 passed and 75 failed, all 75 on the Windows baseline, with no leftover temp directories.
 - The October 2 briefs on run reconciliation and artifact download (PRs #22, #23) were checked against this design. Digest verification and a run search after a 204 are kit changes, recorded as Research-Kit work. A secondary-limit 403 parks the job as a credentials problem until a status field exists.
 
 October 3, Task 3 part 2a, the supervisor and the guarded launch (committed; the main wiring followed in `3176fa7`, merged in PR #28). The behaviour is specified in [research collection](../../specification/research-collection.md).
@@ -112,7 +112,7 @@ October 3, Task 3 part 2a, the supervisor and the guarded launch (committed; the
   - A negative exit code formed an invalid cause (`KIT_EXIT_-n`).
   - A grown runtime file failed as INPUT_LIMIT rather than INSTALLATION_INVALID.
   - Two tests raced admission.
-- Linux gate, cwd `/home/user/monnzila`: 554 passed, and the 75 failures are the Windows baseline.
+- Linux gate, cwd `/home/user/moonzila`: 554 passed, and the 75 failures are the Windows baseline.
 - Script follow-ups from the break test, landed with this part:
   - the build empties `dist/` first;
   - the Research Kit scripts run from the repository root;
@@ -156,7 +156,7 @@ October 3, integration of the five build teams (import, collector items, small f
   - fixed: the e2e test token reaching the real GitHub (S1), admission not re-checked on `collected`, a torn retained package, a store fault failing a good package (S2), and stale docs (S3);
   - the invariant auditor found all six invariants holding;
   - 60 mutations: 45 detected at first, 7 more after new tests, and the rest recorded below.
-- Linux gate at `8c60521`, cwd `/home/user/monnzila`, Node 24.21.0: typecheck, lint and build clean. 696 tests: 622 passed and 74 failed, all in the Windows baseline. `research-kit.test.ts` "changed runtime and missing installation fail closed" now passes on Linux, because the missing helper maps to `INSTALLATION_INVALID`; it still tests the hash check on Windows.
+- Linux gate at `8c60521`, cwd `/home/user/moonzila`, Node 24.21.0: typecheck, lint and build clean. 696 tests: 622 passed and 74 failed, all in the Windows baseline. `research-kit.test.ts` "changed runtime and missing installation fail closed" now passes on Linux, because the missing helper maps to `INSTALLATION_INVALID`; it still tests the hash check on Windows.
 
 ## Recorded for later (not in Task 2)
 
@@ -225,12 +225,12 @@ October 3, integration of the five build teams (import, collector items, small f
       - (a) keep that fuse on;
       - (b) drop the packaged e2e step, or make it non-blocking;
       - (c) build a second, test-only package with the fuse on (needs an ADR, because the e2e step would no longer test the shipped binary).
-    - The rename (PR #31) changed the packaged executable to `release/win-unpacked/Monnzila.exe`; B5's check step and its workflow test still name `MoonAliza.exe`, so the branch must be updated (read the path from `productName`, as its test already does) when it is integrated.
+    - The rename (PR #31) changed the packaged executable to `release/win-unpacked/Moonzila.exe`; B5's check step and its workflow test still name `MoonAliza.exe`, so the branch must be updated (read the path from `productName`, as its test already does) when it is integrated.
     - Also open: pinning `eol=lf` for `electron-builder.yml` and the workflows; `grantFileProtocolExtraPrivileges` stays at Electron's default (enabled) because the renderer loads over `file://`.
   - **Phase 3:** B2 engine review run and B3 main review supervisor, as in the breakdown above.
   - **Phase 4:** B4 renderer review UI and B8 research enable dialog.
   - **Phase 5:** B7 `research.purge`, docs, the four-role review, then `gap-audit` and `break-test`.
-  - **Watch:** draft PR #31 (another session) renames the product to Monnzila and specifies Operate mode. Check whether it has merged before each phase starts; merge `main` into `main-axuse` (never rebase) when it moves.
+  - **Watch:** draft PR #31 (another session) renames the product to Moonzila and specifies Operate mode. Check whether it has merged before each phase starts; merge `main` into `main-axuse` (never rebase) when it moves.
 - **Open after the October 3 integration (owner: the next research cycle unless the user decides otherwise).**
   - Decisions for the user:
     - `research.purge` semantics. The contract deletes the job; the source plan keeps the metadata. The import team recommends keeping the job and its journal and deleting only the retained ZIP, for finished jobs whose digest no other verification references.
@@ -261,7 +261,7 @@ October 3, integration of the five build teams (import, collector items, small f
 
 ## Next phase after research: missions
 
-User decision, October 2: finish this research phase first, then build missions (source-plan tasks C3/C4). Monnzila may propose splitting a hard task into several agents, but it must **always ask for approval** first, showing the agent count, step budget, cloud or local profiles, and whether agents run in parallel. Local parallel agents need a warm runtime and concurrent scheduler leases (the scheduler is currently one-at-a-time and stops the runtime after each lease); cloud profiles can run in parallel.
+User decision, October 2: finish this research phase first, then build missions (source-plan tasks C3/C4). Moonzila may propose splitting a hard task into several agents, but it must **always ask for approval** first, showing the agent count, step budget, cloud or local profiles, and whether agents run in parallel. Local parallel agents need a warm runtime and concurrent scheduler leases (the scheduler is currently one-at-a-time and stops the runtime after each lease); cloud profiles can run in parallel.
 
 User direction, October 2: the mission should decide from the machine's resources which model each agent uses and how many agents run, as local model selection already does. The user approved this design on October 2. It follows `selectLocal` (`src/models/select.ts`, [selection policy](../../specification/model-store-selection.md)):
 
@@ -272,7 +272,7 @@ User direction, October 2: the mission should decide from the machine's resource
 
 ## Project memory (proposed for after this phase, before missions)
 
-User request, October 2: sessions must be stored and the user must be able to switch modes freely without Monnzila forgetting where work stopped, repeating mistakes or rewriting finished work. Reference: [ProjectBrain](https://www.projectbrain.tools/), a hosted, structured memory of tasks, decisions, facts and skills shared across sessions and agents.
+User request, October 2: sessions must be stored and the user must be able to switch modes freely without Moonzila forgetting where work stopped, repeating mistakes or rewriting finished work. Reference: [ProjectBrain](https://www.projectbrain.tools/), a hosted, structured memory of tasks, decisions, facts and skills shared across sessions and agents.
 
 Current state (verified October 2): conversations, runs, messages and events persist in the engine database; the mode is chosen per message, so one conversation already spans Ask, Plan and Build. Forgetting comes from context assembly (`src/engine/context.ts`), which drops the oldest turns from the model request when the window fills (reported as omitted history), and there is no memory shared across conversations and no record of mistakes.
 
@@ -294,7 +294,7 @@ These are user decisions; later phases implement them.
 - **Phase order:** finish this research phase, then project memory, then missions.
 - **Completion is counted, never estimated.** Every plan step lists acceptance items written in advance. An item counts only when its evidence exists: a test that ran and passed, CI green on that exact commit, a merged PR. Build completion % = verified items / all items, and each number links to what is missing.
 - **Research readiness per plan step.** Each step lists its blocking unknowns. Research readiness % = unknowns closed with verified evidence / all blocking unknowns; an unreachable fact may be labelled a known unknown with a day-one check, never left silent. The plan shows both percentages.
-- **Build only where research is sufficient** (integration review Stage 3, research-aware Build admission): Build mode is admitted per plan step only when that step's research is ready (the kit's own gate plus a fresh Monnzila validation). Steps with no blocking unknowns need no research, so research stays optional for ordinary work.
+- **Build only where research is sufficient** (integration review Stage 3, research-aware Build admission): Build mode is admitted per plan step only when that step's research is ready (the kit's own gate plus a fresh Moonzila validation). Steps with no blocking unknowns need no research, so research stays optional for ordinary work.
 - **Build to Research and back.** When Build hits something it cannot resolve from the code, it pauses that step, records the open question as an unknown in project memory and proposes a targeted research job with topic and queries prefilled from the error. The approval card shows exactly what becomes public; code is never placed in queries automatically. After review, facts land in project memory with sources and Build resumes at the same step; a mistake becomes a lesson.
 - **Quality checks.** Careful-coding discipline (read before changing, run the checks, re-read the diff, report mistakes plainly) is Build mode's default behaviour. Break-test (prove realistic build and test failures, then fix them minimally) is suggested at 25%, 50% and 75% build completion, when a change touches risky areas (migrations, process or credential code, installers) and after a repeated-failure lesson; it is required before a milestone is marked 100% or released. The user approves every break-test run, with its cost shown. In missions it becomes a preset (finder, verifier, fixer).
 - **GitHub, approved as four steps:**
@@ -311,7 +311,7 @@ These are user decisions; later phases implement them.
 
 ## Computer use, Operator mode (approved: sandbox only, after missions)
 
-User request, October 2: Monnzila should be able to control the PC, as GPT's agent does, with [Cua](https://github.com/trycua/cua) as the reference. Facts from Cua's README (read October 2): Cua Driver inspects and operates native apps and browsers on Windows, macOS and Linux through a CLI, MCP or typed SDKs, in the background where the app and platform allow; Cua also provides isolated local or cloud sandboxes. The core and the Driver are MIT; Spaces and cua-spacesd are FSL-1.1-MIT; the optional perception extension and cua-som carry AGPL obligations.
+User request, October 2: Moonzila should be able to control the PC, as GPT's agent does, with [Cua](https://github.com/trycua/cua) as the reference. Facts from Cua's README (read October 2): Cua Driver inspects and operates native apps and browsers on Windows, macOS and Linux through a CLI, MCP or typed SDKs, in the background where the app and platform allow; Cua also provides isolated local or cloud sandboxes. The core and the Driver are MIT; Spaces and cua-spacesd are FSL-1.1-MIT; the optional perception extension and cua-som carry AGPL obligations.
 
 Proposed design (safety first; the user still chooses the scope):
 
@@ -319,22 +319,22 @@ Proposed design (safety first; the user still chooses the scope):
 2. **Real desktop only by explicit per-session opt-in,** with an always-visible control banner, an instant stop hotkey and an app allowlist.
 3. **Step approval for sensitive actions:** password or payment fields, sending messages or email, deleting, installing and purchases always pause for the user.
 4. **Screenshots are private content:** they reach a cloud model only where the project allows cloud inference; local vision models are chosen by the hardware-aware planner when the machine qualifies.
-5. **Cua stays an external, user-installed, version-pinned component** reached over MCP, like Research-Kit. Monnzila never runs its piped install script and never bundles the AGPL or FSL parts.
+5. **Cua stays an external, user-installed, version-pinned component** reached over MCP, like Research-Kit. Moonzila never runs its piped install script and never bundles the AGPL or FSL parts.
 
 Order: research, project memory, missions (beginning with background tasks), then computer use, which reuses their approvals, background sessions, Stop and ownership.
 
 **Decision, October 2: sandbox only.** The first version operates only an isolated sandbox (Windows Sandbox or a Cua sandbox) and never the real desktop. Item 2 is deferred: real-desktop control is not built, offered or hidden behind a setting in this version. It is reconsidered only as a separate, later plan once sandbox mode has shipped, and only with the safeguards in item 2. Items 3, 4 and 5 apply inside the sandbox too, because a sandbox can still send email, pay or upload what it sees.
 
-## App name (decided October 2: keep Monnzila)
+## App name (decided October 2: keep Moonzila)
 
-The user asked for a more fitting name, picked Groundwork, then chose to keep Monnzila after a web check (October 2) found the candidates already in use by AI-agent or developer tools:
+The user asked for a more fitting name, picked Groundwork, then chose to keep Moonzila after a web check (October 2) found the candidates already in use by AI-agent or developer tools:
 
 - Groundwork: at least six agent and dev-tool projects (gates, project memory, cited research), plus several AI businesses.
 - Cairn: an agent-first IDE and a local-first AI notes app.
 - Plumbline, Keelson, Sightline, Provena and Firmground: each already an AI tool.
 - Surefoot was the only free candidate in the category (a ski-boot brand uses it).
 
-Monnzila is distinctive and already findable. Groundwork may instead name the research phase inside the app; confirm that when the research UI is built. If a rename comes back, record it as its own task:
+Moonzila is distinctive and already findable. Groundwork may instead name the research phase inside the app; confirm that when the research UI is built. If a rename comes back, record it as its own task:
 
 - Change only what users see: product name, installer, window titles, docs.
 - Keep `app.setName` (the `%APPDATA%` data folder), the installer `appId` and the update feed, so existing installs keep their data and still get updates.
@@ -342,12 +342,12 @@ Monnzila is distinctive and already findable. Groundwork may instead name the re
 
 ## Patterns adopted from awesome-llm-apps (approved October 2)
 
-The user asked what Monnzila can take from [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) (Apache-2.0). It is a catalogue of standalone Python demos, mostly Streamlit UIs on Google ADK, OpenAI Agents SDK, CrewAI or LangGraph. Take patterns, not code: the demos have no vault, approvals or engine/main split, and several take API keys in UI text fields. Each pattern below was read from the example's README. The user approved adopting the first three, including the suggested first background task, on October 2. Re-read the example's code when its phase starts.
+The user asked what Moonzila can take from [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) (Apache-2.0). It is a catalogue of standalone Python demos, mostly Streamlit UIs on Google ADK, OpenAI Agents SDK, CrewAI or LangGraph. Take patterns, not code: the demos have no vault, approvals or engine/main split, and several take API keys in UI text fields. Each pattern below was read from the example's README. The user approved adopting the first three, including the suggested first background task, on October 2. Re-read the example's code when its phase starts.
 
 - **Missions, `agent_skills/advisor-orchestrator-worker`:**
   - Workers get self-contained briefs, with inputs and acceptance criteria inline.
   - Each result gets a verdict: PASS, FIX (re-dispatched with the failure details) or ESCALATE.
-  - An advisor reviews the plan before dispatch and the result before delivery. In Monnzila the pre-dispatch review is where the user's approval goes.
+  - An advisor reviews the plan before dispatch and the result before delivery. In Moonzila the pre-dispatch review is where the user's approval goes.
   - The budget is stated up front and never exceeded silently.
   - Pair it with the hardware-aware planner: cheap workers, stronger judgment only where it changes a decision.
 - **Project memory, `agent_skills/self-improving-agent-skills`:**
@@ -359,7 +359,7 @@ The user asked what Monnzila can take from [awesome-llm-apps](https://github.com
 - **Background tasks, `always_on_agents/release_radar_agent`:**
   - Outbound delivery needs both `dry_run=false` and a configured destination.
   - It reports only impact (breaking, security, deprecation).
-  - A good first background task: watch a project's dependencies. Monnzila must add what the demo lacks: state between runs, de-duplication and Stop.
+  - A good first background task: watch a project's dependencies. Moonzila must add what the demo lacks: state between runs, de-duplication and Stop.
 - **No change, `advanced_ai_agents/multi_agent_apps/trust_gated_agent_team`:** its SHA-256 hash-chained audit log matches Research-Kit's ledger and the `research_events` journal, and fixed agent trust scores are weaker than evidence and approval gates.
 - **Not yet read; check when the related work starts:**
   - `rag_tutorials/corrective_rag`, for the Build-to-Research loop;
@@ -369,9 +369,9 @@ The user asked what Monnzila can take from [awesome-llm-apps](https://github.com
 
 ## MCP tools from awesome-mcp-servers (proposed October 2, with missions)
 
-The user asked what Monnzila can take from [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers). It is a community-submitted, unvetted directory: only a 🎖️ badge marks an official implementation, and the README makes no security claim. The entries below were read from its README on October 2; check each one's own repository before use.
+The user asked what Moonzila can take from [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers). It is a community-submitted, unvetted directory: only a 🎖️ badge marks an official implementation, and the README makes no security claim. The entries below were read from its README on October 2; check each one's own repository before use.
 
-- **MCP as the plug-in mechanism (proposed).** Monnzila becomes an MCP client, so new tools are installed rather than built. Computer use already plans to reach Cua over MCP.
+- **MCP as the plug-in mechanism (proposed).** Moonzila becomes an MCP client, so new tools are installed rather than built. Computer use already plans to reach Cua over MCP.
   - Servers are user-added only, pinned by version and executable hash, like Research-Kit.
   - Each runs as an owned process with a minimal environment, and receives credentials only through vault grants.
   - Tool schemas are shown before the first use. Every call with an effect goes through approvals, and every call is journaled.
@@ -379,7 +379,7 @@ The user asked what Monnzila can take from [awesome-mcp-servers](https://github.
   - First candidates: GitHub's official MCP server, for the four GitHub integration steps; Cua's MCP server, for sandbox-only computer use.
 - **Provenance gating (proposed for missions), listed as `cgrtml/reasongate`:** a tool call whose arguments were derived from untrusted content (a fetched page, another tool's output) needs approval. This defends against prompt injection once agents browse and run tools.
 - **Decision tracking with testable predictions (proposed for project memory), listed as `mcp-server-decisions`:** each recorded decision carries a check that could prove it wrong, which feeds "does not repeat mistakes".
-- **Not taken:** installing directory servers freely, and cloud code-execution sandboxes as a default. Monnzila stays local-first; Windows Sandbox comes first.
+- **Not taken:** installing directory servers freely, and cloud code-execution sandboxes as a default. Moonzila stays local-first; Windows Sandbox comes first.
 
 ## Coding knowledge base and the October 3 repository review (adopted October 3)
 

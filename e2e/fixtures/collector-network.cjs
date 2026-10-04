@@ -1,6 +1,6 @@
 'use strict';
 // Test-only. Never bundled or packaged: it lives under e2e/ and reaches the app only when a spec passes it to Electron
-// with `-r`, before the app's own main code runs. Monnzila gives a collector child a minimal environment
+// with `-r`, before the app's own main code runs. Moonzila gives a collector child a minimal environment
 // (collectorEnvironment), so the real pinned kit cannot be pointed at tests/fixtures/fake-github.ts by any setting.
 // This adds exactly two variables, HTTPS_PROXY (a loopback proxy) and NODE_EXTRA_CA_CERTS (the test CA), to the
 // environment block of a collect-remote.mjs launch on its way into the native helper. It also refuses every request main itself sends
@@ -99,7 +99,7 @@ function install(childProcess, input, scope = globalThis) {
 if (process.env[ENV] !== undefined) {
   const network = JSON.parse(process.env[ENV]);
   delete process.env[ENV];
-  globalThis.__monnzilaE2eCollectorNetwork = install(require('node:child_process'), network);
+  globalThis.__moonzilaE2eCollectorNetwork = install(require('node:child_process'), network);
 }
 
 module.exports = { ENV, install };

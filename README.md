@@ -1,4 +1,4 @@
-# Monnzila
+# Moonzila
 
 A Windows desktop coding assistant under active development. The full product plan includes local and API models, approved coding tools, research, skills, teams, and missions. The implementation follows working stages; the full scope is preserved in [the implementation plan](docs/superpowers/plans/2026-09-24-moonaliza.md).
 

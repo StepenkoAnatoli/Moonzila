@@ -9,7 +9,7 @@ const directories: string[] = [];
 const check = (root: string) => promisify(execFile)(process.execPath, [resolve('scripts/check-handoff.mjs'), root], { windowsHide: true, timeout: 15000, maxBuffer: 16384 });
 afterEach(async () => { for (const root of directories.splice(0)) { const child = relative(resolve(tmpdir()), root); if (!child || child.startsWith('..') || isAbsolute(child)) throw new Error('FIXTURE_PATH'); await rm(root, { recursive: true, force: true }); } });
 async function checkout() {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-handoff-')); directories.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-handoff-')); directories.push(root);
   for (const path of ['AGENTS.md', 'HANDOFF.md', 'README.md', 'docs', 'research', '.node-version', 'package.json', '.github']) await cp(resolve(path), join(root, path), { recursive: true });
   return root;
 }

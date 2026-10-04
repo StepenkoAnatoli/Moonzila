@@ -18,7 +18,7 @@ async function files(directory: string): Promise<string[]> {
 
 test('The collector token is kept by the startup reconcile, never written in clear, and can be cleared', async () => {
   test.setTimeout(120000);
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-collector-e2e-')); const data = join(root, 'data'); await mkdir(data);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-collector-e2e-')); const data = join(root, 'data'); await mkdir(data);
   const packaged = process.env.MOONALIZA_TEST_EXECUTABLE;
   const launch = () => electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...(packaged ? [] : [resolve('.')]), `--user-data-dir=${data}`] });
   let app: ElectronApplication | undefined;

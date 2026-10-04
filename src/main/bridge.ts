@@ -20,7 +20,7 @@ const publicMessages: Record<string, string> = {
   REVIEW_NOT_AVAILABLE: 'This research cannot be reviewed now. Only a collected corpus, or one that is not ready yet, can be reviewed.',
   REVIEW_WORKSPACE_TOO_LARGE: 'This corpus has too many files to review safely on this computer.',
   STALE_VERIFICATION: 'The collected corpus could not be verified again. Start a new collection.',
-  RESEARCH_KIT_UNAVAILABLE: 'The Research Kit is not installed or failed its integrity check. Install or repair it, then restart Monnzila.',
+  RESEARCH_KIT_UNAVAILABLE: 'The Research Kit is not installed or failed its integrity check. Install or repair it, then restart Moonzila.',
   CLOUD_NOT_ALLOWED: 'This conversation or project allows local inference only. Choose a local profile or use Review cloud access to explicitly allow this project’s content to reach the selected provider.',
   CREDENTIAL_UNAVAILABLE: 'A saved key cannot be reused at a different endpoint or provider type. Enter the key for the new destination, or create a separate profile.',
   COLLECTOR_TOKEN_REQUIRED: 'Enter the collector token again when you change the collector repository, or remove the saved token.',

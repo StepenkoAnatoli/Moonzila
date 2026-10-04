@@ -1,6 +1,6 @@
 # Implementation references
 
-Checked September 25, 2026. These define integration behavior; they are not proof that Monnzila passed runtime tests.
+Checked September 25, 2026. These define integration behavior; they are not proof that Moonzila passed runtime tests.
 
 - [Electron utilityProcess](https://www.electronjs.org/docs/latest/api/utility-process): main launches the engine and exchanges correlated messages through parentPort.
 - [Electron parentPort](https://www.electronjs.org/docs/latest/api/parent-port): engine-side lifecycle and messaging.

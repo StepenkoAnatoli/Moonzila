@@ -11,7 +11,7 @@ import { safeError } from '../src/main/bridge';
 const cleanup: Array<() => void> = [];
 afterEach(() => cleanup.splice(0).forEach(fn => fn()));
 function fixture() {
-  const directory = mkdtempSync(join(tmpdir(), 'monnzila-operations-'));
+  const directory = mkdtempSync(join(tmpdir(), 'moonzila-operations-'));
   const store = new Store(join(directory, 'state.sqlite')); const now = new Date().toISOString();
   cleanup.push(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
   store.putProject({ id: 'p', rootPath: directory, name: 'Project', pathLabel: directory, trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'off' }, missing: false, createdAt: now });

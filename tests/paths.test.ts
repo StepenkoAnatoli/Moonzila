@@ -18,14 +18,14 @@ test('normalizes separators while preserving valid names', () => {
 });
 
 test('resolves absent files beneath an existing safe ancestor', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-paths-'));
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-paths-'));
   roots.push(root);
   await mkdir(join(root, 'src'));
   expect(await resolveProjectPath(root, 'src/new.ts', { allowMissing: true })).toBe(join(await realpath(root), 'src', 'new.ts'));
 });
 
 test('rejects a junction escaping the project root', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'monnzila-paths-'));
+  const directory = await mkdtemp(join(tmpdir(), 'moonzila-paths-'));
   roots.push(directory);
   const root = join(directory, 'project');
   const outside = join(directory, 'outside');

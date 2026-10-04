@@ -125,7 +125,7 @@ describe('research contracts', () => {
   test('job state and events share one status vocabulary', () => {
     const statuses = ['queued', 'dispatching', 'collecting', 'collected', 'reviewing', 'packaging', 'approved', 'not_ready', 'failed', 'cancelling', 'cancelled'];
     expect(ResearchStatusSchema.options).toEqual(statuses);
-    const research = { id: 'r1', projectId: 'p1', revision: 1, status: 'collecting', topic: 't', clientRef: 'monnzila-r1', workflowRunId: '123', createdAt: '2026-10-02T00:00:00Z', updatedAt: '2026-10-02T00:00:00Z' };
+    const research = { id: 'r1', projectId: 'p1', revision: 1, status: 'collecting', topic: 't', clientRef: 'moonzila-r1', workflowRunId: '123', createdAt: '2026-10-02T00:00:00Z', updatedAt: '2026-10-02T00:00:00Z' };
     expect(ResearchSchema.safeParse(research).success).toBe(true);
     expect(ResearchSchema.safeParse({ ...research, status: 'sufficient' }).success).toBe(false);
     expect(ResearchSchema.safeParse({ ...research, clientRef: '-bad' }).success).toBe(false);

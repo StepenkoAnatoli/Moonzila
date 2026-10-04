@@ -15,7 +15,7 @@ test('General chat reads a supplied GitHub URL through main and saves cited resu
       let message;
       if (last.role === 'tool') {
         const result = JSON.parse(last.content); observedSource = result.url ?? '';
-        message = { content: result.text === 'Monnzila repository evidence' ? `I read the README: [source](${result.url}).` : 'Reader did not return evidence.' };
+        message = { content: result.text === 'Moonzila repository evidence' ? `I read the README: [source](${result.url}).` : 'Reader did not return evidence.' };
       } else message = { content: '', tool_calls: [{ id: 'github-readme', function: { name: 'read_github', arguments: { url: 'https://github.com/example/project', path: 'README.md' } } }] };
       response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ message, done: true, done_reason: 'stop' }));
     });
@@ -32,7 +32,7 @@ test('General chat reads a supplied GitHub URL through main and saves cited resu
         const url = String(input);
         if (!url.startsWith('https://api.github.com/')) return original(input, init);
         if (new Headers(init?.headers).has('Authorization')) throw new Error('UNEXPECTED_AUTH');
-        const content = 'Monnzila repository evidence';
+        const content = 'Moonzila repository evidence';
         if (url === 'https://api.github.com/repos/example/project/commits/HEAD') return new Response(JSON.stringify({ sha }));
         if (url === `https://api.github.com/repos/example/project/contents/README.md?ref=${sha}`) {
           // Exercise a valid read slower than Playwright's default five-second assertion.
@@ -46,7 +46,7 @@ test('General chat reads a supplied GitHub URL through main and saves cited resu
     await page.getByRole('button', { name: 'Model profiles', exact: true }).click();
     await page.getByLabel('Profile name').fill('GitHub fixture'); await page.getByLabel('Endpoint').fill(`http://127.0.0.1:${port}`);
     await page.getByLabel('Model name').fill('fixture'); await page.getByRole('button', { name: 'Save profile' }).click();
-    await page.getByLabel('Message Monnzila').fill('Read https://github.com/example/project'); await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Message Moonzila').fill('Read https://github.com/example/project'); await page.getByRole('button', { name: 'Send message' }).click();
     // Wait for the durable outcome, not a five-second end-to-end timing assumption.
     // A failed/cancelled run ends the wait too, and must fail the assertion below.
     let outcome = '';
@@ -63,7 +63,7 @@ test('General chat reads a supplied GitHub URL through main and saves cited resu
     await expect(page.getByText('I read the README:', { exact: false })).toBeVisible();
     expect(observedSource).toBe(`https://github.com/example/project/blob/${sha}/README.md`); expect(modelCalls).toBe(2);
     await expect(page.getByRole('heading', { name: 'General chat' })).toBeVisible();
-    await page.screenshot({ path: 'test-results/monnzila-github-reading.png' });
+    await page.screenshot({ path: 'test-results/moonzila-github-reading.png' });
     await app.close(); app = await launch(); page = await app.firstWindow();
     await page.getByRole('button', { name: 'Read https://github.com/example/project', exact: true }).click();
     await expect(page.getByText('I read the README:', { exact: false })).toBeVisible(); expect(modelCalls).toBe(2);

@@ -7,7 +7,7 @@ import { ProjectTickets } from '../src/main/projects';
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(p => rm(p, { recursive: true, force: true }))); });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-tickets-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-tickets-')); roots.push(root);
   await mkdir(join(root, 'project'));
   return join(root, 'project');
 }

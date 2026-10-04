@@ -65,7 +65,7 @@ function runner(validations: OwnedCommand[], watch = 'collected', validator: Val
 }
 
 async function harness(answer: () => Response, options: { watch?: string; validator?: Validator } = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'monnzila-import-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'moonzila-import-')); roots.push(root);
   const store = new Store(join(root, 'state.sqlite')); closers.push(async () => store.close());
   const notices: unknown[] = []; const jobs = new ResearchJobs(store, research => notices.push(research));
   store.putProject({ id: 'p', name: 'p', rootPath: 'C:\\work\\p', pathLabel: 'p', trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'public-technical' }, missing: false, createdAt: at });
