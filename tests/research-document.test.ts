@@ -443,3 +443,14 @@ test.skipIf(!canMkfifo)('a FIFO swapped in for the document between its lstat an
   } finally { await w.kit.close(); }
 }, 10000);
 
+test('the job folder swapped for a link to itself between the lstat and the open is caught after the read', async () => {
+  // Guard: the post-read containedFolder check (mutation: remove it). The file reached through the link is the same inode
+  // with one link, so the lstat-before-open and the fstat identity both pass; only the ancestors' containment sees the link.
+  const w = await world();
+  try {
+    await notReady(w);
+    const moved = join(w.folder, 'moved-job');
+    const swap = async () => { await rename(w.job, moved); await symlink(moved, w.job, 'junction'); };
+    await expect(readWorkspace(w.reviewRoot, w.id, ['research', 'BRIEF.md'], { beforeOpen: swap })).rejects.toThrow('DOCUMENT_UNSAFE');
+  } finally { await w.kit.close(); }
+}, 60000);
