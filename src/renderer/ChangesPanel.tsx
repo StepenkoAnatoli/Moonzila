@@ -4,9 +4,11 @@ import type { AppApi } from './App';
 import { RecoveryPanel } from './RecoveryPanel';
 
 type Preview = MethodResult<'approval.read'>;
+// A card carries the mode of the run it was loaded for, so a stale card never relabels when the current run changes before the reload lands.
+type Card = Preview & { runMode?: Run['mode'] };
 // runMode is the mode of the run named by runId: a review edit in a research run targets the private research workspace, never the project.
 export function ChangesPanel({ api, projectId, runId, runMode }: { api: AppApi; projectId: string; runId?: string; runMode?: Run['mode'] }) {
-  const [pending, setPending] = useState<Preview>(); const [changes, setChanges] = useState<Change[]>([]);
+  const [pending, setPending] = useState<Card>(); const [changes, setChanges] = useState<Change[]>([]);
   const [selected, setSelected] = useState<MethodResult<'changes.read'>>();
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [refresh, setRefresh] = useState(0);
   const review = useRef<HTMLElement>(null);
@@ -27,11 +29,11 @@ export function ChangesPanel({ api, projectId, runId, runMode }: { api: AppApi; 
       const waiting = runId ? await api.invoke('approval.list', { runId }) as { operations: Operation[] } : { operations: [] };
       const first = waiting.operations[0];
       const preview = first ? await api.invoke('approval.read', { projectId, operationId: first.id }) as Preview : undefined;
-      if (alive) { setChanges(result.changes); setPending(preview); }
+      if (alive) { setChanges(result.changes); setPending(preview && { ...preview, runMode }); }
     }
     void load().catch(reason => { if (alive) setError(reason instanceof Error ? reason.message : 'Changes could not be loaded.'); });
     return () => { alive = false; };
-  }, [api, projectId, runId, refresh]);
+  }, [api, projectId, runId, runMode, refresh]);
   async function decide(decision: Approval['decision']) {
     if (!pending) return; setBusy(true); setError('');
     const op = pending.operation;
@@ -56,7 +58,7 @@ export function ChangesPanel({ api, projectId, runId, runMode }: { api: AppApi; 
     <RecoveryPanel api={api} projectId={projectId} runId={runId} changed={update} />
     {error && <p role="alert" className="form-error">{error}</p>}
     {pending?.kind === 'write' && <section ref={review} className="edit-review" aria-label="Edit review">
-      <h2>{runMode === 'research' ? 'Research workspace' : 'Review edit'} · {pending.path}</h2><p>The file will change only after you approve this exact edit.</p>
+      <h2>{pending.runMode === 'research' ? 'Research workspace' : 'Review edit'} · {pending.path}</h2><p>The file will change only after you approve this exact edit.</p>
       <div className="change-columns"><div><h3>Current content</h3><pre tabIndex={0} aria-label="Current content">{pending.before ?? '(new file)'}</pre></div><div><h3>Proposed content</h3><pre tabIndex={0} aria-label="Proposed content">{pending.after ?? '(delete file)'}</pre></div></div>
       <div className="review-actions"><button disabled={busy} onClick={() => void decide('deny')}>Decline edit</button><button disabled={busy} className="primary" onClick={() => void decide('allow')}>Approve edit</button></div>
     </section>}

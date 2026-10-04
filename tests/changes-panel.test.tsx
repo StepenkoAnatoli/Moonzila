@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, test } from 'vitest';
 import type { Run } from '../src/shared';
 import { ChangesPanel } from '../src/renderer/ChangesPanel';
@@ -8,12 +8,12 @@ import { ChangesPanel } from '../src/renderer/ChangesPanel';
 afterEach(cleanup);
 const hash = `sha256:${'a'.repeat(64)}`;
 const operation = { id: 'op1', runId: 'run1', projectId: 'p1', kind: 'write' as const, inputHash: hash, policyRevision: 1, trustRevision: 1, status: 'prepared' as const };
-function bridge() {
+function bridge(hold?: { list?: Promise<unknown> }) {
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   const api = {
     async invoke(method: string, params: Record<string, unknown> = {}) {
       calls.push({ method, params });
-      if (method === 'changes.list') return { changes: [] };
+      if (method === 'changes.list') return hold?.list ?? { changes: [] };
       if (method === 'approval.list') return { operations: [operation] };
       if (method === 'approval.read') return { kind: 'write', operation, path: 'research/BRIEF.md', before: 'old', after: 'new' };
       if (method === 'approval.decide') return { approval: params };
@@ -48,3 +48,18 @@ for (const mode of ['ask', 'plan', 'build', 'mission', undefined] as Array<Run['
     expect(screen.queryByText(/Research workspace/)).toBeNull();
   });
 }
+
+test('a card loaded in a research run keeps its label while the run stops being active and the reload is still pending', async () => {
+  const hold: { list?: Promise<unknown> } = {};
+  const { api } = bridge(hold);
+  const view = render(<ChangesPanel api={api} projectId="p1" runId="run1" runMode="research" />);
+  expect((await screen.findByRole('heading', { level: 2 })).textContent).toBe('Research workspace · research/BRIEF.md');
+  let release!: (value: unknown) => void;
+  hold.list = new Promise(resolve => { release = resolve; });
+  view.rerender(<ChangesPanel api={api} projectId="p1" runId={undefined} runMode={undefined} />);
+  // The stale card is still on screen until the held load resolves; it must never read as a project edit.
+  expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Research workspace · research/BRIEF.md');
+  expect(screen.queryByText(/Review edit/)).toBeNull();
+  await act(async () => { release({ changes: [] }); });
+  await waitFor(() => expect(screen.queryByRole('heading', { level: 2 })).toBeNull());
+});
