@@ -70,7 +70,7 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 |------|------|--------|----------------------|-------|
 | B11 reader | `src/main/` reader, `index.ts` case, tests | BUILDING | - | Opus |
 | B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | BUILDING | - | Opus |
-| B4b card label | `ChangesPanel.tsx`, tests | INTEGRATED, IN UNIT REVIEW (report `reports/p4-b4b-builder-1.md`; App.tsx `runMode` wiring moved to B4) | `f8972f7` (branch `b0fcc76`) | Opus |
+| B4b card label | `ChangesPanel.tsx`, tests | REVIEWED, FIX IN PROGRESS (S2 stale label; reports `p4-b4b-builder-1.md`, `p4-b4b-reviewer-1.md`; App.tsx `runMode` wiring moved to B4) | `f8972f7` (branch `b0fcc76`) | Opus |
 | B8e policy guard | main route module, `index.ts`, engine re-check, tests | BUILDING | - | Opus |
 | B8 switch | `ResearchPanel.tsx` switch section | BRIEFED (after B4) | - | Opus |
 
@@ -89,6 +89,11 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: D1, one public code `REVIEW_NOT_READY`. D2, packaged e2e on a test-only package (decision 13). The product name is Moonzila (decision 12). PRs open as drafts; the user's "Ready for review" lets the lead merge on green CI.
 - 2026-10-04: a cross-vendor (GPT) reviewer joins Phase 3's review and is offered for Phase 5's gap-audit.
 
+## Findings (Phase 4)
+| ID | Source | Severity | Finding | Disposition |
+|----|--------|----------|---------|-------------|
+| P4-1 | B4b unit review | S2 (proposed S3; raised: it is the mislabel spec section 2 forbids) | `ChangesPanel.tsx:59` labels a stale card from the current `runMode`; when a research run ends the card briefly reads "Review edit" with Approve enabled | FIX BRIEFED to the B4b builder: bind the mode to the card at load, red-first |
+
 ## Kit findings
 - none
 
@@ -101,3 +106,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: second cross-vendor review of the Phase 4 spec: 4 findings (2 S1, 1 S2, 1 S3), all folded in: the research-switch check moves into main's route under a per-project lock, before any abort or revoke; redaction runs on the whole document before the cut; reader outcomes get their own codes and messages. The user said to start the build after the revision.
 - 2026-10-04: lead-orchestrator re-applied mid-phase. Corrected two gaps: builders now commit to their own branches (the first rules said leave uncommitted; all four told before their first commit), and every Phase 4 brief is written to `briefs/` before launch.
 - 2026-10-04: B4b accepted (key test re-run 6/6; weakening the mode check turns 4 red) and integrated as f8972f7; unit reviewer launched. Its one-line App.tsx wiring went to the B4 builder, who owns App.tsx.
+- 2026-10-04: B4b unit review: activeRun confirmed as the right source; one finding P4-1 (S2), fix sent to the B4b builder.
