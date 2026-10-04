@@ -18,7 +18,7 @@
 | 3 Design | DONE | docs/specification/research-purge.md | 18:00 |
 | 4 Mandate | DONE (standing mandate) | MANDATE-P5.md | 18:00 |
 | 5 Build | DONE | units B7a, B7b, P4-40 integrated, reviewed, fixed; integration spec and invariant reviews done | 2026-10-04 |
-| 6 Harden | ACTIVE: break-test agent on `break-test/2026-10-04` from `d599a39` | report due at docs/evidence/2026-10-04-break-test.md | - |
+| 6 Harden | DONE: F1, F2 fixed; risks dispositioned (P5-17..P5-22) | docs/evidence/2026-10-04-break-test.md; corpus docs/research/2026-10-04-break-test-external-facts (preflight 0) | 2026-10-04 |
 | 7 Audit | DONE: P5-11..P5-14 fixed; P5-15, P5-16 open items in the plan | reports/p5-gap-audit-1.md | 2026-10-04 |
 | 8 Deliver and merge | PENDING | - | - |
 | 9 Validate and report | PENDING | - | - |
@@ -177,6 +177,12 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-14 | gap-audit G5 | Medium, IN-SCOPE (test) | review kit children never run through the real native helper in tests | FIXED (`ca2386e`): Windows-only test through `MoonAlizaHost.exe`; Windows CI verifies |
 | P5-15 | gap-audit G2 | Med-High, DESIGN CHANGE (lead) | a retry is not told why the previous review failed; the reviewed manifest's `review.*` flags and `gate.blockingFindings` never reach the next run or the panel | OPEN ITEM: needs a new field from main to the engine's begin and to ResearchSchema (an interface change); recorded in the plan as a Task 5 follow-up |
 | P5-16 | gap-audit G6 | Low, DESIGN CHANGE | collected/not_ready jobs can never be abandoned; their ZIPs and workspaces stay | OPEN ITEM: changes the user's 2026-10-03 purge rule; for the user |
+| P5-17 | break-test F1 | Medium, Possible | without Electron's binary `npm test` downloads Electron; offline two files fail to load and 44 tests vanish while a name-only comparison says "new: 0" | FIXED (`0439e6e`): AGENTS.md install runs `node node_modules/electron/install.js`; the baseline comparison also checks total tests and files without results |
+| P5-18 | break-test F2 | Low, Likely | `scripts/generate-research-fixtures.mjs` leaves a 3.3 MB `.build/rk-generation-*` folder every run | FIXED (`fd2221c`): exit handler removes it |
+| P5-19 | break-test risk 1 | Medium, observed | the lead's gate comparison misses files that fail to load and `test.each` tests sharing names (1108 tests -> 1098 keys) | ADOPTED by the lead: every gate comparison from now on also compares `numTotalTests` and lists files with no results; renaming the shared-name tests is recorded for the owner |
+| P5-20 | break-test risk 2 | Low | unit tests depend on Electron's downloaded binary (`src/main/engine.ts:3` imports electron at load) | RECORDED: a lazy import is a refactor for later |
+| P5-21 | break-test risk 3 | Low, unverified | the Windows environment block is sorted with `localeCompare`; Microsoft requires an ordinal order (E-02 in `docs/research/2026-10-04-break-test-external-facts`); Node's default locale on Windows is U-03 (known unknown) | RECORDED: a follow-up with its day-one check (pre-existing, not Task 5) |
+| P5-22 | break-test risk 4 | Low | one high advisory, dev-only (`http-cache-semantics` under electron-builder); production audit clean | RECORDED |
 
 ## Kit findings
 
@@ -237,3 +243,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: G13 integrated (P5-11, P5-12).
 - 2026-10-04: G45 integrated (P5-13, P5-14). Every gap-audit in-scope gap fixed. Pushed for Windows CI.
 - 2026-10-04: Windows CI green on `0171ff7` (run 37228866576): `research-purge.test.ts` 23 tests, none skipped (the held-guard test ran), `research-review-native.test.ts` 1 passed through `MoonAlizaHost.exe`; whole run 1120 passed, 1 skipped (the POSIX-only FIFO test). Phase 5 docs integrated (`85ed055`).
+- 2026-10-04: break-test integrated (`0439e6e`, `fd2221c`, corpus, report). Phase 4 carry-overs, final dispositions for Task 5: P4-12 (replayed run.start re-admits a finished run's capability) RECORDED, no output effect (gap-audit); P4-17 (transient I/O reads as DOCUMENT_UNSAFE) RECORDED, conservative; P4-19 (declared authorization not enforced) RECORDED, pre-existing, no output effect; P4-30 bounded for purged digests, receipts of never-purged digests remain (spec as built); P4-31 docstring overclaim, no leak, RECORDED; P4-32 the CA is now generated per fake and read before connect (P4-40), recorded closed by P4-40's rewrite for the review to confirm; P4-33 unverified: the break-test read the capability as dropped on run.cancelled with every use re-checking the run, RECORDED; P4-39, P4-43 need Electron main or Windows races, RECORDED; P4-42 S4 RECORDED.
