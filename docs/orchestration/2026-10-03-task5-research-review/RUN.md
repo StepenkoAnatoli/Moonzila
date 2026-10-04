@@ -18,8 +18,8 @@
 | 3 Design | DONE | docs/specification/research-purge.md | 18:00 |
 | 4 Mandate | DONE (standing mandate) | MANDATE-P5.md | 18:00 |
 | 5 Build | DONE | units B7a, B7b, P4-40 integrated, reviewed, fixed; integration spec and invariant reviews done | 2026-10-04 |
-| 6 Harden | ACTIVE | - | - |
-| 7 Audit | PENDING | - | - |
+| 6 Harden | ACTIVE: break-test agent on `break-test/2026-10-04` from `d599a39` | report due at docs/evidence/2026-10-04-break-test.md | - |
+| 7 Audit | ACTIVE: gap-audit agent (read-only, `d599a39`), in parallel with Stage 6 | - | - |
 | 8 Deliver and merge | PENDING | - | - |
 | 9 Validate and report | PENDING | - | - |
 
@@ -226,3 +226,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: Phase 5 spec review: no S1/S2 in code; P5-5 (S2) needs contract `PURGE_INCOMPLETE` (lead, added); P5-6 test gaps; P5-7 docs.
 - 2026-10-04: Phase 5 invariant audit: all seven HOLD; P5-8 risk notes dispositioned.
 - 2026-10-04: B7a fix round integrated (98 passed + 1 Windows-only skipped; PURGE_INCOMPLETE mapping removed -> red). Pinned full gate on `0fa1966` equal to the baseline (1011 passed, 74 failed, 0 new). Windows CI green on `8edec7e`, `dc367ea` (generated certificates). Stage 5 DONE; Stage 6 break-test next.
+- 2026-10-04: Stage 6 break-test and Stage 7 gap-audit launched in parallel (the audit is read-only; fixes from either go through lead fix briefs). The GPT cross-vendor reviewer offered for the gap-audit was not run: the user asked to continue without stopping; noted for the report.
