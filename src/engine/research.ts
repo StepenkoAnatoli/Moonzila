@@ -283,7 +283,7 @@ export class ResearchJobs {
     const job = this.store.getResearch(researchId); if (!job) throw new Error('NOT_FOUND');
     const changes: ReviewChange[] = this.store.listReviewWrites(researchId).map(write => {
       const input = write.input as { path?: unknown; beforeHash?: unknown; afterHash?: unknown } | null;
-      const change = ReviewChangeSchema.safeParse({ operationId: write.id, runId: write.runId, path: input?.path, beforeHash: input?.beforeHash, afterHash: input?.afterHash });
+      const change = ReviewChangeSchema.safeParse({ operationId: write.id, runId: write.runId, path: input?.path, beforeHash: input?.beforeHash, afterHash: input?.afterHash, status: 'completed' });
       // A review write outside the allowlist was never preparable; finding one means the journal cannot be trusted.
       if (!change.success || !(REVIEW_WRITE_ALLOWLIST as readonly string[]).includes(change.data.path)) throw new Error('RESEARCH_STATE_INVALID');
       return change.data;

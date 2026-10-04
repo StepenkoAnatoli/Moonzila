@@ -30,9 +30,15 @@ export const ReviewFailureSchema = z.enum(REVIEW_FAILURES);
 export const REVIEW_CAUSES = ['REVIEW_STARTED', 'REVIEW_RETRY', 'REVIEW_RESTARTED', 'WORKSPACE_FROZEN', 'KIT_APPROVED', 'KIT_NOT_APPROVED', 'IDENTITY_MISMATCH', 'INVENTORY_MISMATCH',
   'OWNED_TIMEOUT', 'HELPER_FAILED', 'KIT_OUTPUT_LIMIT', 'REVIEW_CANCELLED', 'CANCEL_REQUESTED', 'RECOVERED', 'NO_OWNED_WORK', 'BRIEF_STALE'] as const;
 
-/** One completed review write, as `research.review.context` returns it (contents never cross). */
+/**
+ * One review write, as `research.review.context` returns it (contents never cross). `completed` writes are applied;
+ * an `unknown` write (a crash between its rename and its record) may or may not be on disk, so main accepts either
+ * its before or its after hash for that path when it checks a `continued` workspace, and begin then reconciles it
+ * (spec "Crash windows"; Phase 3 review F1).
+ */
 export const ReviewChangeSchema = z.object({
   operationId: IdSchema, runId: IdSchema, path: z.enum(REVIEW_WRITE_ALLOWLIST), beforeHash: DigestSchema.nullable(), afterHash: DigestSchema.nullable(),
+  status: z.enum(['completed', 'unknown']),
 }).strict();
 export type ReviewChange = z.infer<typeof ReviewChangeSchema>;
 

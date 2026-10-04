@@ -213,7 +213,7 @@ describe('the review run', () => {
     expect(h.store.getRun(run.id)!.status).toBe('awaiting_review');
     expect(h.store.getResearch('j1')).toMatchObject({ status: 'reviewing' });
     const context = ResearchReviewContextSchema.parse(h.app.research.reviewContext('j1'));
-    expect(context.changes).toEqual([{ operationId: op.id, runId: run.id, path: 'research/EVIDENCE.md', beforeHash: sha(FILES['research/EVIDENCE.md']!), afterHash: sha(readFileSync(file, 'utf8')) }]);
+    expect(context.changes).toEqual([{ operationId: op.id, runId: run.id, path: 'research/EVIDENCE.md', beforeHash: sha(FILES['research/EVIDENCE.md']!), afterHash: sha(readFileSync(file, 'utf8')), status: 'completed' }]);
   });
 
   test('writes outside the four research files are refused before an operation is prepared, and the agent sees why', async () => {

@@ -1053,7 +1053,7 @@ describe('schema v4 engine review controls', () => {
       const id = `op-${++ops}`;
       const input = { path, content: 'x', beforeHash: digestOf('b'), afterHash: digestOf(String(clock % 10)) };
       store.putOperation({ id, runId, projectId: 'p', kind, inputHash: digestOf('c'), policyRevision: 1, trustRevision: 1, status, input, createdAt, updatedAt: createdAt });
-      return { operationId: id, runId, path, beforeHash: input.beforeHash, afterHash: input.afterHash };
+      return { operationId: id, runId, path, beforeHash: input.beforeHash, afterHash: input.afterHash, status: 'completed' as const };
     };
     expect(research.reviewContext('j1')).toEqual({ researchId: 'j1', revision: 4, status: 'collected', admission: null, reviewSessionId: null, reviewRunId: null, reviewRunStatus: null, reviewDigest: null, reviewedPackage: null, verification: verification(3, 1, '5', 'mz-j1'), changes: [] });
     reviewRun(store, 'r1', 'running', 'p', 's-review'); startReview(store, 'j1', 'r1');
