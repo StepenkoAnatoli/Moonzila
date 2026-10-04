@@ -249,7 +249,7 @@ The renderer shows "ready" only while main holds a live receipt for `reviewed_pa
 
 ## Streaming `research.status`
 
-Every transition of a job that has a `review_run_id` appends `research.status {researchId, status}` to that run in the same transaction, while the run exists. This includes `reviewing` at begin, `packaging`, `approved`, `not_ready`, `cancelling` and `cancelled`. Main's own commits do the same through `research.transition`. When packaging ends and the run is still `awaiting_review` (a Stop has not already finished it, see *Cancel, Stop, trust and policy*), the same transaction appends `run.completed` (approved) or `run.failed` (not ready, with the failure as a public error code). If the run was interrupted, only `research.status` is appended. The job notice on the `research` engine message continues for every transition, as for collection.
+Every transition of a job that has a `review_run_id` appends `research.status {researchId, status}` to that run in the same transaction, while the run exists. This includes `reviewing` at begin, `packaging`, `approved`, `not_ready`, `cancelling` and `cancelled`. Main's own commits do the same through `research.transition`. When packaging ends and the run is still `awaiting_review` (a Stop has not already finished it, see *Cancel, Stop, trust and policy*), the same transaction appends `run.completed` (approved) or `run.failed` (not ready, with the public error code `REVIEW_NOT_READY`; the job's `failure` keeps the exact reason, decision D1). If the run was interrupted, only `research.status` is appended. The job notice on the `research` engine message continues for every transition, as for collection.
 
 ## Cancel, Stop, trust and policy
 
@@ -363,6 +363,8 @@ Corrections from the code maps and the research, which this design must honour:
   - The brief's input hash also covers the capture count.
   - Every kit argument is one `--name=value` element.
 - **Retained bytes (Windows corpus U-04, U-07, U-10).** Node's rename is `MoveFileExW(MOVEFILE_REPLACE_EXISTING)`. It is not documented as crash-atomic and fails while the destination is open. Describe it as "replace by rename". The re-validation after restart (Q6) and the torn-file replacement in `validate` are the guarantees.
+
+D1 (user, October 4): a review run that ends without a research-ready package fails with one public error code, `REVIEW_NOT_READY`. The exact reason (`REVIEW_GATE_FAILED`, `REVIEW_PACKAGE_INVALID`, an admission code, ...) stays the job's `failure`, which the research panel explains, so the vocabulary lives in one place. Rejected: one public code per review failure (two lists to keep in step), and reusing existing codes (vague or misleading in the run view).
 
 Added to this cycle (user, October 3): packaged builds turn off Electron's code-loading fuses, per the [Electron fuses](../research/2026-10-03-electron-fuses/research/BRIEF.md) corpus.
 - Fuses set: `runAsNode`, `enableNodeOptionsEnvironmentVariable` and `enableNodeCliInspectArguments` off; `onlyLoadAppFromAsar` and `enableEmbeddedAsarIntegrityValidation` on. Source: E-01 to E-05.
