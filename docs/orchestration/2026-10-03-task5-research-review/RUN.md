@@ -52,7 +52,7 @@ All four re-gated with Research-Kit `d00be07` on 2026-10-04: preflight 0, handof
 | 1 | schema v4 (B0), Windows guard tests (B6), Moonzila spelling | #33 | MERGED |
 | 2 | Electron fuses (B5), test-only package for packaged e2e (D2) | #34 | MERGED |
 | 3 | engine review run (B2), main supervisor (B3), e2e scenarios (B10), fix round | #35 | MERGED (710e083) |
-| 4 | review UI (B4, B4b), reader (B11), research switch (B8, B8e) | - | DESIGN APPROVED 2026-10-04; spec revised after cross-vendor review, second review folded in; BUILDING |
+| 4 | review UI (B4, B4b), reader (B11), research switch (B8, B8e), e2e journey (B12) | [#36](https://github.com/StepenkoAnatoli/Moonzila/pull/36) (draft, opened early for Windows CI) | DESIGN APPROVED 2026-10-04; spec revised after cross-vendor review, second review folded in; BUILDING |
 | 5 | `research.purge` (B7), docs, four-role review, gap-audit, break-test | - | PLANNED (offer the GPT reviewer for gap-audit) |
 
 ## Units (Phase 3)
@@ -150,3 +150,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: integration spec review: no Phase 4 S1/S2; P4-23 (S2, pre-existing) to the B11 builder; P4-24 recorded; P4-25, P4-26 to docs.
 - 2026-10-04: integration invariant audit: every Phase 4 invariant HOLDS at `ab97386`; P4-27 recorded for missions.
 - 2026-10-04: B12 integrated (52/52; GET-only guard removal red). The e2e journey's first real run is Windows CI.
+- 2026-10-04: draft PR #36 opened early so Windows CI runs the e2e journey. PR events cannot wake this session (the Claude GitHub App is not installed on the repository), so the lead checks CI directly at each integration point.
