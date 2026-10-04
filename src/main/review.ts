@@ -10,7 +10,7 @@ import type { ReviewIdentity, ReviewLaunch, ReviewTool } from '../adapters/resea
 import { privateDirectory } from '../models/artifact-files';
 import type { OwnedResult } from '../tools/commands';
 import type { Research, Run, RunEvent } from '../shared';
-import { acceptsTree, copyWorkspace, foldAccepted, foldExpected, materialise, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type Inventory } from './review-workspace';
+import { acceptsTree, containedFolder, copyWorkspace, foldAccepted, foldExpected, materialise, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type Inventory } from './review-workspace';
 
 /** What the supervisor needs from the Research Kit adapter (`ResearchKit` implements it). */
 export interface ReviewKit {
@@ -49,6 +49,8 @@ const MAX_DETAIL = 1024;
 const MAX_FINDINGS = 200;
 /** Ordinary request failures `research.review.start` may return; anything else from the kit is mapped first. */
 const ADMISSION_ERRORS: Record<string, string> = { PROJECT_UNTRUSTED: 'PROJECT_UNTRUSTED', PROJECT_NOT_FOUND: 'PROJECT_NOT_FOUND', RESEARCH_NOT_ALLOWED: 'RESEARCH_NOT_ALLOWED' };
+/** A link at or above the workspace root (containedFolder): the step never reads, packages or writes through it. */
+const NOT_CONTAINED = { failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'WORKSPACE_NOT_CONTAINED' } as const;
 const PreflightOutputSchema = z.object({
   pass: z.boolean(), counts: z.object({ pass: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), warn: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), fail: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }).strict(),
   evidencePolicy: z.string().max(32), findings: z.array(z.object({ severity: z.enum(['pass', 'warn', 'fail']), check: z.string().max(128), rule: z.string().max(128), detail: z.string() }).strip()).max(100_000),
@@ -149,9 +151,13 @@ export class ReviewSupervisor {
     let launch: ReviewLaunch;
     try { launch = await kit.prepareReview(); } catch { throw new Error('RESEARCH_KIT_UNAVAILABLE'); }
     const folder = reviewFolder(launch.root, researchId);
-    let workspace: ReviewWorkspace = ctx.status === 'not_ready' && await this.keeps(folder.project, base, ctx.changes) ? 'continued' : 'fresh';
+    // Only a contained workspace is continued; a link at the workspace root is replaced by materialisation (which removes
+    // the link itself, never its destination), and a link at storage/review/<id> refuses the start.
+    const kept = ctx.status === 'not_ready' && await this.contained(launch.root, researchId) && await this.keeps(folder.project, base, ctx.changes);
+    let workspace: ReviewWorkspace = kept ? 'continued' : 'fresh';
     for (let attempt = 0; ; attempt++) {
       if (workspace === 'fresh') await this.materialise(bytes, folder.job);
+      if (!(await this.contained(launch.root, researchId))) throw new Error('PATH_OUTSIDE_PROJECT');
       // One request id per planned begin, kept across the engine's restarts: a begin committed whose reply was lost replays.
       const control = ControlSchema.parse({ method: 'research.review.begin', requestId: randomUUID(), researchId, profileId, workspace });
       let retried = false;
@@ -177,7 +183,15 @@ export class ReviewSupervisor {
   }
   private async materialise(bytes: Buffer, job: string): Promise<void> {
     try { await materialise(bytes, job); }
-    catch (error) { throw new Error(message(error) === 'REVIEW_WORKSPACE_TOO_LARGE' ? 'REVIEW_WORKSPACE_TOO_LARGE' : 'STALE_VERIFICATION', { cause: error }); }
+    catch (error) {
+      const code = message(error);
+      // privateDirectory refuses a link or a non-folder on the way to the job folder (ARTIFACT_PATH).
+      throw new Error(code === 'REVIEW_WORKSPACE_TOO_LARGE' ? 'REVIEW_WORKSPACE_TOO_LARGE' : code === 'ARTIFACT_PATH' ? 'PATH_OUTSIDE_PROJECT' : 'STALE_VERIFICATION', { cause: error });
+    }
+  }
+  /** True when storage/review/<id>/project is contained (`containedFolder`): no link at or above it, its realpath the derived one. */
+  private async contained(reviewRoot: string, researchId: string): Promise<boolean> {
+    return containedFolder(reviewRoot, researchId, { project: true }).then(() => true, () => false);
   }
   /**
    * A retry may continue the kept workspace when its tree is one the journal allows: the completed fold, with either the
@@ -216,13 +230,16 @@ export class ReviewSupervisor {
     let launch: ReviewLaunch;
     try { launch = await kit.prepareReview(signal); } catch (error) { throw new Error(signal.aborted ? 'RUN_CANCELLED' : message(error) === 'CANCELLED' ? 'RUN_CANCELLED' : 'RESEARCH_KIT_UNAVAILABLE', { cause: error }); }
     const folder = reviewFolder(launch.root, researchId);
+    if (!(await this.contained(launch.root, researchId))) throw new Error('REVIEW_TOOL_FAILED');
+    // In each child's guarded start too: a link swapped in after the check above.
+    const check = async () => { await live(); if (!(await this.contained(launch.root, researchId))) throw new Error('REVIEW_TOOL_FAILED'); };
     const attempt = randomUUID(); const temp = join(folder.job, `temp-${attempt}`); const scratch = join(folder.job, `scratch-${attempt}`);
     try {
       let tree: Inventory;
       try { tree = await treeInventory(folder.project); } catch { throw new Error('REVIEW_TOOL_FAILED'); }
       await privateDirectory(temp);
       if (name === 'research_preflight') {
-        const run = await this.runTool(launch, { tool: 'preflight' }, { cwd: folder.project, temp, locks: tree.map(entry => join(folder.project, ...entry.path.split('/'))), check: live, signal });
+        const run = await this.runTool(launch, { tool: 'preflight' }, { cwd: folder.project, temp, locks: tree.map(entry => join(folder.project, ...entry.path.split('/'))), check, signal });
         await live();
         const verdict = classifyPreflight(run); if (!verdict) throw new Error('REVIEW_TOOL_FAILED');
         const findings = [];
@@ -235,7 +252,7 @@ export class ReviewSupervisor {
       // Read locks cover what the kit reads, never what it writes: the helper's locks share only reading, so on Windows a
       // lock on research/BRIEF.md would deny brief.mjs's rename over it (lib/core.mjs writeBytes) and drafting would fail.
       const locks = tree.filter(entry => !BRIEF_WRITES.has(entry.path)).map(entry => join(copy, ...entry.path.split('/')));
-      const run = await this.runTool(launch, { tool: 'brief', force: input.force === true }, { cwd: copy, temp, locks, check: live, signal });
+      const run = await this.runTool(launch, { tool: 'brief', force: input.force === true }, { cwd: copy, temp, locks, check, signal });
       await live();
       if (launchCause(run) || run.cancelled) throw new Error('REVIEW_TOOL_FAILED');
       if (run.code === 1) throw new Error('BRIEF_NOT_DRAFTED');
@@ -420,6 +437,7 @@ export class ReviewSupervisor {
     if ('failure' in source) return fail(source);
     const launch = await this.launch(); if ('failure' in launch) return fail(launch);
     const folder = reviewFolder(launch.root, job.id);
+    if (!(await this.contained(launch.root, job.id))) return fail(NOT_CONTAINED);
     const expected = foldOrNull(source.base, ctx.changes);
     const frozen = expected && await this.verifies(folder.project, expected) ? expected : null;
     if (!frozen) return fail({ failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'INVENTORY_MISMATCH' });
@@ -431,6 +449,7 @@ export class ReviewSupervisor {
       try {
         await privateDirectory(temp);
         const run = await launch.run({ tool: 'preflight' }, { cwd: folder.project, temp, locks: frozen.map(entry => join(folder.project, ...entry.path.split('/'))), check: async () => {
+          await containedFolder(launch.root, job.id, { project: true });
           if (!sameInventory(await treeInventory(folder.project), frozen)) throw new Error('REVIEW_WORKSPACE_CHANGED');
           await admit();
         }, signal });
@@ -440,6 +459,7 @@ export class ReviewSupervisor {
         if (signal.aborted) return null;
         const code = message(error);
         if (code === 'CANCELLED') return null;
+        if (code === 'PATH_OUTSIDE_PROJECT') return fail(NOT_CONTAINED);
         if (code === 'REVIEW_WORKSPACE_CHANGED') return fail({ failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'INVENTORY_MISMATCH' });
         if (code === 'INSTALLATION_INVALID') return fail({ failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'INSTALLATION_INVALID' });
         cause = 'HELPER_FAILED';
@@ -488,6 +508,7 @@ export class ReviewSupervisor {
     if ('failure' in source) return fail(source);
     const launch = await this.launch(); if ('failure' in launch) return fail(launch);
     const folder = reviewFolder(launch.root, job.id);
+    if (!(await this.contained(launch.root, job.id))) return fail(NOT_CONTAINED);
     // A restart between the freeze and create: the workspace must still be the one whose digest was frozen.
     let frozen: Inventory;
     try { await removeJournalTemps(folder.project); frozen = await treeInventory(folder.project); } catch { return fail({ failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'INVENTORY_MISMATCH' }); }
@@ -506,6 +527,7 @@ export class ReviewSupervisor {
             cwd: temp, temp, locks: frozen.map(entry => join(folder.project, ...entry.path.split('/'))), signal,
             // Under the read locks, before the child exists: every frozen file rehashed, the folders listed, the job re-read.
             check: async () => {
+              await containedFolder(launch.root, job.id, { project: true });
               let now: Inventory;
               try { now = await treeInventory(folder.project); } catch { throw new Error('REVIEW_WORKSPACE_CHANGED'); }
               if (!sameInventory(now, frozen)) throw new Error('REVIEW_WORKSPACE_CHANGED');
@@ -517,6 +539,7 @@ export class ReviewSupervisor {
           const code = message(error);
           if (code === 'REVIEW_WORKSPACE_CHANGED') return fail({ failure: 'REVIEW_WORKSPACE_CHANGED', cause: 'INVENTORY_MISMATCH' });
           if (code === 'CANCELLED') return null;
+          if (code === 'PATH_OUTSIDE_PROJECT') return fail(NOT_CONTAINED);
           if (code === 'INSTALLATION_INVALID') return fail({ failure: 'RESEARCH_KIT_UNAVAILABLE', cause: 'INSTALLATION_INVALID' });
           cause = 'HELPER_FAILED'; continue;
         }

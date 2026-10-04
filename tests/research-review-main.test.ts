@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import provenance from './fixtures/research-kit/provenance.json';
@@ -551,4 +551,109 @@ test('start refuses what is not reviewable: wrong status, an untrusted project, 
   await writeFile(join(torn.storage, 'artifacts', `${fixtureSha}.zip`), fixtureBytes.subarray(0, 1000));
   await expect(torn.review.start(torn.id, 'm')).rejects.toThrow('STALE_VERIFICATION');
   for (const x of [untrusted, nokit, torn]) expect(x.begins).toEqual([]);
+}, 180000);
+
+// ------------------------------------------------------------------ containment (Phase 3 containment S1, main side)
+
+/**
+ * Moves the folder at `level` (the workspace root, or storage/review/<id>) to a sibling inside this test's root and puts a
+ * junction to it in its place. The moved tree keeps its bytes, as an attacker would, so only containment can tell.
+ */
+let moved = 0;
+async function junctionAt(h: Harness, level: 'project' | 'job'): Promise<string> {
+  const at = level === 'project' ? h.project : join(h.storage, 'review', h.id);
+  const sibling = join(root, `moved-${++moved}`);
+  await rename(at, sibling); await symlink(sibling, at, 'junction');
+  expect((await lstat(at)).isSymbolicLink()).toBe(true);
+  return sibling;
+}
+const ofTree = async (folder: string) => (await treeInventory(folder)).map(entry => `${entry.path}:${entry.sha256}`);
+const uncontained = { status: 'not_ready', failure: 'REVIEW_WORKSPACE_CHANGED' };
+
+for (const level of ['project', 'job'] as const) {
+  test(`a junction at ${level === 'project' ? 'the workspace root' : 'storage/review/<id>'} after the final answer: the freeze refuses before any child, and the moved tree is untouched`, async () => {
+    // Guard: the freeze's containment check of the job folder and the workspace root, before its first workspace child.
+    const h = await harness();
+    await begin(h); await rewriteFinding(h); await draftAndAnswer(h);
+    const sibling = await junctionAt(h, level);
+    const before = await ofTree(level === 'project' ? sibling : join(sibling, 'project'));
+    finish(h);
+    expect(await until(h, settled)).toMatchObject(uncontained);
+    expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ from: 'reviewing', to: 'not_ready', cause: 'WORKSPACE_NOT_CONTAINED' });
+    expect(h.seen.filter(s => s.kind === 'preflight' || s.kind === 'create')).toEqual([]);
+    expect(await ofTree(level === 'project' ? sibling : join(sibling, 'project'))).toEqual(before);
+    if (level === 'job') expect(await readdir(sibling)).toEqual(['project']);
+  }, 180000);
+
+  for (const [kind, label] of [['preflight', 'the freeze preflight'], ['create', 'create']] as const) {
+    test(`a junction at ${level === 'project' ? 'the workspace root' : 'storage/review/<id>'} swapped in just before ${label} starts is refused in its guarded start`, async () => {
+      // Guard: containment inside the guarded start of the freeze preflight and of create.
+      const h = await harness();
+      await begin(h); await rewriteFinding(h); await draftAndAnswer(h);
+      let swapped = false; let started = 0;
+      h.hooks.beforeCheck = async (_request, k) => { if (k === kind && !swapped) { swapped = true; await junctionAt(h, level); } };
+      h.hooks.whileRunning = (_request, k) => { if (swapped && (k === 'preflight' || k === 'create')) started++; };
+      finish(h);
+      expect(await until(h, settled)).toMatchObject(uncontained);
+      expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ to: 'not_ready', cause: 'WORKSPACE_NOT_CONTAINED' });
+      expect(swapped).toBe(true); expect(started).toBe(0);
+    }, 180000);
+  }
+
+  test(`restart in packaging with a junction at ${level === 'project' ? 'the workspace root' : 'storage/review/<id>'}: packaging refuses before create`, async () => {
+    // Guard: packaging's containment check before its first workspace child.
+    const h = await harness();
+    await begin(h); await rewriteFinding(h); await draftAndAnswer(h);
+    h.store.appendEvent(h.runId!, 'run.status', { status: 'awaiting_review' }, { status: 'awaiting_review' });
+    h.store.transitionResearch({ researchId: h.id, expectedRevision: h.store.getResearch(h.id)!.revision, to: 'packaging', actor: 'main', cause: 'WORKSPACE_FROZEN', patch: { reviewDigest: reviewDigest(await treeInventory(h.project)) } });
+    await junctionAt(h, level);
+    await h.review.recovered(h.jobs.recover([], []));
+    expect(await until(h, settled)).toMatchObject(uncontained);
+    expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ from: 'packaging', to: 'not_ready', cause: 'WORKSPACE_NOT_CONTAINED' });
+    expect(h.seen.filter(s => s.kind === 'create')).toEqual([]);
+  }, 180000);
+}
+
+test('a kit tool over a junction at the workspace root or at storage/review/<id> is refused before its child, and so is one swapped in at its start', async () => {
+  // Guards: the kit tools' containment check, before the inventory and inside each child's guarded start.
+  for (const level of ['project', 'job'] as const) {
+    const h = await harness();
+    await begin(h);
+    await junctionAt(h, level);
+    await expect(h.review.reviewTool(h.runId!, 'research_preflight', {}, 'epoch')).rejects.toThrow('REVIEW_TOOL_FAILED');
+    await expect(h.review.reviewTool(h.runId!, 'research_draft_brief', {}, 'epoch')).rejects.toThrow('REVIEW_TOOL_FAILED');
+    expect(h.seen.filter(s => s.kind === 'preflight' || s.kind === 'brief')).toEqual([]);
+
+    const swapped = await harness();
+    await begin(swapped);
+    let started = 0; let done = false;
+    swapped.hooks.beforeCheck = async (_request, kind) => { if (kind === 'preflight' && !done) { done = true; await junctionAt(swapped, level); } };
+    swapped.hooks.whileRunning = (_request, kind) => { if (kind === 'preflight') started++; };
+    await expect(swapped.review.reviewTool(swapped.runId!, 'research_preflight', {}, 'epoch')).rejects.toThrow('REVIEW_TOOL_FAILED');
+    expect(done).toBe(true); expect(started).toBe(0);
+  }
+}, 180000);
+
+test('a retry over a junction: at the workspace root it is not continued but replaced, at storage/review/<id> it is refused; neither touches the moved tree', async () => {
+  // Guards: start continues only a contained workspace, and refuses a job folder that is a link (PATH_OUTSIDE_PROJECT).
+  for (const level of ['project', 'job'] as const) {
+    const h = await harness();
+    await begin(h); await rewriteFinding(h);
+    h.store.appendEvent(h.runId!, 'run.failed', {}, { status: 'failed', finishedAt: at });
+    h.store.transitionResearch({ researchId: h.id, expectedRevision: h.store.getResearch(h.id)!.revision, to: 'not_ready', actor: 'engine', cause: 'REVIEW_RUN_FAILED', patch: { failure: 'REVIEW_RUN_FAILED' } });
+    const sibling = await junctionAt(h, level);
+    const tree = level === 'project' ? sibling : join(sibling, 'project');
+    const before = await ofTree(tree);
+    if (level === 'project') {
+      await begin(h);
+      expect(h.begins.at(-1)).toMatchObject({ workspace: 'fresh' });
+      expect((await lstat(h.project)).isSymbolicLink()).toBe(false);
+      expect(await treeInventory(h.project)).toEqual((await readPackage(fixtureBytes)).base);
+    } else {
+      await expect(h.review.start(h.id, 'm')).rejects.toThrow('PATH_OUTSIDE_PROJECT');
+      expect(h.begins).toHaveLength(1);
+      expect(await readdir(sibling)).toEqual(['project']);
+    }
+    expect(await ofTree(tree)).toEqual(before);
+  }
 }, 180000);

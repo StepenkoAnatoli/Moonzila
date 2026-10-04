@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import provenance from './fixtures/research-kit/provenance.json';
@@ -73,3 +73,24 @@ test('verifyRetained returns the verified bytes of storage/artifacts/<sha>.zip; 
     await expect(kit.verifyRetained(sha, binding)).rejects.toThrow('STALE_VERIFICATION');
   } finally { await kit.close(); }
 }, 60000);
+
+test('discardReview never follows a link out of storage/review: a linked job folder loses only its link, a linked review folder is left alone', async () => {
+  // Guard: discardReview's containment (the review folder a real directory under storage; a job folder that is a link is
+  // unlinked, never recursed into).
+  const storage = join(root, 'discard-links'); const outside = join(root, 'outside-of-storage');
+  await mkdir(join(outside, 'project'), { recursive: true }); await writeFile(join(outside, 'project', 'kept.md'), 'outside');
+  await mkdir(join(storage, 'review'), { recursive: true });
+  await symlink(outside, join(storage, 'review', 'linked'), 'junction');
+  const kit = make('discard-links');
+  try {
+    await kit.discardReview(['linked']);
+    await expect(lstat(join(storage, 'review', 'linked'))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await readFile(join(outside, 'project', 'kept.md'), 'utf8')).toBe('outside');
+    // storage/review itself a link: nothing under its destination is removed.
+    await rm(join(storage, 'review'), { recursive: true });
+    await mkdir(join(outside, 'job-x', 'project'), { recursive: true }); await writeFile(join(outside, 'job-x', 'project', 'kept.md'), 'outside');
+    await symlink(outside, join(storage, 'review'), 'junction');
+    await expect(kit.discardReview(['job-x'])).rejects.toThrow();
+    expect(await readFile(join(outside, 'job-x', 'project', 'kept.md'), 'utf8')).toBe('outside');
+  } finally { await kit.close(); }
+});

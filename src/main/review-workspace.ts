@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, open, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { lstat, mkdir, open, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, parse, relative, resolve, sep } from 'node:path';
 import { fromBufferPromise } from 'yauzl';
 import { z } from 'zod';
 import { inspectArchive, MAX_ARCHIVE } from '../adapters/research-kit/archive';
@@ -35,6 +35,30 @@ export function reviewFolder(reviewRoot: string, researchId: string): { job: str
   if (!REVIEW_FOLDER.test(researchId)) throw new Error('REVIEW_NOT_AVAILABLE');
   const job = join(reviewRoot, researchId);
   return { job, project: join(job, 'project') };
+}
+
+/**
+ * The job's folders under storage/review, contained (Phase 3 containment S1, main's side of the engine's
+ * containedReviewWorkspace): every component from the filesystem root down to `<id>` (and `<id>/project` when
+ * `project` is set) is a real directory, no symbolic link or junction, as `privateDirectory` requires of every folder main
+ * creates; and realpath of the deepest one equals the derived path under realpath(reviewRoot), compared without case on
+ * Windows. Otherwise `PATH_OUTSIDE_PROJECT`: a link there would make main write, inventory, package or delete elsewhere.
+ */
+export async function containedFolder(reviewRoot: string, researchId: string, options: { project: boolean }): Promise<{ job: string; project: string }> {
+  const folder = reviewFolder(reviewRoot, researchId);
+  const target = options.project ? folder.project : folder.job;
+  try {
+    const absolute = resolve(target); let current = parse(absolute).root;
+    for (const component of relative(current, absolute).split(sep).filter(Boolean)) {
+      current = join(current, component);
+      const info = await lstat(current);
+      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('PATH_OUTSIDE_PROJECT');
+    }
+    const actual = await realpath(target);
+    const expected = join(await realpath(reviewRoot), researchId, ...(options.project ? ['project'] : []));
+    if (process.platform === 'win32' ? actual.toLowerCase() !== expected.toLowerCase() : actual !== expected) throw new Error('PATH_OUTSIDE_PROJECT');
+  } catch (error) { throw new Error('PATH_OUTSIDE_PROJECT', { cause: error }); }
+  return folder;
 }
 
 /** True for a project path the kit's `create` would leave out of a package. */

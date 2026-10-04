@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, open, rename, writeFile, readdir, rm } from 'node:fs/promises';
+import { lstat, open, readdir, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { boundedJson, privateDirectory, serialized, missing } from '../../models/artifact-files';
@@ -292,11 +292,29 @@ export class ResearchKit {
   /** Removes storage/review/<name> for each name recovery returned, under the same lock as sweep. Plain names only. */
   discardReview(names: readonly string[]): Promise<void> {
     return serialized(this.config.storageRoot, async () => {
+      const review = await this.reviewRoot(); if (!review) return;
       for (const name of names) {
         if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(name)) continue;
-        await removeOwned(this.config.storageRoot, join(this.config.storageRoot, 'review', name));
+        await this.removeJobFolder(join(review, name));
       }
     });
+  }
+  /**
+   * storage/review, contained: a real folder (no link or junction) whose realpath is storage's own `review`. Null when it
+   * does not exist; otherwise INSTALLATION_INVALID, so nothing beneath a link is ever listed or removed.
+   */
+  private async reviewRoot(): Promise<string | null> {
+    const review = join(this.config.storageRoot, 'review');
+    let info; try { info = await lstat(review); } catch (error) { if (missing(error)) return null; throw error; }
+    const expected = join(await realpath(this.config.storageRoot), 'review'); const actual = await realpath(review);
+    if (!info.isDirectory() || info.isSymbolicLink() || (process.platform === 'win32' ? actual.toLowerCase() !== expected.toLowerCase() : actual !== expected)) throw new Error('INSTALLATION_INVALID');
+    return review;
+  }
+  /** A job folder: a link (or any non-folder) loses only its own entry, never what it points at; a real folder is removed. */
+  private async removeJobFolder(folder: string): Promise<void> {
+    let info; try { info = await lstat(folder); } catch (error) { if (missing(error)) return; throw error; }
+    if (info.isSymbolicLink() || !info.isDirectory()) await unlink(folder);
+    else await removeOwned(this.config.storageRoot, folder);
   }
   /**
    * At startup, before any launch: removes staged runtimes, validation work and collector folders a crash left. Under
@@ -307,12 +325,11 @@ export class ResearchKit {
     return serialized(this.config.storageRoot, async () => {
       if (this.runtime || this.launches.size) throw new Error('KIT_BUSY');
       for (const name of ['runtime', 'work', 'collect']) await removeOwned(this.config.storageRoot, join(this.config.storageRoot, name));
-      const review = join(this.config.storageRoot, 'review');
-      let jobs: string[] = [];
-      try { jobs = await readdir(review); } catch (error) { if (!missing(error)) throw error; }
+      const review = await this.reviewRoot();
+      const jobs = review ? await readdir(review) : [];
       for (const job of jobs) {
-        const folder = join(review, job); const info = await lstat(folder);
-        if (!info.isDirectory() || info.isSymbolicLink()) { await removeOwned(this.config.storageRoot, folder); continue; }
+        const folder = join(review!, job); const info = await lstat(folder);
+        if (!info.isDirectory() || info.isSymbolicLink()) { await this.removeJobFolder(folder); continue; }
         for (const name of await readdir(folder)) if (/^(staging|scratch|out|temp)-/.test(name)) await removeOwned(this.config.storageRoot, join(folder, name));
       }
     });
