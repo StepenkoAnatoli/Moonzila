@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import provenance from './fixtures/research-kit/provenance.json';
 import { ResearchKit } from '../src/adapters/research-kit/adapter';
-import type { OwnedRunner } from '../src/tools/commands';
+import { safeCommandEnvironment, spawnOwned, type OwnedRunner } from '../src/tools/commands';
 import { Store, type StoreResearchStatus } from '../src/engine/store';
 import { Application } from '../src/engine/application';
 import { createControl } from '../src/engine/control-dispatch';
@@ -36,7 +36,7 @@ const runner: OwnedRunner = async (request, signal, options = {}) => {
     (error, stdout) => done({ status: 'exited', code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: stdout, truncated: false, cancelled: false, timedOut: false })));
 };
 
-interface World { folder: string; store: Store; control(control: Control): Promise<unknown>; kit: ResearchKit; storage: string; artifacts: string; unlinks: string[]; fault?: (path: string, attempt: number) => NodeJS.ErrnoException | undefined }
+interface World { folder: string; store: Store; control(control: Control): Promise<unknown>; kit: ResearchKit; storage: string; artifacts: string; unlinks: string[]; codes: string[]; fault?: (path: string, attempt: number) => NodeJS.ErrnoException | undefined }
 // Fabricated jobs take run ids from 100 on; the provenance job's is the fixtures' own, 1.
 let count = 0; let runIds = 100;
 const stores: Store[] = []; const kits: ResearchKit[] = [];
@@ -47,14 +47,15 @@ async function world(): Promise<World> {
   const app = new Application(store, { infer: async () => ({ content: '', outcome: 'complete' }), publish: () => {} });
   const dispatch = createControl(store, app);
   const storage = join(folder, 'storage');
-  const w: World = { folder, store, control: control => dispatch(ControlSchema.parse(control)), kit: undefined as unknown as ResearchKit, storage, artifacts: join(storage, 'artifacts'), unlinks: [] };
+  const w: World = { folder, store, control: control => dispatch(ControlSchema.parse(control)), kit: undefined as unknown as ResearchKit, storage, artifacts: join(storage, 'artifacts'), unlinks: [], codes: [] };
   // The unlink seam: every delete is recorded, and `fault` can answer a delete with an error instead (EBUSY/EPERM).
   const attempts = new Map<string, number>();
   w.kit = new ResearchKit({ kitRoot, nodePath: process.execPath, nodeSha256, storageRoot: storage, helperPath: resolve('.build/native/MoonAlizaHost.exe') }, runner, {
     unlink: async path => {
       const attempt = (attempts.get(path) ?? 0) + 1; attempts.set(path, attempt); w.unlinks.push(path);
       const error = w.fault?.(path, attempt); if (error) throw error;
-      await unlink(path);
+      // The real delete's refusals are recorded, so a red Windows run says what the file system answered.
+      try { await unlink(path); } catch (failure) { w.codes.push(String((failure as NodeJS.ErrnoException).code)); throw failure; }
     },
   });
   kits.push(w.kit);
@@ -68,7 +69,7 @@ async function refusal(promise: Promise<unknown>): Promise<string> {
 const zip = (w: World, sha: string) => join(w.artifacts, `${sha}.zip`);
 const exists = (path: string) => lstat(path).then(() => true, () => false);
 /** An unreferenced ZIP in the store: arbitrary bytes under their own digest's name. */
-async function plant(w: World, label = randomUUID()): Promise<string> {
+async function plant(w: World, label: string = randomUUID()): Promise<string> {
   const bytes = Buffer.from(`orphan ${label}`); const sha = digest(bytes);
   await mkdir(w.artifacts, { recursive: true }); await writeFile(zip(w, sha), bytes);
   return sha;
@@ -545,3 +546,22 @@ test('a delete refused for any other reason, at once or on the retry, is the sto
     expect(await exists(zip(w, orphan))).toBe(true);
   }
 });
+
+// ------------------------------------------------------------------ Windows: a real held handle (review F1)
+
+const windows = process.platform === 'win32';
+test.skipIf(!windows)('Windows: a retained ZIP the native helper holds open is PURGE_INCOMPLETE after its one retry; released, a second purge removes it', async () => {
+  // N-1 against the real file system: the helper's read guard is a handle without FILE_SHARE_DELETE (research E-01), held
+  // by another process while the purge runs. Guard: the retry and the PURGE_INCOMPLETE mapping, on real error codes.
+  const w = await world(); job(w, 'done', 'cancelled'); const held = await plant(w, 'held');
+  let outcome: string | undefined;
+  const run = await spawnOwned({ executable: process.execPath, args: ['-e', 'process.exit(0)'], cwd: w.folder, env: safeCommandEnvironment(), timeoutMs: 30_000, maxOutputBytes: 8192 }, undefined, {
+    readLocks: [zip(w, held)], beforeStart: async () => { outcome = await refusal(purge(w, 'done')); },
+  });
+  expect(run).toMatchObject({ status: 'exited', code: 0 });
+  expect({ outcome, unlinks: w.unlinks.length, codes: w.codes }).toEqual({ outcome: 'PURGE_INCOMPLETE', unlinks: 2, codes: [expect.stringMatching(/^(EBUSY|EPERM)$/), expect.stringMatching(/^(EBUSY|EPERM)$/)] });
+  expect(await exists(zip(w, held))).toBe(true);
+  // The guard is released when the helper's child has run: the same purge now removes the file.
+  expect(await purge(w, 'done')).toEqual({ removed: 1, keptShared: 0, keptBusy: false });
+  expect(await exists(zip(w, held))).toBe(false);
+}, 120000);
