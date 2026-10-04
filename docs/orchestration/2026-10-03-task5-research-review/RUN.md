@@ -69,7 +69,7 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 | Unit | Owns | Status | Commit on main-axuse | Model |
 |------|------|--------|----------------------|-------|
 | B11 reader | `src/main/` reader, `index.ts` case, tests | BUILDING | - | Opus |
-| B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | INTEGRATED, IN UNIT REVIEW (report `p4-b4-builder-1.md`) | `6019045` (branch `a8a5b42`); lead `runMode` wiring `792e68e` | Opus |
+| B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | REVIEWED, FIXES QUEUED after B8 (reports `p4-b4-builder-1.md`, `p4-b4-reviewer-1.md`) | `6019045` (branch `a8a5b42`); lead `runMode` wiring `792e68e` | Opus |
 | B4b card label | `ChangesPanel.tsx`, tests | REVIEWED, P4-1 FIXED (reports `p4-b4b-builder-1.md`, `-2.md`, `p4-b4b-reviewer-1.md`; App.tsx `runMode` wiring with B4) | `f8972f7`, fix `58bafd9` | Opus |
 | B8e policy guard | main route module, `index.ts`, engine re-check, tests | INTEGRATED, IN UNIT REVIEW (report `p4-b8e-builder-1.md`) | `805b97d`, `5e5e35e` (branch `581c19a`, `d85fbdd`) | Opus |
 | B8 switch | `ResearchPanel.tsx` switch section | BUILDING (B4 builder continued) | - | Opus |
@@ -97,6 +97,10 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P4-3 | B8e builder | S3 | a replayed `project.policy.update` can now be answered `RUN_ACTIVE` instead of its stored result when a Build run started since | RECORDED for the unit and integration reviewers to judge; no side effect either way |
 | P4-4 | B4 builder | S3 | spec decisions taken by the builder: `approved` history label "Approved review, not checked here"; reader shown while reviewing/packaging; review wording for shared codes | ACCEPTED; to be written into the spec's "Phase 4 as built" |
 | P4-5 | B4 builder | process | the permission system refused the builder's `git cherry-pick f8972f7` ("Logging/Audit Tampering") | NOT worked around by the builder; the lead wired `runMode` itself at integration, as planned before the refusal; reported to the user |
+| P4-6 | B4 unit review | S2 (proposed S3; raised: it bypasses the conversation list's own guard) | `App.tsx:180` `openConversation`: no alive/project check on the `session.list` reply (a project switch can be overwritten by the old list), and no `busy`/`scopeLoading`/`activeRun` guard, so Open review can switch conversation during an active run | FIX QUEUED to the B4 builder after B8, red-first |
+| P4-7 | B4 unit review | S3 | no test for Start review hidden when untrusted or research off (`ResearchPanel.tsx:122`) | FIX QUEUED: add the tests, guard removal shown |
+| P4-8 | B4 unit review | S3 | the digest part of `jobKey` (`ResearchPanel.tsx:31`) is untested (the stale test also bumps the revision) | FIX QUEUED: a stale reply with only the digest changed |
+| P4-9 | B4 unit review | Rejected | Start review offered after a trust change | the engine refuses `TRUST_CHANGED`; the renderer cannot see `trustRevision` |
 
 ## Kit findings
 
@@ -115,3 +119,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: B4b unit review: activeRun confirmed as the right source; one finding P4-1 (S2), fix sent to the B4b builder.
 - 2026-10-04: P4-1 fixed and integrated; the lead re-ran the tests and the guard removal.
 - 2026-10-04: B4 and B8e accepted and integrated (lead re-ran their tests: 81/81 and 42/42; guard removals: Ready on any reply -> 2 red; main's check removed -> 2 red). Lead wired `runMode` in App.tsx (792e68e) after the B4 builder's cherry-pick was refused. B4 and B8e unit reviewers launched; B4 builder continued with B8.
+- 2026-10-04: B4 unit review: decisions confirmed; P4-6 (S2), P4-7, P4-8 queued to the B4 builder after B8; P4-9 rejected.
