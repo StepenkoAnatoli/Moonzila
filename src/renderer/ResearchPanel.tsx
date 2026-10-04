@@ -162,8 +162,19 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
   // Changing what becomes public withdraws the acknowledgement of the previous text.
   const publicField = (set: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { set(event.target.value); setAcknowledged(false); };
 
-  const current = jobs.find(job => ACTIVE_RESEARCH.includes(job.status)) ?? jobs[0];
-  const active = !!current && ACTIVE_RESEARCH.includes(current.status);
+  // The panel's subject (P5-11): the job the user chose with Show, else the first active job, else the newest. A job that
+  // turns active after the choice (not one already active then) takes the panel and becomes the choice itself.
+  const isActive = (job: Research) => ACTIVE_RESEARCH.includes(job.status);
+  const activeIds = jobs.filter(isActive).map(job => job.id);
+  const [choice, setChoice] = useState<{ id: string; active: readonly string[] }>();
+  const fresh = choice ? jobs.find(job => isActive(job) && !choice.active.includes(job.id)) : undefined;
+  const current = fresh ?? (choice && jobs.find(job => job.id === choice.id)) ?? jobs.find(isActive) ?? jobs[0];
+  const activeKey = activeIds.join('\n');
+  useEffect(() => { if (fresh) setChoice({ id: fresh.id, active: activeKey.split('\n') }); }, [fresh?.id, activeKey]);
+  const show = (job: Research) => setChoice({ id: job.id, active: activeIds });
+  const active = !!current && isActive(current);
+  // The start form stays hidden while any job is active, whichever job is shown.
+  const anyActive = activeIds.length > 0;
   const ready = !!collector?.tokenConfigured;
   // Start review only where the engine admits it: a collected or not ready job, in a trusted project with research on.
   const reviewable = !!current && REVIEWABLE_RESEARCH.includes(current.status) && project.trusted && project.policy.research !== 'off';
@@ -255,7 +266,7 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
     </section>}
     {!project.trusted ? <p className="memory-notice">Trust this project before starting research.</p>
       : <ResearchSwitch api={api} project={project} busy={busy} setBusy={setBusy} changed={next => { setSwitched(next); onProjectChange?.(next); }} />}
-    {project.trusted && project.policy.research !== 'off' && !active && <form className="profile-form research-form" aria-label="Start research" onSubmit={event => void start(event)}>
+    {project.trusted && project.policy.research !== 'off' && !anyActive && <form className="profile-form research-form" aria-label="Start research" onSubmit={event => void start(event)}>
         <fieldset disabled={busy || !ready}>
           <legend>Becomes public on GitHub</legend>
           <p className="research-disclosure" data-testid="research-disclosure">The topic, search queries, known URLs, preferred domains, depth and page budget are sent to the collector repository <strong>{collector?.repository ?? '(not set up)'}</strong> and become readable by anyone who can read it, in its workflow runs. A random run reference is added. Your project name, folder, files and conversations are not sent.</p>
@@ -270,7 +281,7 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
         {collector !== undefined && !ready && <p className="muted">{collector ? 'Save a collector token below before starting research.' : 'Set up the collector below before starting research.'}</p>}
         <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !ready || !acknowledged}>Start collection</button></div>
       </form>}
-    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure, job.status).title}` : ''}</span>{PURGEABLE_RESEARCH.includes(job.status) && <PurgeControl busy={busy} purge={() => purge(job)} unverified={false} refusal={purgeRefusal?.researchId === job.id ? purgeRefusal.text : undefined} clearRefusal={() => setPurgeRefusal(undefined)} />}</li>)}</ul></details>}
+    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure, job.status).title}` : ''}</span><div><button title={`Show ${displayText(job.topic, 120)} above`} onClick={() => show(job)}>Show</button></div>{PURGEABLE_RESEARCH.includes(job.status) && <PurgeControl busy={busy} purge={() => purge(job)} unverified={false} refusal={purgeRefusal?.researchId === job.id ? purgeRefusal.text : undefined} clearRefusal={() => setPurgeRefusal(undefined)} />}</li>)}</ul></details>}
     <details className="research-collector" open={collector === null || (!!collector && !collector.tokenConfigured) || undefined}>
       <summary>Collector settings · {collector?.tokenConfigured ? 'token saved' : 'no token saved'}</summary>
       <form className="profile-form" aria-label="Collector settings" onSubmit={event => void save(event)}>
