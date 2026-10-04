@@ -168,8 +168,6 @@ interface World {
   approved: Operation[];
   /** Main's event hook, called before the supervisor sees the event (tampering at an exact point). */
   onEvent?: (event: RunEvent) => void;
-  /** A stand-in for an engine reply the engine does not give yet (see `withUnknownWrites`); never changes a reply it gives. */
-  reply?: (control: Control, reply: unknown) => unknown;
   /** Every control the supervisor sends, each attempt included, in order. */
   sent: Control[];
 }
@@ -190,7 +188,7 @@ async function boot(data: string): Promise<World> {
     return stop.signal;
   };
   world.review = new ReviewSupervisor({
-    control: async control => { world.sent.push(control); const reply = await world.engine.control(control); return world.reply ? world.reply(control, reply) : reply; },
+    control: async control => { world.sent.push(control); return world.engine.control(control); },
     kit, runSignal: signalOf, redact: async text => text, retryDelayMs: 10,
   });
   const fork = engineProcess(world.sides);
@@ -253,32 +251,6 @@ async function crash(world: World) {
   world.child!.dead = true;
   await world.engine.close();
   side(world).store.close();
-}
-
-/**
- * The engine's half of breaker F1 (research.review.context listing `unknown` review writes, with their status) belongs to
- * another unit. Until it lands, this stands in for it in the one test that needs it: when the engine's context lists no
- * unknown write but the journal holds one, the changes are listed again from the journal, completed and unknown, in
- * creation order. Once the engine lists them itself, its reply passes unchanged.
- */
-function withUnknownWrites(world: World) {
-  return (control: Control, reply: unknown): unknown => {
-    if (control.method !== 'research.review.context') return reply;
-    const context = reply as { changes: Array<{ status?: string }> };
-    if (context.changes.some(change => change.status === 'unknown')) return reply;
-    const db = store(world);
-    const edges = db.researchEvents(JOB, 0, 1000).events.filter(event => event.to === 'reviewing');
-    const fresh = edges.filter(event => (event.detail as { workspace?: string }).workspace === 'fresh').at(-1);
-    if (!fresh) return reply;
-    const writes = edges.filter(event => event.revision >= fresh.revision).flatMap(event => db.listOperations((event.detail as { reviewRunId: string }).reviewRunId))
-      .filter(op => op.kind === 'write' && (op.status === 'completed' || op.status === 'unknown'))
-      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
-    if (!writes.some(op => op.status === 'unknown')) return reply;
-    return { ...context, changes: writes.map(op => {
-      const input = op.input as { path: string; beforeHash: string | null; afterHash: string | null };
-      return { operationId: op.id, runId: op.runId, path: input.path, beforeHash: input.beforeHash, afterHash: input.afterHash, status: op.status };
-    }) };
-  };
 }
 
 /** Task 4's part: the project, the profile and a job collected with the fixture package, retained under its binding. */
@@ -657,7 +629,6 @@ test('4c. a crash between an approved edit\'s rename and its record keeps the ed
   await crash(first);
 
   const second = await boot(first.data);
-  second.reply = withUnknownWrites(second);
   const recovery = await recover(second);
   expect(recovery.reviewing).toEqual([JOB]);
   expect(store(second).getResearch(JOB)).toMatchObject({ status: 'not_ready', failure: 'REVIEW_INTERRUPTED' });
