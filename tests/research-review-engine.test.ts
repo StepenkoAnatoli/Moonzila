@@ -6,7 +6,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { Store, type StoreResearchActor, type StoreResearchPatch, type StoreResearchStatus } from '../src/engine/store';
 import { Application } from '../src/engine/application';
 import { ResearchJobs } from '../src/engine/research';
-import { assertFreshReviewRun, reviewWorkspacePath, REVIEW_SYSTEM_PROMPT } from '../src/engine/research-review';
+import { assertFreshReviewRun, beginReview, endReviewRun, projectRoot, reviewWorkspacePath, REVIEW_SYSTEM_PROMPT } from '../src/engine/research-review';
 import { assertToolPolicy } from '../src/engine/policy';
 import { createControl, ReviewToolPort } from '../src/engine/control-dispatch';
 import { ControlSchema } from '../src/engine/control';
@@ -97,6 +97,7 @@ async function until(check: () => boolean | Promise<boolean>, label: string, ms 
   const end = Date.now() + ms;
   while (!(await check())) { if (Date.now() > end) throw new Error(`timed out waiting for ${label}`); await new Promise(resolve => setTimeout(resolve, 2)); }
 }
+const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const types = (events: Array<{ type: string }>) => events.map(event => event.type);
 const toolResult = (messages: InferenceMessage[]) => JSON.parse(messages.at(-1)!.content) as Record<string, unknown>;
 const finished = (h: ReturnType<typeof harness>, runId: string) => until(() => ['awaiting_review', 'completed', 'failed', 'cancelled', 'interrupted'].includes(h.store.getRun(runId)!.status), 'the run to end');
@@ -634,5 +635,196 @@ describe('engine control and port', () => {
     expect(port.settle({ id: posted[0]!.id as string, type: 'research.tool.error', code: 'RUN_CANCELLED' })).toBe(true);
     await expect(pending).rejects.toThrow('RUN_CANCELLED');
     expect(port.settle({ id: posted[0]!.id as string, type: 'research.tool.error', code: 'RUN_CANCELLED' })).toBe(false);
+  });
+});
+
+/**
+ * Phase 3 mutation survivors whose guard lives in the engine (p3-review resultsA1.tsv / resultsB.tsv). Each test is
+ * shaped so that removing exactly its named guard fails it.
+ */
+describe('engine guards (Phase 3 mutation survivors)', () => {
+  /** A review run whose job left `reviewing` while the run still executes: research.cancel committed, abort not yet landed. */
+  async function detached(h: ReturnType<typeof harness>, next: Step, ...after: Step[]) {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    h.script.push((messages, tools) => gate.then(() => next(messages, tools)), ...after);
+    const { run } = await h.begin();
+    await until(() => h.seen.length === 1, 'the model call');
+    h.app.research.cancel('j1', 'cancel-without-abort', []);
+    expect(h.store.getResearch('j1')!.status).toBe('cancelling');
+    expect(h.store.getRun(run.id)!.status).toBe('running');
+    release();
+    return run;
+  }
+
+  test('a read from a run that is no longer its job\'s live review run is refused (FileReader root.current, resolver)', async () => {
+    const h = harness(); const results: Array<Record<string, unknown>> = [];
+    const run = await detached(h, () => call('read', 'read_file', { path: 'research/MAP.md' }), messages => { results.push(toolResult(messages)); return answer(); });
+    await finished(h, run.id);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toHaveProperty('error');
+    expect(JSON.stringify(results[0])).not.toContain('Subtopic');
+  });
+
+  test('a write from a run that is no longer its job\'s live review run prepares nothing (FileJournal root.current, resolver)', async () => {
+    const h = harness();
+    const run = await detached(h, () => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }));
+    await until(async () => TERMINAL.has(h.store.getRun(run.id)!.status) || (await h.pending(run.id)).length > 0, 'the run to end or ask');
+    expect(h.store.listOperations(run.id).filter(op => op.kind === 'write')).toEqual([]);
+    expect(h.store.getRun(run.id)!.status).toBe('cancelled');
+    expect(h.store.getResearch('j1')).toMatchObject({ status: 'cancelled' });
+    expect(readFileSync(join(h.workspace, 'research/MAP.md'), 'utf8')).toBe(FILES['research/MAP.md']);
+  });
+
+  test('a final answer while the job is cancelling cancels the run and commits cancelled / REVIEW_CANCELLED (endReviewRun)', async () => {
+    const h = harness();
+    const run = await detached(h, () => answer());
+    await finished(h, run.id);
+    expect(h.store.getRun(run.id)!.status).toBe('cancelled');
+    expect(h.store.researchEvents('j1').events.at(-1)).toMatchObject({ from: 'cancelling', to: 'cancelled', actor: 'engine', cause: 'REVIEW_CANCELLED' });
+  });
+
+  test('projectRoot never resolves a research run: only the review resolver may', () => {
+    const h = harness();
+    const project = h.store.getProject('p1')!;
+    h.store.putSession({ id: 'rs', projectId: 'p1', title: 'Review', createdAt: at, updatedAt: at });
+    h.store.putRun({ id: 'review-run', sessionId: 'rs', projectId: 'p1', mode: 'research', status: 'running', profileId: 'profile1', profileRevisionId: 'v1', policyRevision: 1, trustRevision: 1, createdAt: at });
+    expect(() => projectRoot(h.store.getRun('review-run')!, project)).toThrow('PROJECT_UNAVAILABLE');
+    expect(projectRoot({ ...h.store.getRun('review-run')!, mode: 'build' }, project)).toEqual({ root: project.rootPath, review: false, current: true });
+  });
+
+  test('a late end of an earlier review run, after a retry, leaves the job and its current run alone (endReviewRun)', async () => {
+    const h = harness();
+    h.script.push(() => { throw new Error('PROVIDER_ERROR'); });
+    const first = await h.begin(); await finished(h, first.run.id);
+    h.script.push(() => answer());
+    const retry = await h.begin('continued'); await finished(h, retry.run.id);
+    const before = h.store.getResearch('j1')!;
+    expect(before).toMatchObject({ status: 'reviewing', reviewRunId: retry.run.id });
+    const ended = endReviewRun(h.store, first.run.id, { kind: 'failed', failure: 'REVIEW_RUN_FAILED', message: 'late' });
+    expect(ended.research).toBeUndefined();
+    expect(h.store.getResearch('j1')).toEqual(before);
+    expect(h.store.getRun(retry.run.id)!.status).toBe('awaiting_review');
+  });
+
+  test.each([
+    ['research_preflight', { tool: 'research_draft_brief', content: '# Brief\n' }],
+    ['research_draft_brief', { tool: 'research_preflight', pass: true, counts: { pass: 1, warn: 0, fail: 0 }, evidencePolicy: 'pluralist', findings: [] }],
+  ] as const)('%s answered with the other tool\'s result is a tool failure the agent sees, and nothing is written', async (name, reply) => {
+    const h = harness({ kit: async () => reply as ReviewToolResult });
+    const results: Array<Record<string, unknown>> = [];
+    h.script.push(() => call('kit', name), messages => { results.push(toolResult(messages)); return answer(); });
+    const { run } = await h.begin(); await finished(h, run.id);
+    expect(results.map(result => result.error)).toEqual(['REVIEW_TOOL_FAILED']);
+    expect(h.store.listOperations(run.id).filter(op => op.kind === 'write')).toEqual([]);
+    expect(h.store.getRun(run.id)!.status).toBe('awaiting_review');
+  });
+
+  test('a policy change while the kit child runs discards its verdict: the operation fails and the model never sees it', async () => {
+    const h = harness({ kit: async () => {
+      const project = h.store.getProject('p1')!;
+      // Inference-only policy edit: research admission still holds, but the run's policy revision is stale.
+      h.store.putProject({ ...project, policy: { ...project.policy, revision: 2 } });
+      return { tool: 'research_preflight', pass: true, counts: { pass: 1, warn: 0, fail: 0 }, evidencePolicy: 'pluralist', findings: [] };
+    } });
+    h.script.push(() => call('gate', 'research_preflight'), () => answer());
+    const { run } = await h.begin(); await finished(h, run.id);
+    const op = h.store.listOperations(run.id).find(item => item.kind === 'read')!;
+    expect(op.status).toBe('failed');
+    expect(types(h.runEvents(run.id))).not.toContain('tool.completed');
+    expect(h.seen).toHaveLength(1);
+    expect(h.store.getResearch('j1')).toMatchObject({ status: 'not_ready', failure: 'REVIEW_STOPPED' });
+  });
+
+  test('research_preflight takes no arguments: force is refused before main is asked', async () => {
+    const h = harness({ kit: async () => ({ tool: 'research_preflight', pass: true, counts: { pass: 1, warn: 0, fail: 0 }, evidencePolicy: 'pluralist', findings: [] }) });
+    const results: Array<Record<string, unknown>> = [];
+    h.script.push(() => call('gate', 'research_preflight', { force: true }), messages => { results.push(toolResult(messages)); return answer(); });
+    const { run } = await h.begin(); await finished(h, run.id);
+    expect(results.map(result => result.error)).toEqual(['INVALID_REQUEST']);
+    expect(h.kitCalls).toEqual([]);
+  });
+
+  test('research.review.context refuses a job whose journaled verification does not parse', () => {
+    const root = mkdtempSync(join(tmpdir(), 'moonzila-review-')); roots.push(root);
+    const store = new Store(join(root, 'state.sqlite')); stores.push(store);
+    store.putProject({ id: 'p1', rootPath: root, pathLabel: root, name: 'Example', trusted: true, trustRevision: 1, policy: { revision: 1, inference: 'local-only', research: 'public-technical' }, missing: false, createdAt: at });
+    store.createResearch({ id: 'bad', projectId: 'p1', topic: 't', inputs: { queries: [], urls: [], preferDomains: [], depth: 'quick', maxPages: 8 }, clientRef: 'mz-bad', researchLevel: 'public-technical', policyRevision: 1, trustRevision: 1 }, { actor: 'user' });
+    step(store, 'bad', 'dispatching', 'main', { target });
+    step(store, 'bad', 'collecting', 'main', { workflowRunId: '41' });
+    step(store, 'bad', 'collected', 'main', { verification: { ...verification('41', 'mz-bad'), artifactSha256: 'not-a-digest' } });
+    expect(() => new ResearchJobs(store, () => {}).reviewContext('bad')).toThrow('RESEARCH_STATE_INVALID');
+  });
+
+  test('recovery leaves a reviewing job whose run is still live alone: only a terminal run ends the review', async () => {
+    const h = harness();
+    const { run } = await h.begin();
+    await until(() => h.seen.length === 1, 'the model call');
+    const recovered = h.app.research.recover([]);
+    expect(recovered).toMatchObject({ reviewing: [], unreadable: [], freeze: [] });
+    expect(h.store.getResearch('j1')).toMatchObject({ status: 'reviewing', reviewRunId: run.id });
+  });
+
+  test('begin on a job that is not reviewable refuses before reconciling any unknown write', async () => {
+    const h = harness();
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const first = await h.begin();
+    const op = await h.decide(first.run.id); await finished(h, first.run.id);
+    h.script.push(() => answer());
+    const retry = await h.begin('continued'); await finished(h, retry.run.id);
+    // The job is reviewing again (its run has answered) when an unknown write of the earlier run turns up.
+    h.store.updateOperation(op.id, { status: 'unknown', result: {} });
+    await expect(h.begin('continued')).rejects.toThrow('REVIEW_NOT_AVAILABLE');
+    expect(h.store.getOperation(op.id)).toMatchObject({ status: 'unknown', result: {} });
+  });
+
+  test('begin re-checks reviewability in its acceptance: a begin that commits while another reconciles wins, the other is refused', async () => {
+    const h = harness();
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const first = await h.begin();
+    const op = await h.decide(first.run.id); await finished(h, first.run.id);
+    h.store.updateOperation(op.id, { status: 'unknown' });
+    const journal = (h.app as unknown as { operations: { journal: { observeRecovery(id: string): Promise<'applied' | 'not-applied' | 'conflict'> } } }).operations.journal;
+    let competing: Promise<unknown> | undefined;
+    const outer = beginReview(h.store, { requestId: 'outer', researchId: 'j1', profileId: 'profile1', workspace: 'continued' }, {
+      profile: id => (h.app as unknown as { publicProfile(id: string): never }).publicProfile(id),
+      isBusy: () => false,
+      // While this begin observes, another (main's retry of the same start) reconciles and commits first.
+      observe: async id => { const observation = await journal.observeRecovery(id); competing = h.begin('continued', 'competing'); await competing; return observation; },
+    });
+    await expect(outer).rejects.toThrow('REVIEW_NOT_AVAILABLE');
+    await expect(competing).resolves.toMatchObject({ research: { status: 'reviewing' } });
+    expect(h.store.researchEvents('j1').events.filter(event => event.to === 'reviewing')).toHaveLength(2);
+  });
+
+  test.each([
+    ['TRUST_CHANGED', (p: ReturnType<Store['getProject']> & object) => ({ ...p, trustRevision: 2 })],
+    ['POLICY_CHANGED', (p: ReturnType<Store['getProject']> & object) => ({ ...p, policy: { ...p.policy, research: 'private-connected' as const, revision: 2 } })],
+  ] as const)('begin refuses with %s: the job\'s admission binding, which only researchAdmission checks', async (code, change) => {
+    const h = harness();
+    h.store.putProject(change(h.store.getProject('p1')!));
+    const before = h.store.getResearch('j1')!;
+    await expect(h.begin('fresh')).rejects.toThrow(code);
+    expect(h.store.getResearch('j1')).toEqual(before);
+  });
+
+  test('changes.undo refuses a review edit before anything else, even in a project that is no longer trusted', async () => {
+    const h = harness();
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const { run } = await h.begin();
+    const op = await h.decide(run.id); await finished(h, run.id);
+    h.store.putProject({ ...h.store.getProject('p1')!, trusted: false });
+    await expect(h.app.handle(request('changes.undo', { projectId: 'p1', changeId: op.id, expectedAfterHash: sha('classified\n') }, 'undo'))).rejects.toThrow('UNDO_UNAVAILABLE');
+  });
+
+  test('the edit journal itself refuses to undo a review edit: no undo operation is prepared', async () => {
+    const h = harness();
+    h.script.push(() => call('w', 'write_file', { path: 'research/MAP.md', content: 'classified\n' }), () => { throw new Error('PROVIDER_ERROR'); });
+    const { run } = await h.begin();
+    const op = await h.decide(run.id); await finished(h, run.id);
+    const journal = (h.app as unknown as { operations: { journal: { prepareUndo(id: string, after: string | null): Promise<unknown> } } }).operations.journal;
+    await expect(journal.prepareUndo(op.id, sha('classified\n'))).rejects.toThrow('UNDO_UNAVAILABLE');
+    expect(h.store.listOperations(run.id).filter(item => item.kind === 'write').map(item => item.id)).toEqual([op.id]);
+    expect(readFileSync(join(h.workspace, 'research/MAP.md'), 'utf8')).toBe('classified\n');
   });
 });
