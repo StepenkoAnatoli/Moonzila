@@ -168,6 +168,7 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-5 | Phase 5 spec review | S2 (raised: a misleading message, the P4-14 class) | a Windows delete still refused after the retry answers RESEARCH_KIT_UNAVAILABLE ("reinstall the kit") and never says that earlier packages were already deleted | lead contract: new public code `PURGE_INCOMPLETE` (spec updated, contract test); FIX to the B7a builder, batched with its unit review |
 | P5-6 | Phase 5 spec review | S3 / test gap | no test for a purge racing a review start's `verifyRetained`; the reader race only in one ordering; `keptShared` counts referenced digests with no file | FIX batched to the B7a builder |
 | P5-7 | Phase 5 spec review | docs | spec divergences (keptBusy, NOT_FOUND, no-kit order, retry detail, disclosure, removed incl. orphans, projectId, no deleted state) and ARCHITECTURE wording | DOCS: "as built" in research-purge.md |
+| P5-8 | Phase 5 invariant audit | risk notes | the deleted fake test key remains in git history; invariant 4 (rows unchanged) proven only by a scratch test; a symlinked storage root is followed; AGENTS.md lacks a purge invariant row | history: kept (a throwaway key protecting nothing; rewriting shared history is never done). Byte-compare test: batched to the B7a builder. Storage-root link: belongs to the P4-23 task. AGENTS.md row: the docs unit |
 
 ## Kit findings
 
@@ -221,3 +222,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: P5-2 fixed and integrated.
 - 2026-10-04: B7a integrated (46/46 with reader and main-kit; shared-digest guard removal red). All Phase 5 units in. Pushed; full Linux gate and Windows CI on this head; B7a unit review and the integration spec and invariant reviewers launched.
 - 2026-10-04: Phase 5 spec review: no S1/S2 in code; P5-5 (S2) needs contract `PURGE_INCOMPLETE` (lead, added); P5-6 test gaps; P5-7 docs.
+- 2026-10-04: Phase 5 invariant audit: all seven HOLD; P5-8 risk notes dispositioned.
