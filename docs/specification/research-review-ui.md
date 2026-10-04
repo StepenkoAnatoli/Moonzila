@@ -198,3 +198,41 @@ Exact-match redaction cannot catch a fragment of a secret that the document itse
 - Showing the review run's progress inside the panel; it is in the conversation.
 - `private-connected` research.
 - `research.purge` (Phase 5).
+
+## Phase 4 as built (October 4)
+
+Units B11 (reader), B4 (panel), B4b (card label), B8 (switch), B8e (policy guard) and B12 (e2e journey), their unit reviews and the integration spec and invariant reviews (findings P4-1 to P4-27 in the [run ledger](../orchestration/2026-10-03-task5-research-review/RUN.md)). The design above is unchanged; where the build differs from it or adds to it, this section says so and the build is what runs.
+
+**Section 1, the panel**
+- **The button rule is narrower than written.** The panel has more buttons than the three review controls: **Check again**, **Read the brief**, **Read the evidence table**, **Allow research**, **Allow public research**, **Turn research off** and **Cancel** (besides the collection form and collector settings). `tests/research-panel.test.tsx` constrains only button texts that contain "review": for each status they are exactly the allowed set (Start review for `collected` and `not_ready`; Open review and Cancel review for `reviewing`; Cancel review for `packaging`; none for `approved`). "authorize" and "approve" stay forbidden on every button.
+- **The reader is shown in more statuses** (P4-4): `collected`, `reviewing`, `packaging`, `approved` and `not_ready` (`READABLE_RESEARCH` in `src/renderer/research-text.ts`), not only the three the table lists.
+- **Start review needs trust and research on**, not only the status: it is offered for `collected` and `not_ready` in a trusted project whose research setting is not `off` (`REVIEWABLE_RESEARCH`). The engine would refuse it otherwise (P4-7).
+- **Open review can be disabled.** While the workbench is busy, loading a scope or has an active run, Open review is shown disabled with the reason "Finish or stop the running task in this conversation before opening the review.", as the conversation list refuses a switch then. Before opening, App re-reads the conversation list and applies it only while the same project is open (P4-6).
+- **History label** (P4-4). An `approved` job in the history list (not the current job, which always gets the live check) reads "Approved review, not checked here" (`RESEARCH_STATUS`), never "Ready".
+- **Review wording for shared codes** (P4-4). For a `not_ready` job, `failureText` uses `REVIEW_PHASE_FAILURES` (the admission codes and `RESEARCH_KIT_UNAVAILABLE`, worded for a review), then `RESEARCH_FAILURES`, then a generic "Review not ready" text.
+- **"Cannot check" for a package that verifies** (P4-24, recorded for Phase 5). `ApprovedCheck` probes readiness with the brief read, so a refusal about the brief itself (a brief over 4 MiB, `DOCUMENT_TOO_LARGE`; a package without `research/BRIEF.md`, `DOCUMENT_NOT_AVAILABLE`) shows "Cannot check" although the package verifies. Not changed: a brief that large is unrealistic, and the kit's preflight requires `BRIEF.md`.
+
+**Section 2, the card.** As designed. The card binds the run's mode when it loads, so a card loaded for a research run keeps "Research workspace" until the reload replaces it (P4-1).
+
+**Section 3, the reader** (`src/main/research-document.ts`, `readResearchDocument`)
+- **Every non-stale validator error is `RESEARCH_KIT_UNAVAILABLE`.** The reader returns "missing or does not verify" only for `STALE_VERIFICATION`; any other error from `verifyRetained` (`INSTALLATION_INVALID`, the internal `VALIDATOR_UNAVAILABLE` for a validator that timed out or hit its storage limit, and anything else) is `RESEARCH_KIT_UNAVAILABLE`, as is a machine with no kit. `CANCELLED` cannot occur: the reader passes no signal (P4-14, P4-25).
+- **More cases than the outcomes table:**
+  - an `approved` job without a reviewed package or a journaled verification is `verified: false`, `text: ''`, `source: 'reviewed'`;
+  - a `collected` job (or the fallback) without a journaled verification is `DOCUMENT_NOT_AVAILABLE`;
+  - a verified package that has no such document is `DOCUMENT_NOT_AVAILABLE`, and its entry over 4 MiB is `DOCUMENT_TOO_LARGE`;
+  - a workspace job folder that exists without `project/` is `DOCUMENT_NOT_AVAILABLE` (no fallback); the fallback to the collected package happens only when the job folder or one of its parents is absent;
+  - invalid UTF-8 is decoded with replacement characters, not refused.
+- **The ancestor walk starts at the filesystem root**, not at the data folder: every folder from the root down to the job folder must be a real directory, then `containedFolder` checks `project/`, and checks it again after the read (a folder swapped for a link to itself keeps the inode, P4-18). A linked parent of the data folder therefore makes every workspace read `DOCUMENT_UNSAFE`. This is pre-existing in main's guards and app-wide, so it was moved out of Phase 4 (P4-23): see [linked parent above the data folder](../superpowers/plans/2026-10-02-research-jobs.md#linked-parent-above-the-data-folder-found-october-4-as-p4-23-its-own-task) in the plan, with red tests in `reports/p4-23-red-tests.patch` of the run folder. Until it is fixed, reviews do not work on such a machine.
+- **Any I/O error other than "not found" is `DOCUMENT_UNSAFE`** (EACCES, EBUSY, EMFILE, EPERM; antivirus on Windows), which tells the user to start the review again (P4-17, recorded for Phase 5). It is conservative: no text is shown. A retryable outcome would need a new row in the outcomes table.
+- **The open is non-blocking.** The document is opened with `O_NOFOLLOW | O_NONBLOCK` where the platform defines them, so a FIFO planted under the name is refused at once instead of holding a thread (P4-16).
+
+**Section 4, the switch**
+- **"Changes only research" is built as "leaves `inference` unchanged"** (`src/main/policy-route.ts` `createPolicyRoute`, and the engine's `project.policy.update` in `src/engine/application.ts`). An update that changes nothing is therefore also refused `RUN_ACTIVE` during a Build run.
+- **Main's check reads two internal engine controls, not the renderer's reads** (P4-10): `policy.guard {projectId}` (the stored inference and whether a non-research run is unfinished, one SQL read in `Store.policyGuard`) and `session.project {sessionId}` (the project `run.start` locks). Neither is a renderer method. A `run.start` for a missing session or a folder-free chat is forwarded without the lock, and the engine answers it.
+- **`RUN_ACTIVE` comes before `REQUEST_CONFLICT`** (P4-11). Main checks under the lock before forwarding, so a research-only update with a stale `expectedRevision` during a Build run is refused `RUN_ACTIVE` where the engine alone would answer `REQUEST_CONFLICT`. Nothing is stopped either way.
+- **The panel recognises `RUN_ACTIVE` by its message** (P4-21). The preload passes only the public message, so `switchRefusal` compares it with `RUN_ACTIVE_MESSAGE`, which `tests/research-panel.test.tsx` keeps equal to `src/main/bridge.ts`. Carrying the code through the preload is a later contract change.
+- **Untrusted project:** the panel shows "Trust this project before starting research." and no switch.
+- **While research is on**, the panel says "Research is on for this project: public web pages only." It says so for any setting other than `off`; `private-connected` is never offered or set, but a project that somehow stored it would be labelled the same way (open risk from the integration spec review).
+- **Runs created outside `run.start`** (P4-27, recorded for missions). The lock covers `run.start` only. A future path that creates a non-research run some other way (missions) must take the same project lock; otherwise main would abort and hold before the engine's re-check refuses. See [missions](../superpowers/plans/2026-10-02-research-jobs.md#next-phase-after-research-missions) in the plan.
+
+**Section 5, tests.** The e2e journey is journey 4 in [research journeys](research-journeys.md) (`e2e/research-journeys.spec.ts`, P4-20). It needs the Windows native helper, so only Windows CI runs it. It reaches `collected` through an opt-in route for the import's run read (P4-22). Refusing the switch while another run is active is covered only by the unit tests, because the journey has no model to run a Build or Ask run.

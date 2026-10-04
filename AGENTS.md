@@ -80,6 +80,9 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 | `approved` only through the kit's gate and fresh validation of exact bytes | `research_readiness_reserved` trigger tests in `tests/research-jobs-state.test.ts` |
 | Journal before effect; owned-process Stop | `tests/commands.test.ts`, `tests/guarded-process.test.ts`, `e2e/recovery.spec.ts` |
 | Imported research is untrusted data | offline validator tests in `tests/research-kit.test.ts` |
+| The research document reader returns only redacted text, and its refusals carry no document text | `tests/research-document.test.ts` (a vault secret redacted in the result and absent from a refusal of the same document; a secret straddling the 262,144-byte cut; redaction unavailable returns no text) |
+| A reader result is `verified: true`, and the panel shows Ready, only for bytes validated in that call | `tests/research-document.test.ts` (every call validates again; a package replaced after validation still yields the verified buffer; deleted or tampered is `verified: false`), `tests/research-panel.test.tsx` (Ready only on `verified: true`) |
+| A research-only policy change during a non-research run is refused before any run is stopped | `tests/policy-route.test.ts` (no signal aborted, context revoked, supervisor held; `run.start` serialized by the lock), `tests/project-policy-engine.test.ts` (the engine re-check) |
 
 ### Research-Kit
 | Item | Value |
