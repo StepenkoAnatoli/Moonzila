@@ -45,14 +45,15 @@ export const RESEARCH_STATUS: Readonly<Record<Research['status'], string>> = {
   collecting: 'Collecting on GitHub',
   collected: 'Collected',
   reviewing: 'Under review',
+  packaging: 'Packaging the review',
   approved: 'Ready: approved by the Research Kit gate',
   not_ready: 'Not ready: the Research Kit gate did not approve the review',
   failed: 'Failed',
   cancelling: 'Stopping',
   cancelled: 'Cancelled',
 };
-export const ACTIVE_RESEARCH: readonly Research['status'][] = ['queued', 'dispatching', 'collecting', 'reviewing', 'cancelling'];
-export const CANCELLABLE_RESEARCH: readonly Research['status'][] = ['queued', 'dispatching', 'collecting', 'reviewing'];
+export const ACTIVE_RESEARCH: readonly Research['status'][] = ['queued', 'dispatching', 'collecting', 'reviewing', 'packaging', 'cancelling'];
+export const CANCELLABLE_RESEARCH: readonly Research['status'][] = ['queued', 'dispatching', 'collecting', 'reviewing', 'packaging'];
 
 // Bidirectional overrides and isolates can make untrusted text read differently from what it contains.
 const BIDI = /[‪-‮⁦-⁩]/g;

@@ -82,7 +82,7 @@ async function control(command: Control): Promise<unknown> {
     }
     case 'research.context': return app.research.context(command.researchId);
     case 'research.transition': return app.research.transition(command);
-    case 'research.recover': return app.research.recover(command.owned);
+    case 'research.recover': return app.research.recover(command.owned, command.reviewFolders ?? []);
     case 'research.review.context': return app.research.reviewContext(command.researchId);
     // The review run (Task 5, B2) creates the review session and run; until it lands, begin is unavailable.
     case 'research.review.begin': throw new Error('NOT_IMPLEMENTED');
