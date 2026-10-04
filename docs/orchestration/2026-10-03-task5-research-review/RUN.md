@@ -162,6 +162,8 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P4-11 | B8e unit review | S3 | main refuses `RUN_ACTIVE` before the engine's `REQUEST_CONFLICT` for a stale `expectedRevision` during a Build run | RECORDED: code differs only; nothing is stopped; the spec's "as built" says so |
 | P4-12 | B8e unit review | S3, pre-existing | a replayed `run.start` re-admits a capability for a run that already finished, never removed | RECORDED for Phase 5's gap-audit (present before Phase 4) |
 | P5-1 | P4-40 builder | process | `npm install --package-lock-only` also rewrote npm's hidden lockfile `node_modules/.package-lock.json` in the shared checkout; the builder stopped as briefed | ACCEPTED: npm's own regenerated cache; `npm ls` consistent (0 missing, invalid or extraneous). asn1js added to D-1 by hand edit, no further npm writes |
+| P5-2 | B7b unit review | S3 (x4, batched) | purge refusal overwritten by an automatic error; the Unverified disclosure overstates (history rows, failed/cancelled, shared digest); plural wording; formatting | FIX ROUND sent to the B7b builder (one commit) |
+| P5-3 | lead | process | the B7b reviewer's launch message named a placeholder commit ("85b..."); the reviewer found the real one (`b010a3b`) | launch messages name commits from `git log`, never from memory |
 
 ## Kit findings
 
@@ -209,3 +211,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: auto-build Phase 5 started: stages 0-4 done (research SKIPPED with reason; standing mandate); contracts `7e1f4d9`; B7a, B7b, P4-40 launched.
 - 2026-10-04: P4-40 paused on npm's hidden-lockfile rewrite (P5-1), accepted; D-1 now covers asn1js 3.0.10.
 - 2026-10-04: B7b and P4-40 integrated (88/88 and 56/56; one guard removal each red). Kit doctor READY. Waiting for B7a.
+- 2026-10-04: B7b unit review: no S1/S2; P5-2 (four S3) batched to the builder; P5-3 recorded.
