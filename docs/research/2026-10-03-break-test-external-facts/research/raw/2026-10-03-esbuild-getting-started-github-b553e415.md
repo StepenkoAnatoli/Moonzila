@@ -1,0 +1,358 @@
+---
+url: https://esbuild.github.io/getting-started/
+retrieved: 2026-10-03
+command: http-keyless scrape https://esbuild.github.io/getting-started/
+statusCode: 200
+transport: http-keyless
+completeness: full
+title: esbuild - Getting Started
+---
+# Getting Started
+
+## [#](#install-esbuild)Install esbuild
+
+ First, download and install the esbuild command locally. A prebuilt native executable can be installed using [npm](https://docs.npmjs.com/cli/v8/commands/npm-install) (which is automatically installed when you install the [node](https://nodejs.org/) JavaScript runtime):
+
+ npm install --save-exact --save-dev esbuild This should have installed esbuild in your local `node_modules` folder. You can run the esbuild executable to verify that everything is working correctly:
+
+
+[Unix](javascript:void 0)
+[Windows](javascript:void 0)
+
+
+ ./node_modules/.bin/esbuild --version
+
+ .\node_modules\.bin\esbuild --version
+ The recommended way to install esbuild is to install the native executable using npm. But if you don't want to do that, there are also some [other ways to install](#other-ways-to-install). You can also read more about [additional npm flags](#additional-npm-flags) if you're passing additional flags to npm, as they may affect how esbuild gets installed.
+
+## [#](#your-first-bundle)Your first bundle
+
+ This is a quick real-world example of what esbuild is capable of and how to use it. First, install the `react` and `react-dom` packages:
+
+ npm install react react-dom Then create a file called `app.jsx` containing the following code:
+
+ import * as React from 'react'
+ import * as Server from 'react-dom/server'
+
+ let Greet = () => < h1 > Hello, world! </ h1 >
+ console .log(Server.renderToString( < Greet /> )) Finally, tell esbuild to bundle the file:
+
+
+[Unix](javascript:void 0)
+[Windows](javascript:void 0)
+
+
+ ./node_modules/.bin/esbuild app.jsx --bundle --outfile=out.js
+
+ .\node_modules\.bin\esbuild app.jsx --bundle --outfile=out.js
+ This should have created a file called `out.js` containing your code and the React library bundled together. The code is completely self-contained and no longer depends on your `node_modules` directory. If you run the code using `node out.js`, you should see something like this:
+
+ < h1 data-reactroot = "" > Hello, world! </ h1 > Notice that esbuild also converted JSX syntax to JavaScript without any configuration other than the `.jsx` extension. While esbuild can be configured, it attempts to have reasonable defaults so that many common situations work automatically. If you would like to use JSX syntax in `.js` files instead, you can tell esbuild to allow this using the `--loader:.js=jsx` flag. You can read more about the available configuration options in the [API documentation](/api/).
+
+## [#](#build-scripts)Build scripts
+
+ Your build command is something you will be running repeatedly, so you will want to automate it. A natural way of doing this is to add a build script to your `package.json` file like this:
+
+ {
+ "scripts" : {
+ "build" : "esbuild app.jsx --bundle --outfile=out.js"
+ }
+} Notice that this uses the `esbuild` command directly without a relative path. This works because everything in the `scripts` section is run with the `esbuild` command already in the path (as long as you have [installed the package](#install-esbuild)).
+
+ The build script can be invoked like this:
+
+ npm run build However, using the command-line interface can become unwieldy if you need to pass many options to esbuild. For more sophisticated uses you will likely want to write a build script in JavaScript using esbuild's JavaScript API. That might look something like this (note that this code must be saved in a file with the `.mjs` extension because it uses the `import` keyword):
+
+ import * as esbuild from 'esbuild'
+
+ await esbuild.build({
+ entryPoints : [ 'app.jsx' ],
+ bundle : true ,
+ outfile : 'out.js' ,
+})
+ The `build` function runs the esbuild executable in a child process and returns a promise that resolves when the build is complete. There is also a `buildSync` API that is not asynchronous, but the asynchronous API is better for build scripts because [plugins](/plugins/) only work with the asynchronous API. You can read more about the configuration options for the build API in the [API documentation](/api/#build).
+
+## [#](#bundling-for-the-browser)Bundling for the browser
+
+ The bundler outputs code for the browser by default, so no additional configuration is necessary to get started. For development builds you probably want to enable [source maps](/api/#sourcemap) with `--sourcemap`, and for production builds you probably want to enable [minification](/api/#minify) with `--minify`. You probably also want to configure the [target](/api/#target) environment for the browsers you support so that JavaScript syntax which is too new will be transformed into older JavaScript syntax. All of that might looks something like this:
+
+
+[CLI](javascript:void 0)
+[JS](javascript:void 0)
+[Go](javascript:void 0)
+
+
+ esbuild app.jsx --bundle --minify --sourcemap --target=chrome58,firefox57,safari11,edge16
+
+ import * as esbuild from 'esbuild'
+
+ await esbuild.build({
+ entryPoints : [ 'app.jsx' ],
+ bundle : true ,
+ minify : true ,
+ sourcemap : true ,
+ target : [ 'chrome58' , 'firefox57' , 'safari11' , 'edge16' ],
+ outfile : 'out.js' ,
+})
+
+ package main
+
+ import "github.com/evanw/esbuild/pkg/api"
+ import "os"
+
+ func main () {
+ result := api.Build(api.BuildOptions{
+ EntryPoints: [] string { "app.jsx" },
+ Bundle: true ,
+ MinifyWhitespace: true ,
+ MinifyIdentifiers: true ,
+ MinifySyntax: true ,
+ Engines: []api.Engine{
+ {api.EngineChrome, "58" },
+ {api.EngineFirefox, "57" },
+ {api.EngineSafari, "11" },
+ {api.EngineEdge, "16" },
+ },
+ Write: true ,
+ })
+
+ if len (result.Errors) > 0 {
+ os.Exit( 1 )
+ }
+}
+ Some npm packages you want to use may not be designed to be run in the browser. Sometimes you can use esbuild's configuration options to work around certain issues and successfully bundle the package anyway. Undefined globals can be replaced with either the [define](/api/#define) feature in simple cases or the [inject](/api/#inject) feature in more complex cases.
+
+## [#](#bundling-for-node)Bundling for node
+
+ Even though a bundler is not necessary when using node, sometimes it can still be beneficial to process your code with esbuild before running it in node. Bundling can automatically strip TypeScript types, convert ECMAScript module syntax to CommonJS, and transform newer JavaScript syntax into older syntax for a specific version of node. And it may be beneficial to bundle your package before publishing it so that it's a smaller download and so it spends less time reading from the file system when being loaded.
+
+ If you are bundling code that will be run in node, you should configure the [platform](/api/#platform) setting by passing `--platform= node` to esbuild. This simultaneously changes a few different settings to node-friendly default values. For example, all packages that are built-in to node such as `fs` are automatically marked as external so esbuild doesn't try to bundle them. This setting also disables the interpretation of the browser field in `package.json`.
+
+ If your code uses newer JavaScript syntax that doesn't work in your version of node, you will want to configure the [target](/api/#target) version of node:
+
+
+[CLI](javascript:void 0)
+[JS](javascript:void 0)
+[Go](javascript:void 0)
+
+
+ esbuild app.js --bundle --platform=node --target=node10.4
+
+ import * as esbuild from 'esbuild'
+
+ await esbuild.build({
+ entryPoints : [ 'app.js' ],
+ bundle : true ,
+ platform : 'node' ,
+ target : [ 'node10.4' ],
+ outfile : 'out.js' ,
+})
+
+ package main
+
+ import "github.com/evanw/esbuild/pkg/api"
+ import "os"
+
+ func main () {
+ result := api.Build(api.BuildOptions{
+ EntryPoints: [] string { "app.js" },
+ Bundle: true ,
+ Platform: api.PlatformNode,
+ Engines: []api.Engine{
+ {api.EngineNode, "10.4" },
+ },
+ Write: true ,
+ })
+
+ if len (result.Errors) > 0 {
+ os.Exit( 1 )
+ }
+}
+ You also may not want to bundle your dependencies with esbuild. There are many node-specific features that esbuild doesn't support while bundling such as `__dirname`, `import.meta.url`, `fs.readFileSync`, and `*.node` native binary modules. You can exclude all of your dependencies from the bundle by setting [packages](/api/#packages) to external:
+
+
+[CLI](javascript:void 0)
+[JS](javascript:void 0)
+[Go](javascript:void 0)
+
+
+ esbuild app.jsx --bundle --platform=node --packages=external
+
+ require ( 'esbuild' ).buildSync({
+ entryPoints : [ 'app.jsx' ],
+ bundle : true ,
+ platform : 'node' ,
+ packages : 'external' ,
+ outfile : 'out.js' ,
+})
+
+ package main
+
+ import "github.com/evanw/esbuild/pkg/api"
+ import "os"
+
+ func main () {
+ result := api.Build(api.BuildOptions{
+ EntryPoints: [] string { "app.jsx" },
+ Bundle: true ,
+ Platform: api.PlatformNode,
+ Packages: api.PackagesExternal,
+ Write: true ,
+ })
+
+ if len (result.Errors) > 0 {
+ os.Exit( 1 )
+ }
+}
+ If you do this, your dependencies must still be present on the file system at run-time since they are no longer included in the bundle.
+
+## [#](#simultaneous-platforms)Simultaneous platforms
+
+ You cannot install esbuild on one OS, copy the `node_modules` directory to another OS without reinstalling, and then run esbuild on that other OS. This won't work because esbuild is written with native code and needs to install a platform-specific binary executable. Normally this isn't an issue because you typically check your `package.json` file into version control, not your `node_modules` directory, and then everyone runs `npm install` on their local machine after cloning the repository.
+
+ However, people sometimes get into this situation by installing esbuild on Windows or macOS and copying their `node_modules` directory into a [Docker](https://www.docker.com/) image that runs Linux, or by copying their `node_modules` directory between Windows and [WSL](https://docs.microsoft.com/en-us/windows/wsl/) environments. The way to get this to work depends on your package manager:
+
+
+- **npm/pnpm:** If you are installing with npm or pnpm, you can try not copying the `node_modules` directory when you copy the files over, and running `npm ci` or `npm install` on the destination platform after the copy. Or you could consider using [Yarn](https://yarnpkg.com/) instead which has built-in support for installing a package on multiple platforms simultaneously.
+- **Yarn:** If you are installing with Yarn, you can try listing both this platform and the other platform in your `.yarnrc.yml` file using [the supportedArchitectures feature](https://yarnpkg.com/configuration/yarnrc/#supportedArchitectures). Keep in mind that this means multiple copies of esbuild will be present on the file system.
+
+ You can also get into this situation on a macOS computer with an ARM processor if you install esbuild using the ARM version of npm but then try to run esbuild with the x86-64 version of node running inside of [Rosetta](https://en.wikipedia.org/wiki/Rosetta_(software)). In that case, an easy fix is to run your code using the ARM version of node instead, which can be downloaded here: [https://nodejs.org/en/download/](https://nodejs.org/en/download/).
+
+ Another alternative is to [use the esbuild-wasm package instead](#wasm), which works the same way on all platforms. But it comes with a heavy performance cost and can sometimes be 10x slower than the `esbuild` package, so you may also not want to do that.
+
+## [#](#yarn-pnp)Using Yarn Plug'n'Play
+
+ Yarn's [Plug'n'Play](https://yarnpkg.com/features/pnp/) package installation strategy is supported natively by esbuild. To use it, make sure you are running esbuild such that the [current working directory](/api/#working-directory) contains Yarn's generated package manifest JavaScript file (either `.pnp.cjs` or `.pnp.js`). If a Yarn Plug'n'Play package manifest is detected, esbuild will automatically resolve package imports to paths inside the `.zip` files in Yarn's package cache, and will automatically extract these files on the fly during bundling.
+
+ Because esbuild is written in Go, support for Yarn Plug'n'Play has been completely re-implemented in Go instead of relying on Yarn's JavaScript API. This allows Yarn Plug'n'Play package resolution to integrate well with esbuild's fully parallelized bundling pipeline for maximum speed. Note that Yarn's command-line interface adds a lot of unavoidable performance overhead to every command. For maximum esbuild performance, you may want to consider running esbuild without using Yarn's CLI (i.e. not using `yarn esbuild`). This can result in esbuild running 10x faster.
+
+## [#](#additional-npm-flags)Additional npm flags
+
+ There are two npm flags that can potentially interfere with how the `esbuild` package is installed: `--ignore- scripts` and `--no- optional`. This is because the `esbuild` package uses an install script and because the `esbuild` package depends on a separate optional package for each platform-specific binary executable.
+
+ The optimal way to install esbuild is to not use either of these flags. The installation flow for esbuild is designed to still partially work when one of these flags is present, but it cannot work at all when both of these flags are present.
+
+ In more detail:
+
+
+- npm install esbuild This is the default installation flow. The `esbuild` binary for the current platform should be automatically selected and installed from esbuild's optional dependencies by npm. The install script then runs which a) checks that the esbuild binary is the correct version (which is [sometimes not the case](https://github.com/evanw/esbuild/issues/3800) due to package manager bugs) and b) optimizes the `esbuild` command in `node_modules/ .bin` to be the `esbuild` executable itself instead of a JavaScript shim file that runs the actual `esbuild` executable.
+- npm install esbuild --ignore-scripts This means esbuild's install script doesn't run. However, the `esbuild` binary for the current platform should still be automatically selected and installed from esbuild's optional dependencies by npm. The `esbuild` command in `node_modules/ .bin` remains pointed to the JavaScript shim file that runs the actual esbuild executable. This means that running esbuild using for example `./node_modules/ .bin/ esbuild` will experience some unnecessary performance overhead as an extra node process will be launched to invoke esbuild. Uses of the esbuild API (so not the esbuild CLI) do not have degraded performance as that use case already requires a node process to be launched (for the caller of the JavaScript API). The performance overhead of launching the extra node process is not nothing but also not that big. So this is not the end of the world.
+- npm install esbuild --no-optional This means npm doesn't install the optional package with the `esbuild` binary for the current platform, as it has been instructed not to install any optional packages. The install script then runs and notices the missing `esbuild` binary and attempts to download it manually from the npm registry. This is less robust than the default installation flow because many people have complex npm configuration that esbuild's install script can't necessarily replicate. For example, this may fail if the network path to the internet involves a proxy, or a custom npm registry is in use. But this install flow has been added because it works for some people who do this. If this fails for you, the solution is to not do this.
+- npm install esbuild --ignore-scripts --no-optional In this scenario, the installed `esbuild` package is broken because nothing downloads the actual `esbuild` binary. I consider this to be a user error. The solution is to not do this.
+
+## [#](#other-ways-to-install)Other ways to install
+
+ The recommended way to install esbuild is to [install the native executable using npm](#install-esbuild). But you can also install esbuild in these ways:
+
+### [#](#download-a-build)Download a build
+
+ If you have a Unix system, you can use the following command to download the `esbuild` binary executable for your current platform (it will be downloaded to the current working directory):
+
+ curl -fsSL https://esbuild.github.io/dl/v0.28.2 | sh You can also use `latest` instead of the version number to download the most recent version of esbuild:
+
+ curl -fsSL https://esbuild.github.io/dl/latest | sh If you don't want to evaluate a shell script from the internet to download esbuild, you can also manually download the package from npm yourself instead (which is all the above shell script is doing). Although the precompiled native executables are hosted using npm, you don't actually need npm installed to download them. The npm package registry is a normal HTTP server and packages are normal gzipped tar files.
+
+ Here is an example of downloading a binary executable directly:
+
+ curl -O https://registry.npmjs.org/@esbuild/darwin-x64/-/darwin-x64-0.28.2.tgz
+ tar xzf ./darwin-x64-0.28.2.tgz
+ ./package/bin/esbuild
+ Usage:
+ esbuild [options] [entry points]
+
+...
+ The native executable in the `@esbuild/darwin-x64` package is for the macOS operating system and the 64-bit Intel architecture. As of writing, this is the full list of native executable packages for the platforms esbuild supports:
+
+
+
+
+| Package name | OS | Architecture | Download |
+
+
+
+| [@esbuild/aix-ppc64](https://www.npmjs.org/package/@esbuild/aix-ppc64) | `aix` | `ppc64` | |
+
+| [@esbuild/android-arm](https://www.npmjs.org/package/@esbuild/android-arm) 3 | `android` | `arm` | |
+
+| [@esbuild/android-arm64](https://www.npmjs.org/package/@esbuild/android-arm64) | `android` | `arm64` | |
+
+| [@esbuild/android-x64](https://www.npmjs.org/package/@esbuild/android-x64) 3 | `android` | `x64` | |
+
+| [@esbuild/darwin-arm64](https://www.npmjs.org/package/@esbuild/darwin-arm64) | `darwin` | `arm64` | |
+
+| [@esbuild/darwin-x64](https://www.npmjs.org/package/@esbuild/darwin-x64) | `darwin` | `x64` | |
+
+| [@esbuild/freebsd-arm64](https://www.npmjs.org/package/@esbuild/freebsd-arm64) | `freebsd` | `arm64` | |
+
+| [@esbuild/freebsd-x64](https://www.npmjs.org/package/@esbuild/freebsd-x64) | `freebsd` | `x64` | |
+
+| [@esbuild/linux-arm](https://www.npmjs.org/package/@esbuild/linux-arm) | `linux` | `arm` | |
+
+| [@esbuild/linux-arm64](https://www.npmjs.org/package/@esbuild/linux-arm64) | `linux` | `arm64` | |
+
+| [@esbuild/linux-ia32](https://www.npmjs.org/package/@esbuild/linux-ia32) | `linux` | `ia32` | |
+
+| [@esbuild/linux-loong64](https://www.npmjs.org/package/@esbuild/linux-loong64) | `linux` | `loong64` 2 | |
+
+| [@esbuild/linux-mips64el](https://www.npmjs.org/package/@esbuild/linux-mips64el) | `linux` | `mips64el` 2 | |
+
+| [@esbuild/linux-ppc64](https://www.npmjs.org/package/@esbuild/linux-ppc64) | `linux` | `ppc64` | |
+
+| [@esbuild/linux-riscv64](https://www.npmjs.org/package/@esbuild/linux-riscv64) | `linux` | `riscv64` 2 | |
+
+| [@esbuild/linux-s390x](https://www.npmjs.org/package/@esbuild/linux-s390x) | `linux` | `s390x` | |
+
+| [@esbuild/linux-x64](https://www.npmjs.org/package/@esbuild/linux-x64) | `linux` | `x64` | |
+
+| [@esbuild/netbsd-arm64](https://www.npmjs.org/package/@esbuild/netbsd-arm64) | `netbsd` 1 | `arm64` | |
+
+| [@esbuild/netbsd-x64](https://www.npmjs.org/package/@esbuild/netbsd-x64) | `netbsd` 1 | `x64` | |
+
+| [@esbuild/openbsd-arm64](https://www.npmjs.org/package/@esbuild/openbsd-arm64) | `openbsd` | `arm64` | |
+
+| [@esbuild/openbsd-x64](https://www.npmjs.org/package/@esbuild/openbsd-x64) | `openbsd` | `x64` | |
+
+| [@esbuild/openharmony-arm64](https://www.npmjs.org/package/@esbuild/openharmony-arm64) 3 | `openharmony` | `arm64` | |
+
+| [@esbuild/sunos-x64](https://www.npmjs.org/package/@esbuild/sunos-x64) | `sunos` | `x64` | |
+
+| [@esbuild/win32-arm64](https://www.npmjs.org/package/@esbuild/win32-arm64) | `win32` | `arm64` | |
+
+| [@esbuild/win32-ia32](https://www.npmjs.org/package/@esbuild/win32-ia32) | `win32` | `ia32` | |
+
+| [@esbuild/win32-x64](https://www.npmjs.org/package/@esbuild/win32-x64) | `win32` | `x64` | |
+
+
+
+
+ **Why this is not recommended:** This approach only works on Unix systems that can run shell scripts, so it will require [WSL](https://learn.microsoft.com/en-us/windows/wsl/) on Windows. An additional drawback is that you cannot use [plugins](/plugins/) with the native version of esbuild.
+
+ If you choose to write your own code to download esbuild directly from npm, then you are relying on internal implementation details of esbuild's native executable installer. These details may change at some point, in which case this approach will no longer work for new esbuild versions. This is only a minor drawback though since the approach should still work forever for existing esbuild versions (packages published to npm are immutable).
+
+ 1 This operating system is not on [node's list of supported platforms](https://nodejs.org/api/process.html#process_process_platform)
+ 2 This architecture is not on [node's list of supported architectures](https://nodejs.org/api/process.html#processarch)
+ 3 This configuration is not [supported by Go](https://go.dev/doc/install/source#environment), so WebAssembly is used instead of a native executable
+
+### [#](#wasm)Install the WASM version
+
+ In addition to the `esbuild` npm package, there is also an `esbuild-wasm` package that functions similarly but that uses WebAssembly instead of native code. Installing it will also install an executable called `esbuild`:
+
+ npm install --save-exact esbuild-wasm **Why this is not recommended:** The WebAssembly version is much, much slower than the native version. In many cases it is an order of magnitude (i.e. 10x) slower. This is for various reasons including a) node re-compiles the WebAssembly code from scratch on every run, b) Go's WebAssembly compilation approach is single-threaded, and c) node has WebAssembly bugs that can delay the exiting of the process by many seconds. The WebAssembly version also excludes some features such as the local file server. You should only use the WebAssembly package like this if there is no other option, such as when you want to use esbuild on an unsupported platform. The WebAssembly package is primarily intended to only be used [in the browser](/api/#browser).
+
+### [#](#build-from-source)Build from source
+
+ To build esbuild from source:
+
+
+- Install the Go compiler:
+ [https://go.dev/dl/](https://go.dev/dl/)
+- Download the source code for esbuild:
+
+git clone --depth 1 --branch v0.28.2 https://github.com/evanw/esbuild.git
+cd esbuild
+- Build the `esbuild` executable (it will be `esbuild.exe` on Windows):
+ go build ./cmd/esbuild
+
+ If you want to build for other platforms, you can just prefix the build command with the platform information. For example, you can build the 32-bit Linux version using this command:
+
+ GOOS=linux GOARCH=386 go build ./cmd/esbuild **Why this is not recommended:** The native version can only be used via the command-line interface, which can be unergonomic for complex use cases and which does not support [plugins](/plugins/). You will need to write JavaScript or Go code and use [esbuild's API](/api/) to use plugins.

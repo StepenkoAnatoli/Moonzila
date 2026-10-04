@@ -41,6 +41,7 @@ Git status, summary/per-file diff, and recent log use fixed arguments without ap
 
 ```powershell
 node scripts/prepare-research-kit.mjs
+node scripts/check-handoff.mjs
 npm run typecheck
 npm run lint
 npm test

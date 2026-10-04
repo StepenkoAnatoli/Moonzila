@@ -2,6 +2,10 @@
 
 The full MoonAliza product remains the target. This is a working development checkpoint, not a completed agent or qualified release.
 
+## Build hardening (break test, 2026-10-03)
+
+The repository's `break-test` skill was run end to end on `main` at `df7862e` on Linux. Three baseline gate runs and every probe (random order, timezone, locale, bare environment, descriptor and memory limits, no network, CRLF checkout, regenerated goldens, Node 22) returned the identical 74-member Linux failure set, all of it the documented Windows-helper gap, and ten repeats of the timing-sensitive files showed no flake. Four Low findings were fixed in separate commits: `engine-strict` so an unsupported Node refuses to install, the README's missing handoff check, and two provisioning-script failures (no network on first run, a leftover empty pin directory) that died with raw stacks. The eight development-only `npm audit` advisories under electron-builder are recorded as a decision, not fixed. The two facts the probes could not observe (npm 11's handling of uncovered install scripts; esbuild's skipped postinstall) were closed through Research-Kit in [a nested research project](research/2026-10-03-break-test-external-facts/research/BRIEF.md), gate PASS, and the `break-test` skill now binds to the kit for every such fact. [The report](evidence/2026-10-03-break-test.md) lists every probe command, the one probe defect (a network namespace with loopback down), and what was not probed on Linux. Windows CI on the exact head remains the acceptance evidence.
+
 ## Desktop completion assertion correction
 
 PR #14 merged at `d3f3af5`; its final source had three green Windows runs, and the merged main push also passed. The subsequent empty reverse PR #15 failed in the GitHub desktop workflow at its default five-second answer assertion ([failed run](https://github.com/StepenkoAnatoli/MoonAliza/actions/runs/36926685473)). The trace showed an active run, without enough evidence to identify the delay source. A deterministic six-second fixture response reproduced the same timeout with valid content.

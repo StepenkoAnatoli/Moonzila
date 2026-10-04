@@ -26,7 +26,7 @@ The working methods this project uses live in `.claude/skills/`, copied verbatim
 |-------|-----------|
 | `lead-orchestrator` | Any multi-step task. Plan, research external facts through Research-Kit first (`references/research-kit.md`), freeze contracts, build in parallel, then review with independent spec, breaker, mutation and invariant roles. The facts below are its Phase 0 record. |
 | `careful-coding` | Every code change: read before changing, verify by running, report mistakes in its format. Its `references/self-review-checklist.md` was not available to copy. |
-| `break-test` | Hardening a build or test suite. Each failure is proven with a repro, and fixes go in as separate commits. |
+| `break-test` | Hardening a build or test suite. Each failure is proven with a repro, and fixes go in as separate commits. Revised on 2026-10-03 from its first complete run here ([report](docs/evidence/2026-10-03-break-test.md)); this copy is ahead of the user's synced original. |
 | `architecture-pass` | Restructuring a finished change without changing its behaviour. |
 | `four-dimension-audit` | Grading finished work on SPEC, DESIGN, CORRECTNESS and QUALITY, without changing it. |
 
