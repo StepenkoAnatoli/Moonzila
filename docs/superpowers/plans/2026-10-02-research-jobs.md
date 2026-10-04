@@ -204,7 +204,7 @@ October 3, integration of the five build teams (import, collector items, small f
     - **B7 `research.purge`** (retained ZIPs only);
     - docs;
     - Phase 4 review (spec, breaker, mutation, invariant) on the integrated branch.
-- **Resume here (October 4 handoff; the conversation was cleared).** The rest of Task 5 ships in phases. Each phase is one draft PR from `main-axuse`; when the user marks it "Ready for review", the lead merges it once Windows CI is green on that head (user instruction, October 4), then `main-axuse` is fast-forwarded to `main`, and the lead asks before starting the next phase.
+- **Resume here (October 4 handoff; the conversation was cleared).** The run ledger `docs/orchestration/2026-10-03-task5-research-review/RUN.md` is now the first thing to read; its Next action line says what to do. The rest of Task 5 ships in phases. Each phase is one draft PR from `main-axuse`; when the user marks it "Ready for review", the lead merges it once Windows CI is green on that head (user instruction, October 4), then `main-axuse` is fast-forwarded to `main`, and the lead asks before starting the next phase.
   - Skills, every phase:
     - `lead-orchestrator`, with each sub-agent on the model most likely to succeed at its role;
     - `careful-coding` in the lead's own work and in every brief;
