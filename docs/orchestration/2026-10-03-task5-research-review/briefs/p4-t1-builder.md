@@ -17,7 +17,7 @@ For each item: write the test, then mutate the guard exactly as the audit did an
   - `approved` keeps the reader;
   - the switch's revision-wins rule: a newer external policy revision is not masked;
   - a dangling link at the job folder is `DOCUMENT_UNSAFE`, not `DOCUMENT_NOT_AVAILABLE`. If the product returns NOT_AVAILABLE there, that is a product finding: stop and report it.
-- P4-39 (optional): `STORAGE_LIMIT` -> `VALIDATOR_UNAVAILABLE` in `verifyRetained`, only if the adapter's existing `OwnedRunner` injection can produce it without new product hooks.
+- P4-39: skip; the STORAGE_LIMIT mapping is being reworked in another unit (P4-41).
 
 Renderer tests: wait on states the product produces after the call, never on an initial state (P4-35). Filesystem tests: junctions inside your mkdtemp only. Any Store you open is closed before cleanup (P4-34).
 
