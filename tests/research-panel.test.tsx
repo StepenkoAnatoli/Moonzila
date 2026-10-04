@@ -238,6 +238,8 @@ test('Cancel review cancels a packaging job through research.cancel', async () =
   const { api, calls } = bridge({ jobs: [job({ status: 'packaging', revision: 5 })], routes: { 'research.cancel': () => ({ research: job({ status: 'cancelling', revision: 6 }) }) } });
   render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Cancel review' }));
+  // Cancel review is terminal, so it asks first (P5-12); the confirm sends the cancel.
+  fireEvent.click(within(screen.getByRole('group', { name: 'Cancel the review?' })).getByRole('button', { name: 'Cancel review' }));
   await waitFor(() => expect(screen.getByTestId('research-status').textContent).toContain('Stopping'));
   expect(calls.find(call => call.method === 'research.cancel')!.params).toEqual({ researchId: 'r1' });
 });

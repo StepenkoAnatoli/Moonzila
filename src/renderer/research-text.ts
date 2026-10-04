@@ -114,6 +114,22 @@ export function purgeResultText(result: { removed: number; keptShared: number; k
     ...(result.keptBusy ? ['Unused packages were kept because research is running.'] : []),
   ].join(' ');
 }
+/**
+ * Cancel review is terminal (`cancelling -> cancelled`, research-review spec "Cancel, Stop, trust and policy"), so it asks
+ * first and names Stop in the review conversation, which ends only the run and keeps the review retryable (P5-12).
+ */
+export const CANCEL_REVIEW_TEXT = {
+  title: 'Cancel the review?', keep: 'Keep the review', confirm: 'Cancel review',
+  points: [
+    'A cancelled review cannot be resumed or started again for this research, and its review workspace is deleted.',
+    'To pause instead, use Stop in the review conversation: the review can then be started again and continues from the edits already made.',
+  ],
+} as const;
+/** What a cancelling or cancelled job says when it has a review run (`reviewRunId`); without one, the collection text. */
+export const REVIEW_CANCEL_STATUS = {
+  cancelling: 'Stopping the review. This research cannot be reviewed again.',
+  cancelled: 'The review was cancelled, and this research cannot be reviewed again. Start a new collection to research this topic again.',
+} as const;
 export const cancelLabel = (status: Research['status']) => status === 'reviewing' || status === 'packaging' ? 'Cancel review' : 'Cancel collection';
 
 // Bidirectional overrides and isolates can make untrusted text read differently from what it contains.

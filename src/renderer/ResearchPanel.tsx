@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { MethodResult, Profile, Project, Research, ResearchCollector } from '../shared';
 import { ResearchCollectorSaveParams, ResearchPurgeResultSchema, ResearchStartParams } from '../shared/params';
 import type { AppApi } from './App';
-import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, PURGEABLE_RESEARCH, PURGE_TEXT, READABLE_RESEARCH, RESEARCH_STATUS, REVIEWABLE_RESEARCH, SWITCH_TEXT, cancelLabel, displayText, failureText, purgeResultText, switchRefusal } from './research-text';
+import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, CANCEL_REVIEW_TEXT, PURGEABLE_RESEARCH, PURGE_TEXT, READABLE_RESEARCH, RESEARCH_STATUS, REVIEW_CANCEL_STATUS, REVIEWABLE_RESEARCH, SWITCH_TEXT, cancelLabel, displayText, failureText, purgeResultText, switchRefusal } from './research-text';
 
 /** Notices can arrive before or after a list reply; the higher revision of a job always wins. */
 export function mergeResearch(current: Research[], incoming: Research[]): Research[] {
@@ -207,6 +207,8 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
       setTopic(''); setQueries(''); setUrls(''); setDomains(''); setAcknowledged(false);
     } catch (reason) { setError(message(reason, 'The collection could not be started.')); } finally { setBusy(false); }
   }
+  // Cancel review asks first (P5-12): the id of the job whose confirmation is open.
+  const [confirmCancel, setConfirmCancel] = useState<string>();
   async function cancel(job: Research) {
     setBusy(true); setError(''); setNotice('');
     try { const result = await api.invoke('research.cancel', { researchId: job.id }) as MethodResult<'research.cancel'>; setJobs(current => mergeResearch(current, [result.research])); }
@@ -246,13 +248,18 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
     {error && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" data-testid="research-notice">{notice}</p>}
     {current && <section aria-label="Current research" className="research-job">
-      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy || !!openBlocked} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && <button disabled={busy} onClick={() => void cancel(current)}>{cancelLabel(current.status)}</button>}</div>
+      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy || !!openBlocked} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && confirmCancel !== current.id && <button disabled={busy} onClick={() => { if (cancelLabel(current.status) === 'Cancel review') setConfirmCancel(current.id); else void cancel(current); }}>{cancelLabel(current.status)}</button>}</div>
+      {active && CANCELLABLE_RESEARCH.includes(current.status) && cancelLabel(current.status) === 'Cancel review' && confirmCancel === current.id && <div role="group" aria-label={CANCEL_REVIEW_TEXT.title} className="research-confirm">
+        <strong>{CANCEL_REVIEW_TEXT.title}</strong>
+        <ul>{CANCEL_REVIEW_TEXT.points.map(point => <li key={point}>{point}</li>)}</ul>
+        <div className="modal-actions"><button disabled={busy} onClick={() => setConfirmCancel(undefined)}>{CANCEL_REVIEW_TEXT.keep}</button><button className="primary" disabled={busy} onClick={() => void cancel(current).finally(() => setConfirmCancel(undefined))}>{CANCEL_REVIEW_TEXT.confirm}</button></div>
+      </div>}
       {current.status === 'reviewing' && current.reviewSessionId && openConversation && openBlocked && <p className="muted">{openBlocked}</p>}
       {current.status === 'approved' ? <ApprovedCheck key={`check-${current.id}-${purges[current.id] ?? 0}`} api={api} job={current} />
         : <p role="status" aria-live="polite" data-testid="research-status"><strong>{RESEARCH_STATUS[current.status]}</strong>{current.workflowRunId ? ` · GitHub run ${current.workflowRunId}` : ''}</p>}
       {current.status === 'collecting' && <p className="muted">Moonzila follows the run on GitHub and downloads its corpus when it finishes. If this takes unusually long, it may be waiting for access: a missing or rejected token, no access to the collector repository, or a run deleted by the repository's retention setting pauses it until you save collector settings or restart Moonzila. A downloaded corpus that could not be verified yet, because GitHub or the Research Kit was unavailable, waits until Moonzila restarts.</p>}
-      {current.status === 'cancelling' && <p className="muted">Stopping the collector. A run already started on GitHub is not cancelled there.</p>}
-      {current.status === 'cancelled' && <p className="muted">Moonzila stopped following this collection. A run already started on GitHub was not cancelled there.</p>}
+      {current.status === 'cancelling' && <p className="muted">{current.reviewRunId ? REVIEW_CANCEL_STATUS.cancelling : 'Stopping the collector. A run already started on GitHub is not cancelled there.'}</p>}
+      {current.status === 'cancelled' && <p className="muted">{current.reviewRunId ? REVIEW_CANCEL_STATUS.cancelled : 'Moonzila stopped following this collection. A run already started on GitHub was not cancelled there.'}</p>}
       {failure && <div className="research-failure" role="alert"><strong>{failure.title}</strong><p>{failure.action}</p></div>}
       {reviewable && <form className="profile-form" aria-label="Start review" onSubmit={event => { event.preventDefault(); void startReview(current); }}>
         <p className="muted">A review runs in its own conversation, where you approve each edit to the research workspace. Your project files are not changed.</p>
