@@ -243,11 +243,16 @@ async function startReview(world: World): Promise<{ research: Research; run: Run
   if (!world.active.has(run.id) && ['queued', 'running'].includes(run.status)) world.active.set(run.id, new AbortController());
   return { research, run };
 }
-/** Quit without any orderly step: main's children stop, the engine process is gone, its database connection abandoned. */
+/**
+ * Quit without any orderly step: main's children stop and the engine process is gone. A dead process holds no database
+ * handle, so its connection is closed here rather than left open until afterEach: on Windows an open handle keeps the
+ * database file and its WAL in use while the next engine opens them, and the abandoned in-process engine could still write.
+ */
 async function crash(world: World) {
   await world.review.close(); await world.kit.close();
   world.child!.dead = true;
   await world.engine.close();
+  side(world).store.close();
 }
 
 /**
@@ -607,10 +612,11 @@ test('4b. restart during packaging: the answered run is kept, packaging re-runs 
   expect(frozen).toMatchObject({ status: 'packaging' });
   expect(frozen.reviewDigest).toMatch(/^[0-9a-f]{64}$/);
   await crash(first);
-  // Quit stopped the create child; the job is still packaging, recorded nothing more.
-  expect(store(first).getResearch(JOB)).toMatchObject({ status: 'packaging', revision: frozen.revision });
 
   const second = await boot(first.data);
+  // Quit stopped the create child; the job is still packaging, recorded nothing more (read through the next engine's
+  // connection: the dead one is closed).
+  expect(store(second).getResearch(JOB)).toMatchObject({ status: 'packaging', revision: frozen.revision });
   expect(store(second).getRun(run.id)!.status).toBe('awaiting_review');
   const recovery = await recover(second);
   expect(recovery.packaging).toEqual([JOB]);

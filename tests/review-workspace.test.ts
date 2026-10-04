@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
-import { link, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { crc32 } from 'node:zlib';
@@ -151,7 +151,10 @@ test('the inventory fails on a link, a junction or a hard link, and the journal\
   await symlink(outside, join(project, 'docs', 'linked'), 'junction');
   expect((await realpath(join(project, 'docs', 'linked'))).toLowerCase()).toBe((await realpath(outside)).toLowerCase());
   await expect(treeInventory(project)).rejects.toThrow('REVIEW_WORKSPACE_CHANGED');
-  await rm(join(project, 'docs', 'linked'));
+  // Removed as a link: recursive so that Windows removes the junction itself, and rm never follows a link it removes.
+  await rm(join(project, 'docs', 'linked'), { recursive: true, force: true });
+  await expect(lstat(join(project, 'docs', 'linked'))).rejects.toMatchObject({ code: 'ENOENT' });
+  expect(await readFile(join(outside, 'x.md'), 'utf8')).toBe('x');
   expect(await treeInventory(project)).toEqual(before);
   // A hard link: two names for one file.
   await link(join(project, 'research', 'MAP.md'), join(outside, 'map-alias.md'));
