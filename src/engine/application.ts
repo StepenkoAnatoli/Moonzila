@@ -218,6 +218,9 @@ export class Application {
       case 'project.policy.update': {
         const project = this.store.getProject(request.params.projectId); if (!project) throw new Error('PROJECT_NOT_FOUND');
         if (project.policy.revision !== request.params.expectedRevision) throw new Error('REQUEST_CONFLICT');
+        // The research switch never stops other work (UI spec section 4): an update that leaves `inference` as it is
+        // refuses while a non-research run is live, before anything is cancelled. Main's route checks the same first.
+        if (request.params.policy.inference === project.policy.inference && this.store.listSessions(project.id).some(session => this.store.listRuns(session.id).some(run => run.mode !== 'research' && !terminal.has(run.status)))) throw new Error('RUN_ACTIVE');
         this.store.putProject({ ...project, policy: { ...request.params.policy, revision: project.policy.revision + 1 } });
         this.cancelProject(project.id); return { project: this.publicProject(project.id) };
       }
