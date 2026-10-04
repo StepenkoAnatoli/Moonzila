@@ -115,7 +115,7 @@ function ResearchSwitch({ api, project, busy, setBusy, changed }: { api: AppApi;
   </div>;
 }
 
-export function ResearchPanel({ api, project: given, openConversation, onProjectChange }: { api: AppApi; project: Project; openConversation?: (sessionId: string) => void; onProjectChange?: (project: Project) => void }) {
+export function ResearchPanel({ api, project: given, openConversation, openBlocked, onProjectChange }: { api: AppApi; project: Project; openConversation?: (sessionId: string) => void; openBlocked?: string; onProjectChange?: (project: Project) => void }) {
   // A switch reply is newer than the project the workbench passed until the workbench catches up; the higher policy revision wins.
   const [switched, setSwitched] = useState<Project>();
   const project = switched && switched.id === given.id && switched.policy.revision > given.policy.revision ? switched : given;
@@ -206,8 +206,9 @@ export function ResearchPanel({ api, project: given, openConversation, onProject
     {error && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {current && <section aria-label="Current research" className="research-job">
-      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && <button disabled={busy} onClick={() => void cancel(current)}>{cancelLabel(current.status)}</button>}</div>
-      {current.status === 'approved' ? <ApprovedCheck key={current.id} api={api} job={current} />
+      <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy || !!openBlocked} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && <button disabled={busy} onClick={() => void cancel(current)}>{cancelLabel(current.status)}</button>}</div>
+      {current.status === 'reviewing' && current.reviewSessionId && openConversation && openBlocked && <p className="muted">{openBlocked}</p>}
+      {current.status === 'approved' ? <ApprovedCheck key={`check-${current.id}`} api={api} job={current} />
         : <p role="status" aria-live="polite" data-testid="research-status"><strong>{RESEARCH_STATUS[current.status]}</strong>{current.workflowRunId ? ` · GitHub run ${current.workflowRunId}` : ''}</p>}
       {current.status === 'collecting' && <p className="muted">Moonzila follows the run on GitHub and downloads its corpus when it finishes. If this takes unusually long, it may be waiting for access: a missing or rejected token, no access to the collector repository, or a run deleted by the repository's retention setting pauses it until you save collector settings or restart Moonzila. A downloaded corpus that could not be verified yet, because GitHub or the Research Kit was unavailable, waits until Moonzila restarts.</p>}
       {current.status === 'cancelling' && <p className="muted">Stopping the collector. A run already started on GitHub is not cancelled there.</p>}
@@ -220,7 +221,7 @@ export function ResearchPanel({ api, project: given, openConversation, onProject
         {profiles && !chosen && <p className="muted">Add a model profile this project allows before starting a review.</p>}
         <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !chosen}>Start review</button></div>
       </form>}
-      {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={current.id} api={api} job={current} />}
+      {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={`reader-${current.id}`} api={api} job={current} />}
     </section>}
     {!project.trusted ? <p className="memory-notice">Trust this project before starting research.</p>
       : <ResearchSwitch api={api} project={project} busy={busy} setBusy={setBusy} changed={next => { setSwitched(next); onProjectChange?.(next); }} />}
