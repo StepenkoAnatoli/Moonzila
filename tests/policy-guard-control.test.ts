@@ -32,25 +32,25 @@ function fixture() {
 
 test(`policy.guard answers for a project with ${MANY} finished runs: the stored inference, and no live non-research run`, async () => {
   const { control, history } = fixture(); history();
-  expect(PolicyGuardResultSchema.parse(await control({ method: 'policy.guard', projectId: 'p1' }))).toEqual({ inference: 'local-only', nonResearchRunActive: false });
+  expect(PolicyGuardResultSchema.parse(await control({ method: 'policy.guard', projectId: 'p1' }))).toEqual({ revision: 1, inference: 'local-only', nonResearchRunActive: false });
 });
 
 test('policy.guard reports an unfinished non-research run among many finished ones, and ignores unfinished review runs', async () => {
   const { control, history, run } = fixture(); history();
   run('review', 'research', 'awaiting_review');
-  expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ inference: 'local-only', nonResearchRunActive: false });
+  expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ revision: 1, inference: 'local-only', nonResearchRunActive: false });
   run('build', 'build', 'cancelling');
-  expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ inference: 'local-only', nonResearchRunActive: true });
+  expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ revision: 1, inference: 'local-only', nonResearchRunActive: true });
 });
 
 test('policy.guard counts every unfinished status and no finished one', async () => {
   for (const status of ['queued', 'running', 'awaiting_approval', 'awaiting_review', 'cancelling'] as const) {
     const { control, run } = fixture(); run('r', 'ask', status);
-    expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ inference: 'local-only', nonResearchRunActive: true });
+    expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ revision: 1, inference: 'local-only', nonResearchRunActive: true });
   }
   for (const status of ['completed', 'failed', 'cancelled', 'interrupted'] as const) {
     const { control, run } = fixture(); run('r', 'ask', status);
-    expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ inference: 'local-only', nonResearchRunActive: false });
+    expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ revision: 1, inference: 'local-only', nonResearchRunActive: false });
   }
 });
 
@@ -71,6 +71,12 @@ test('policy.guard ignores an unfinished Build run in another project', async ()
   store.putProject({ ...store.getProject('p1')!, id: 'p2', name: 'Other' });
   store.putSession({ id: 'other', projectId: 'p2', policy: { revision: 0, inference: 'cloud-allowed' }, title: 'Other', createdAt: at, updatedAt: at });
   store.putRun({ id: 'elsewhere', projectId: 'p2', sessionId: 'other', mode: 'build', status: 'running', profileId: 'profile1', profileRevisionId: 'v1', policyRevision: 1, trustRevision: 1, createdAt: at });
-  expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ inference: 'local-only', nonResearchRunActive: false });
-  expect(await control({ method: 'policy.guard', projectId: 'p2' })).toEqual({ inference: 'local-only', nonResearchRunActive: true });
+  expect(await control({ method: 'policy.guard', projectId: 'p1' })).toEqual({ revision: 1, inference: 'local-only', nonResearchRunActive: false });
+  expect(await control({ method: 'policy.guard', projectId: 'p2' })).toEqual({ revision: 1, inference: 'local-only', nonResearchRunActive: true });
+});
+
+test('policy.guard returns the stored policy revision, so main can refuse a stale expectedRevision first', async () => {
+  const { store, control } = fixture();
+  store.putProject({ ...store.getProject('p1')!, policy: { revision: 7, inference: 'cloud-allowed', research: 'public-technical' } });
+  expect(PolicyGuardResultSchema.parse(await control({ method: 'policy.guard', projectId: 'p1' }))).toEqual({ revision: 7, inference: 'cloud-allowed', nonResearchRunActive: false });
 });

@@ -35,8 +35,11 @@ export const ControlSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('shutdown') }).strict(),
 ]);
 export type Control = z.infer<typeof ControlSchema>;
-/** `policy.guard`: the project's stored inference level, and whether a run not in `research` mode is unfinished; null for no project. */
-export const PolicyGuardResultSchema = z.object({ inference: ProjectPolicySchema.shape.inference, nonResearchRunActive: z.boolean() }).strict().nullable();
+/**
+ * `policy.guard`: the project's stored policy revision and inference level, and whether a run not in `research` mode is
+ * unfinished; null for no project. The revision lets main refuse a stale `expectedRevision` before it stops anything.
+ */
+export const PolicyGuardResultSchema = z.object({ revision: ProjectPolicySchema.shape.revision, inference: ProjectPolicySchema.shape.inference, nonResearchRunActive: z.boolean() }).strict().nullable();
 /** `session.project`: the session's project (null for a folder-free chat); the whole result is null when there is no such session. */
 export const SessionProjectResultSchema = z.object({ projectId: id.nullable() }).strict().nullable();
 /** The bare code an engine failure crosses the process boundary as. Main's collector maps errors the same way. */

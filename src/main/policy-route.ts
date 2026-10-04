@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RunSchema, type Request, type Run } from '../shared';
+import { canonicalHash } from '../engine/policy';
 import { PolicyGuardResultSchema, SessionProjectResultSchema, type Control } from '../engine/control';
 
 /** A run main holds a capability for (index.ts keeps a GitHub reader beside these). */
@@ -9,7 +10,7 @@ type RunStart = Extract<Request, { method: 'run.start' }>;
 export interface PolicyRouteHost {
   /** Forwards a request to the engine. */
   request(request: Request): Promise<unknown>;
-  /** Sends an internal control to the engine; the route uses only `policy.guard` and `session.project`. */
+  /** Sends an internal control to the engine; the route uses only `request.lookup`, `policy.guard` and `session.project`. */
   control(control: Control): Promise<unknown>;
   active: Map<string, ActiveRun>;
   revokeContext(runId: string): void;
@@ -36,18 +37,26 @@ export class ProjectLocks {
 
 /**
  * Main's route for `project.policy.update` and `run.start` (research-review-ui spec section 4, "Never while other work
- * runs"). Both take the project's lock, so no run is admitted between the update's check and its stop. Under the lock an
- * update that leaves `inference` unchanged refuses `RUN_ACTIVE` while a non-research run is live in the project, before
- * any signal is aborted, vault context revoked or supervisor held; otherwise it stops, holds and forwards as before.
+ * runs"). Both take the project's lock, so no run is admitted between the update's check and its stop. Under the lock,
+ * before any signal is aborted, vault context revoked or supervisor held, an update is answered in the engine's own
+ * precedence: an accepted request replays its stored result untouched; a stale `expectedRevision` is `REQUEST_CONFLICT`;
+ * an update that leaves `inference` unchanged is `RUN_ACTIVE` while a non-research run is live in the project. Only
+ * then does it stop, hold and forward as before (Phase 4 invariant 3: a refused change has no side effect).
  */
 export function createPolicyRoute(host: PolicyRouteHost) {
   const locks = new ProjectLocks();
   async function updatePolicy(request: PolicyUpdate): Promise<unknown> {
     const { projectId } = request.params;
     return locks.run(projectId, async () => {
-      // One read: the stored inference and whether a non-research run is unfinished. A null guard (no such project) is
-      // the engine's PROJECT_NOT_FOUND, answered as before.
+      // 1. Replay, as the engine's acceptRequest does before the update is checked: the engine answers the stored result,
+      // and nothing is stopped. An id reused with another input is the lookup's REQUEST_CONFLICT, propagated as is.
+      const replay = await host.control({ method: 'request.lookup', requestId: request.clientRequestId, requestMethod: request.method, inputHash: canonicalHash(request.params) });
+      if (replay !== null && replay !== undefined) return host.request(request);
+      // One read: the stored revision and inference, and whether a non-research run is unfinished. A null guard (no such
+      // project) is the engine's PROJECT_NOT_FOUND, answered as before.
       const guard = PolicyGuardResultSchema.parse(await host.control({ method: 'policy.guard', projectId }));
+      // 2. A stale revision, then 3. the research switch while other work runs; both before anything is stopped.
+      if (guard && request.params.expectedRevision !== guard.revision) throw new Error('REQUEST_CONFLICT');
       if (guard && request.params.policy.inference === guard.inference && guard.nonResearchRunActive) throw new Error('RUN_ACTIVE');
       for (const [id, item] of host.active) if (item.run.projectId === projectId) { item.stop.abort(); host.revokeContext(id); }
       // Collectors stop and launch nothing until the change is applied; on release each job re-reads its admission.

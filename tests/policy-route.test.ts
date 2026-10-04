@@ -5,7 +5,7 @@ import { afterEach, expect, test } from 'vitest';
 import { Store } from '../src/engine/store';
 import { Application } from '../src/engine/application';
 import { createControl } from '../src/engine/control-dispatch';
-import { ControlSchema } from '../src/engine/control';
+import { ControlSchema, engineFailureCode } from '../src/engine/control';
 import { createPolicyRoute, type ActiveRun } from '../src/main/policy-route';
 import { parseRequest, type Request, type Run } from '../src/shared';
 
@@ -39,9 +39,10 @@ function fixture() {
     async request(input) {
       forwarded.push(input.method);
       await gates.get(input.method);
-      return app.handle(input);
+      try { return await app.handle(input); } catch (error) { throw new Error(engineFailureCode(error), { cause: error }); }
     },
-    async control(input) { controls.push(input.method); return dispatch(ControlSchema.parse(input)); },
+    // A control failure crosses the process boundary as its bare code, as the engine entry maps it.
+    async control(input) { controls.push(input.method); try { return await dispatch(ControlSchema.parse(input)); } catch (error) { throw new Error(engineFailureCode(error), { cause: error }); } },
     active,
     revokeContext: runId => { revoked.push(runId); },
     holdCollector: projectId => { held.push(`collector:${projectId}`); return () => { released.push(`collector:${projectId}`); }; },
@@ -53,7 +54,10 @@ function fixture() {
     const run: Run = { id, projectId: 'p1', sessionId, sessionPolicyRevision: 0, mode, status, profileId: 'profile1', profileRevisionId: 'v1', policyRevision: 1, trustRevision: 1, createdAt: at };
     store.putRun(run); const stop = new AbortController(); active.set(id, { run, stop }); return stop.signal;
   };
-  const update = (inference: 'local-only' | 'cloud-allowed', research: 'off' | 'public-technical') => request('project.policy.update', { projectId: 'p1', expectedRevision: store.getProject('p1')!.policy.revision, policy: { inference, research } });
+  const update = (inference: 'local-only' | 'cloud-allowed', research: 'off' | 'public-technical', expectedRevision = store.getProject('p1')!.policy.revision, clientRequestId?: string) => {
+    const built = request('project.policy.update', { projectId: 'p1', expectedRevision, policy: { inference, research } });
+    return clientRequestId ? { ...built, clientRequestId } : built;
+  };
   /** Many finished runs in one session: more than any renderer result can carry (P4-10). */
   const history = (sessionId: string, count = 10_001) => store.transaction(() => { for (let i = 0; i < count; i++) store.putRun({ id: `done-${sessionId}-${i}`, projectId: 'p1', sessionId, mode: 'build', status: 'completed', profileId: 'profile1', profileRevisionId: 'v1', policyRevision: 1, trustRevision: 1, createdAt: at }); });
   return { store, app, route, active, revoked, held, released, forwarded, controls, gates, liveRun, update, history };
@@ -149,12 +153,12 @@ test('a research-only update and a run.start work in a project whose session hol
   expect(active.has(run.id)).toBe(true);
 });
 
-test('an update reads the engine once, through policy.guard, and never through session.read or session.list', async () => {
+test('an update reads the engine through request.lookup and policy.guard only, and never through session.read or session.list', async () => {
   const { route, forwarded, controls, history, update } = fixture();
   history('s1', 3); history('s2', 3);
   await route.updatePolicy(update('cloud-allowed', 'public-technical'));
   await route.updatePolicy(update('local-only', 'public-technical'));
-  expect(controls).toEqual(['policy.guard', 'policy.guard']);
+  expect(controls).toEqual(['request.lookup', 'policy.guard', 'request.lookup', 'policy.guard']);
   expect(forwarded).toEqual(['project.policy.update', 'project.policy.update']);
 });
 
@@ -165,4 +169,56 @@ test('run.start learns its project through session.project only, and a missing s
   expect(forwarded).toEqual(['run.start']);
   await expect(route.startRun(request('run.start', { sessionId: 'missing', profileId: 'profile1', mode: 'ask', prompt: 'Hi' }))).rejects.toThrow('SESSION_NOT_FOUND');
   expect(forwarded).toEqual(['run.start', 'run.start']);
+});
+
+// BRK-1 (Phase 4 invariant 3, "a refused change has no side effect"): main answers a stale revision and a replay before it
+// stops anything, with the engine's own precedence (acceptRequest's replay first, then expectedRevision, then RUN_ACTIVE).
+test('BRK-1: a stale expectedRevision during a review run is REQUEST_CONFLICT with nothing stopped', async () => {
+  const { store, route, revoked, held, forwarded, liveRun, update } = fixture();
+  const signal = liveRun('review1', 's2', 'research');
+  await expect(route.updatePolicy(update('cloud-allowed', 'public-technical', 0))).rejects.toThrow('REQUEST_CONFLICT');
+  expect(signal.aborted).toBe(false); expect(revoked).toEqual([]); expect(held).toEqual([]);
+  expect(store.getRun('review1')?.status).toBe('running');
+  expect(store.getProject('p1')?.policy).toEqual({ revision: 1, inference: 'cloud-allowed', research: 'off' });
+  expect(forwarded).toEqual([]);
+});
+
+test('BRK-1: a stale expectedRevision during a Build run is REQUEST_CONFLICT, as the engine answers it, not RUN_ACTIVE', async () => {
+  const { route, revoked, held, liveRun, update } = fixture();
+  const signal = liveRun('build1', 's1', 'build');
+  await expect(route.updatePolicy(update('cloud-allowed', 'public-technical', 0))).rejects.toThrow('REQUEST_CONFLICT');
+  expect(signal.aborted).toBe(false); expect(revoked).toEqual([]); expect(held).toEqual([]);
+});
+
+test('BRK-1b: a replay of an applied update returns the stored result and stops no review run begun since', async () => {
+  const { store, route, revoked, held, released, forwarded, liveRun, update } = fixture();
+  const first = await route.updatePolicy(update('cloud-allowed', 'public-technical', 1, 'same-id'));
+  revoked.length = 0; held.length = 0; released.length = 0; forwarded.length = 0;
+  const signal = liveRun('review1', 's2', 'research');
+  const replayed = await route.updatePolicy(update('cloud-allowed', 'public-technical', 1, 'same-id'));
+  expect(replayed).toEqual(first);
+  expect(signal.aborted).toBe(false); expect(revoked).toEqual([]); expect(held).toEqual([]);
+  expect(store.getRun('review1')?.status).toBe('running');
+  expect(store.getProject('p1')?.policy).toEqual({ revision: 2, inference: 'cloud-allowed', research: 'public-technical' });
+  expect(forwarded).toEqual(['project.policy.update']);
+});
+
+test('BRK-1b: a replay whose revision is now stale still gets the stored result, as the engine replays before it checks', async () => {
+  const { route, revoked, held, liveRun, update } = fixture();
+  const first = await route.updatePolicy(update('cloud-allowed', 'public-technical', 1, 'same-id'));
+  revoked.length = 0; held.length = 0;
+  const signal = liveRun('build1', 's1', 'build');
+  // The stored revision is now 2 and a Build run is live: neither a conflict nor RUN_ACTIVE, the stored reply.
+  expect(await route.updatePolicy(update('cloud-allowed', 'public-technical', 1, 'same-id'))).toEqual(first);
+  expect(signal.aborted).toBe(false); expect(revoked).toEqual([]); expect(held).toEqual([]);
+});
+
+test('BRK-1b: an id reused with a different input is REQUEST_CONFLICT with nothing stopped', async () => {
+  const { store, route, revoked, held, liveRun, update } = fixture();
+  await route.updatePolicy(update('cloud-allowed', 'public-technical', 1, 'same-id'));
+  revoked.length = 0; held.length = 0;
+  const signal = liveRun('review1', 's2', 'research');
+  await expect(route.updatePolicy(update('cloud-allowed', 'off', 2, 'same-id'))).rejects.toThrow('REQUEST_CONFLICT');
+  expect(signal.aborted).toBe(false); expect(revoked).toEqual([]); expect(held).toEqual([]);
+  expect(store.getProject('p1')?.policy.research).toBe('public-technical');
 });
