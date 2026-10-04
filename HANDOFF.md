@@ -151,4 +151,4 @@ Update this guide and development status as work advances, including tests and r
 
 ## Delivery workflow
 
-At the end of every completed project step or phase, verify the work, push its branch, and open a pull request. The user reviews and merges each PR; do not merge it on their behalf. Context recovery was delivered in merged PR #11. The integration proposal remains reference material, reviewed in [the integration review](docs/specification/research-kit-integration-review.md).
+At the end of every completed project step or phase, verify the work, push its branch, and open a pull request. The PR is opened as a draft. When the user marks it "Ready for review" (user instruction, 2026-10-04), the agent merges it once the Windows run on that exact head is green and it is mergeable; never a draft, never without that signal. Context recovery was delivered in merged PR #11. The integration proposal remains reference material, reviewed in [the integration review](docs/specification/research-kit-integration-review.md).
