@@ -15,6 +15,9 @@ import { MethodSpec, ResearchPurgeResultSchema } from '../src/shared/params';
 import { parseRequest } from '../src/shared/protocol';
 import { purgeResearch, type PurgeDeps } from '../src/main/research-purge';
 import { readResearchDocument, type DocumentDeps } from '../src/main/research-document';
+import { ReviewSupervisor, type ReviewKit } from '../src/main/review';
+import { researchDto } from '../src/engine/research';
+import { RunSchema } from '../src/shared';
 
 // research.purge (docs/specification/research-purge.md, unit B7a) against the real Store and the engine's own control
 // dispatch, the real ResearchKit adapter running the pinned kit with node, and the collected and approved fixture
@@ -353,6 +356,120 @@ test('verifyRetained keeps its order: a missing file is STALE_VERIFICATION befor
   // - an invalid binding for a purged digest then throws a schema error instead of the stale verdict).
   const w = await world();
   await expect(w.kit.verifyRetained('d'.repeat(64), {} as Parameters<ResearchKit['verifyRetained']>[1])).rejects.toThrow(/^STALE_VERIFICATION$/);
+});
+
+/**
+ * The real review supervisor on the engine's own control dispatch, over the world's kit. The kit is passed through
+ * unchanged except that verifyRetained (the review start's) logs its call, its admission and its answer.
+ */
+function reviewer(w: World, log: string[], onAdmit?: () => void): ReviewSupervisor {
+  const kit: ReviewKit = {
+    prepareReview: signal => w.kit.prepareReview(signal), validate: (...args) => w.kit.validate(...args), readVerified: (id, binding) => w.kit.readVerified(id, binding), discardReview: names => w.kit.discardReview(names),
+    verifyRetained: (sha, binding, signal, admit) => {
+      log.push('start calls verify');
+      return w.kit.verifyRetained(sha, binding, signal, async () => { log.push('start verifies'); onAdmit?.(); await admit?.(); }).then(result => { log.push('start verified'); return result; });
+    },
+  };
+  // research.review.begin needs the engine's operations runtime; it is stood in for as tests/research-review-main.test.ts
+  // does (a review run and the collected -> reviewing edge). Every other control is the engine's own dispatch.
+  const control = async (request: Control) => {
+    if (request.method !== 'research.review.begin') return w.control(request);
+    const current = w.store.getResearch(request.researchId)!;
+    const runId = randomUUID(); const sessionId = randomUUID();
+    w.store.putSession({ id: sessionId, projectId: current.projectId, title: 'Review', createdAt: at, updatedAt: at });
+    w.store.putRun({ id: runId, sessionId, projectId: current.projectId, mode: 'research', status: 'running', profileId: 'm', profileRevisionId: 'pv', policyRevision: 1, trustRevision: 1, createdAt: at });
+    w.store.transitionResearch({ researchId: current.id, expectedRevision: current.revision, to: 'reviewing', actor: 'user', cause: 'REVIEW_STARTED', requestId: request.requestId, patch: { reviewRunId: runId, reviewSessionId: sessionId, workspace: request.workspace } });
+    return { research: researchDto(w.store.getResearch(current.id)!), run: RunSchema.parse(w.store.getRun(runId)) };
+  };
+  return new ReviewSupervisor({ control, kit, redact: async text => text, runSignal: () => { throw new Error('RUN_CANCELLED'); }, retryDelayMs: 10 });
+}
+/** j1 collected for real, x cancelled naming the same collected package, and one orphan in the store. */
+async function shared(w: World) {
+  await realCollected(w, 'j1');
+  job(w, 'x', 'cancelled', { via: ['dispatching', 'collecting', 'collected', 'reviewing', 'cancelling', 'cancelled'], collected: { sha: digest(collectedBytes), bytes: collectedBytes.length } });
+  return plant(w);
+}
+
+test('a review start\'s verifyRetained holding the lock: the purge queued behind it reads only after the start has its verified bytes', async () => {
+  // Guards: verifyRetained is one locked step (mutation: two lock acquisitions - the purge's read then lands between the
+  // start's validation and its read); the purge takes the lock before it reads (mutation: purgeRetained outside
+  // serialized() - it then calls plan, and so reads, synchronously, while the start still holds the lock).
+  const w = await world(); const orphan = await shared(w); const log: string[] = [];
+  let purging: Promise<unknown> | undefined;
+  const control = async (request: Control) => { if (request.method === 'research.retained') log.push('purge reads'); return w.control(request); };
+  const review = reviewer(w, log, () => {
+    if (purging) return;
+    purging = purge(w, 'x', { control }).finally(() => log.push('purge done'));
+    log.push(log.includes('purge reads') ? 'purge read under the start\'s lock' : 'purge queued');
+  });
+  w.fault = () => { log.push('purge deletes'); return undefined; };
+  try {
+    expect((await review.start('j1', 'm')).research.status).toBe('reviewing');
+    expect(await purging).toEqual({ removed: 1, keptShared: 1, keptBusy: false });
+    // The start's answer is logged a microtask after its lock is handed on, so it is pinned against the purge's first
+    // delete (after the purge's own I/O), not against its read.
+    expect(log.filter(item => item !== 'purge reads')).toEqual(['start calls verify', 'start verifies', 'purge queued', 'start verified', 'purge deletes', 'purge done']);
+    expect(log.indexOf('purge reads')).toBeGreaterThan(log.indexOf('start verifies'));
+    expect(await exists(zip(w, orphan))).toBe(false); expect(await exists(zip(w, digest(collectedBytes)))).toBe(true);
+  } finally { await review.close(); }
+}, 120000);
+
+test('a purge holding the lock: a review start\'s verifyRetained called meanwhile is admitted only after the purge is done', async () => {
+  // Pins the order. Its guard removals (purgeRetained or verifyRetained outside serialized()) stay green here: the start's
+  // validation reaches its admission only after the purge's few deletes either way. Those locks are proven by the
+  // start-first test (the purge's) and the reader test below (verifyRetained's).
+  const w = await world(); const orphan = await shared(w); const log: string[] = [];
+  let starting: Promise<unknown> | undefined;
+  let called!: () => void; const verifyCalled = new Promise<void>(done => { called = done; });
+  const review = reviewer(w, log);
+  const control = async (request: Control) => {
+    const reply = await w.control(request);
+    if (request.method === 'research.retained' && !starting) {
+      log.push('purge reads');
+      // The start runs up to its verifyRetained call while the purge holds the lock, then the purge goes on.
+      const original = log.push.bind(log);
+      log.push = (...items: string[]) => { const n = original(...items); if (items.includes('start calls verify')) called(); return n; };
+      starting = review.start('j1', 'm');
+      await verifyCalled;
+    }
+    return reply;
+  };
+  w.fault = () => { log.push('purge deletes'); return undefined; };
+  try {
+    expect(await purge(w, 'x', { control })).toEqual({ removed: 1, keptShared: 1, keptBusy: false });
+    log.push('purge done');
+    expect(await starting).toMatchObject({ research: { status: 'reviewing' } });
+    expect(log.slice(0, 6)).toEqual(['purge reads', 'start calls verify', 'purge deletes', 'purge done', 'start verifies', 'start verified']);
+    expect(await exists(zip(w, orphan))).toBe(false);
+  } finally { await review.close(); }
+}, 120000);
+
+test('a reader\'s verifyRetained called while the purge holds the lock runs after it and answers Unverified, never a half-deleted read', async () => {
+  // Guard: verifyRetained takes the storage lock (mutation: no lock - the read overlaps the deletes).
+  const w = await world(); await realApproved(w, 'j1'); const log: string[] = [];
+  let reading: Promise<unknown> | undefined;
+  let called!: () => void; const verifyCalled = new Promise<void>(done => { called = done; });
+  const kit: DocumentDeps['kit'] = { verifyRetained: (sha, binding) => { log.push('reader calls verify'); called(); return w.kit.verifyRetained(sha, binding, undefined, async () => { log.push('reader verifies'); }).finally(() => log.push('reader answered')); } };
+  const control = async (request: Control) => {
+    const reply = await w.control(request);
+    if (request.method === 'research.retained' && !reading) { log.push('purge reads'); reading = readResearchDocument(documents(w, { kit }), 'j1', 'brief'); await verifyCalled; }
+    return reply;
+  };
+  w.fault = () => { log.push('purge deletes'); return undefined; };
+  expect(await purge(w, 'j1', { control })).toEqual({ removed: 2, keptShared: 0, keptBusy: false });
+  log.push('purge done');
+  expect(await reading).toEqual({ text: '', truncated: false, source: 'reviewed', verified: false });
+  expect(log).toEqual(['purge reads', 'reader calls verify', 'purge deletes', 'purge deletes', 'purge done', 'reader answered']);
+}, 120000);
+
+test('keptShared counts only the job\'s own shared digests whose file is in the store: a second purge after the file is gone reports 0', async () => {
+  // Guard: keptShared is taken over the listing (mutation: count every referenced own digest, file or not).
+  const w = await world();
+  const sha = digest('shared'); await mkdir(w.artifacts, { recursive: true }); await writeFile(zip(w, sha), 'shared');
+  for (const id of ['x', 'y']) job(w, id, 'cancelled', { via: ['dispatching', 'collecting', 'collected', 'reviewing', 'cancelling', 'cancelled'], collected: { sha, bytes: 6 } });
+  expect(await purge(w, 'x')).toEqual({ removed: 0, keptShared: 1, keptBusy: false });
+  await unlink(zip(w, sha));
+  expect(await purge(w, 'x')).toEqual({ removed: 0, keptShared: 0, keptBusy: false });
 });
 
 // ------------------------------------------------------------------ Windows: a delete another handle blocks

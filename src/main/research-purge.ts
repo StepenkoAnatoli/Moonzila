@@ -23,7 +23,8 @@ const ACTIVE: ReadonlySet<string> = new Set(ACTIVE_RESEARCH);
  * One locked step in the adapter: main's read of every job's references (`research.retained`) happens inside the storage
  * lock, so an import, a packaging step, a review start or the reader touching the same store runs wholly before or after.
  * - The job must be approved, failed or cancelled, else PURGE_NOT_ALLOWED, before anything is deleted.
- * - Its collected and reviewed digests are deleted unless another job, in any status, references them (`keptShared`).
+ * - Its collected and reviewed digests are deleted unless another job, in any status, references them (`keptShared`
+ *   counts those kept whose file is in the store).
  * - Store entries no job references are deleted only when no job anywhere is active; otherwise kept (`keptBusy`).
  * The engine's own refusals (NOT_FOUND, ENGINE_UNAVAILABLE, ...) pass through; any failure of the store or a delete
  * is RESEARCH_KIT_UNAVAILABLE, except a ZIP another program still holds open after the delete's one retry:
@@ -49,7 +50,8 @@ export async function purgeResearch(deps: PurgeDeps, researchId: string): Promis
       const busy = jobs.some(item => ACTIVE.has(item.status));
       return stored => {
         const targets = own.filter(sha => !others.has(sha));
-        keptShared = own.length - targets.length;
+        // Only the job's own shared digests whose file is in the store (P5-6): a second purge reports 0 once it is gone.
+        keptShared = own.filter(sha => others.has(sha) && stored.includes(sha)).length;
         const orphans = stored.filter(sha => !referenced.has(sha));
         if (busy) keptBusy = orphans.length > 0;
         else targets.push(...orphans);
