@@ -2,9 +2,9 @@
 
 | Field           | Value |
 |-----------------|-------|
-| Status          | ACTIVE |
+| Status          | COMPLETE (Task 5 Phase 5; final on the merge of PR #37) |
 | Started         | 2026-10-03 (research cycle); ledger adopted 2026-10-04 12:50 UTC, mid-run |
-| Last checkpoint | 2026-10-04 - Phase 4 spec revised after the second cross-vendor review; user: start the build |
+| Last checkpoint | 2026-10-04 - Phase 5 Stage 9 written; merge readiness recorded |
 | Engagement      | Full |
 | Working branch  | `main-axuse`, from `main` @ `6d51dbb` (Phase 2 merge) |
 | Skill           | lead-orchestrator 2.0 (`.claude/skills/lead-orchestrator/references/changelog.md`) |
@@ -20,11 +20,11 @@
 | 5 Build | DONE | units B7a, B7b, P4-40 integrated, reviewed, fixed; integration spec and invariant reviews done | 2026-10-04 |
 | 6 Harden | DONE: F1, F2 fixed; risks dispositioned (P5-17..P5-22) | docs/evidence/2026-10-04-break-test.md; corpus docs/research/2026-10-04-break-test-external-facts (preflight 0) | 2026-10-04 |
 | 7 Audit | DONE: P5-11..P5-14 fixed; P5-15, P5-16 open items in the plan | reports/p5-gap-audit-1.md | 2026-10-04 |
-| 8 Deliver and merge | PENDING | - | - |
-| 9 Validate and report | PENDING | - | - |
+| 8 Deliver and merge | DONE on merge of PR #37 (merge commit recorded on the PR) | readiness lines in the Log | 2026-10-04 |
+| 9 Validate and report | DONE | TRACEABILITY-P5.md, REPORT-P5.md, reports/p5-four-dimension-1.md | 2026-10-04 |
 
 ## Next action
-Phase 5: freeze the contracts from `docs/specification/research-purge.md` (main-owned `research.purge`, `research.retained` control, `PURGE_NOT_ALLOWED`), write the B7 builder, P4-40 and reviewer briefs, launch, then the four-role review, gap-audit and break-test over Task 5.
+None in this run: Task 5 is complete once PR #37 is merged. The user's last instruction was "finish the latest task and stop". Queued after Task 5 in the plan, not started: More models, the linked parent above the data folder (P4-23), Self-unblocking with research; the next run asks the user which comes first.
 
 ## Task statement
 - Goal: plan Task 5, the research review (`docs/specification/research-review.md`). A collected corpus is reviewed by a model run with user-approved edits, packaged by the kit's own `create`, and is research-ready only when the validator confirms the new package's exact bytes.
@@ -187,6 +187,9 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | P5-24 | final four-dimension audit SPEC 4 | S4 | REQUIREMENTS-P5 N-1 still read `RESEARCH_KIT_UNAVAILABLE` with nothing half done | FIXED: row amended to the P5-5 decision |
 | P5-25 | final four-dimension audit DESIGN 1-3, QUALITY 1-3 | S4 | purge result plumbing via outer lets and an identity check; misplaced `research.retained` JSDoc in control.ts; ResearchPanel subject and cancel-confirmation state inline; `cancelLabel(...) === 'Cancel review'` repeated | RECORDED: cosmetic, no behaviour change; follow-up refactor, not in this merge |
 | P5-26 | final four-dimension audit CORRECTNESS gap 2 | S4 | the import race test passes with `busy = false`; the orphans test is the real guard for decision 5 | RECORDED: guard exists; strengthen the race test in a follow-up |
+| P5-27 | Windows CI push run 37234209267 on `c10b8be` | risk | `research-jobs-state.test.ts` "a job leaves reviewing or packaging ... no live engine work" timed out at 15 s (1.25 s on the PR run of the same commit; 233 ms on Linux). The test and the store transitions it drives are unchanged in Phase 5; it is synchronous and opens 7 fresh SQLite stores with `synchronous = FULL`; that runner was slower overall (`research-review-main` 189 s vs 136 s) | RECORDED, not root-caused: both runs on `59b3ef9` and on the final head passed; watch for recurrence, then measure per-store open/commit time on Windows |
+| P5-28 | lead | process | the first pinned gate on `59b3ef9` linked only `node_modules` into its worktree, not `.build` (the staged kit), so 134 real-kit tests failed; found by comparing the `c10b8be` and `59b3ef9` worktrees (`research-purge.test.ts` 22 passed vs 9 failed) | FIXED: re-run with the link equals the baseline; a pinned gate worktree links both `node_modules` and `.build` |
+| P5-29 | P5-23 re-review | S3 test gap | the mutation `unverified={true}` for history rows survived: no test opened a failed or cancelled history row's confirmation | FIXED (`97b399c`): mutation now red |
 
 ## Kit findings
 
@@ -249,3 +252,6 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: Windows CI green on `0171ff7` (run 37228866576): `research-purge.test.ts` 23 tests, none skipped (the held-guard test ran), `research-review-native.test.ts` 1 passed through `MoonAlizaHost.exe`; whole run 1120 passed, 1 skipped (the POSIX-only FIFO test). Phase 5 docs integrated (`85ed055`).
 - 2026-10-04: break-test integrated (`0439e6e`, `fd2221c`, corpus, report). Phase 4 carry-overs, final dispositions for Task 5: P4-12 (replayed run.start re-admits a finished run's capability) RECORDED, no output effect (gap-audit); P4-17 (transient I/O reads as DOCUMENT_UNSAFE) RECORDED, conservative; P4-19 (declared authorization not enforced) RECORDED, pre-existing, no output effect; P4-30 bounded for purged digests, receipts of never-purged digests remain (spec as built); P4-31 docstring overclaim, no leak, RECORDED; P4-32 the CA is now generated per fake and read before connect (P4-40), recorded closed by P4-40's rewrite for the review to confirm; P4-33 unverified: the break-test read the capability as dropped on run.cancelled with every use re-checking the run, RECORDED; P4-39, P4-43 need Electron main or Windows races, RECORDED; P4-42 S4 RECORDED.
 - 2026-10-04: final pinned gate on `c10b8be` equal to the baseline (1121 total, 74 failed, 0 new, no file without results; +22 tests are the break-test additions). Four-dimension audit returned (`reports/p5-four-dimension-1.md`, 8/8/8/8): P5-23 fixed in `6a9985d`, P5-24 amended, P5-25 and P5-26 recorded. New head needs its own pinned gate and Windows CI before the merge.
+- 2026-10-04: pinned gate on `59b3ef9` (after P5-28's re-run) equal to the baseline: 1121 total, 74 failed, 0 new, 0 files without results. Windows CI on `59b3ef9`: push run 37235382886 and PR run 37235386221 both success. P5-27 recorded from the `c10b8be` push run.
+- 2026-10-04: re-review of P5-23 (`6a9985d`): PASS; P5-29 (S3 test gap) fixed in `97b399c`. P5-5 (S2) was independently re-reviewed by the final four-dimension audit ("leave alone": PURGE_INCOMPLETE correct and accurate).
+- 2026-10-04: Stage 9 written (TRACEABILITY-P5.md, REPORT-P5.md). Merge readiness: every S1/S2 fixed and re-reviewed (P5-5, P5-23), verified. The final head (this commit) adds the P5-29 test and these records; the lead merges only once its pinned Linux gate equals the baseline and its Windows push and PR runs are green, the PR is `clean` and no review thread waits. Those results are on PR #37's checks and in the merge commit, which is recorded on the PR.
