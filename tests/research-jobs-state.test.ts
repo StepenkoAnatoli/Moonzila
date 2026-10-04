@@ -1055,7 +1055,7 @@ describe('schema v4 engine review controls', () => {
       store.putOperation({ id, runId, projectId: 'p', kind, inputHash: digestOf('c'), policyRevision: 1, trustRevision: 1, status, input, createdAt, updatedAt: createdAt });
       return { operationId: id, runId, path, beforeHash: input.beforeHash, afterHash: input.afterHash };
     };
-    expect(research.reviewContext('j1')).toEqual({ researchId: 'j1', revision: 4, status: 'collected', admission: null, reviewSessionId: null, reviewRunId: null, reviewRunStatus: null, reviewDigest: null, reviewedPackage: null, changes: [] });
+    expect(research.reviewContext('j1')).toEqual({ researchId: 'j1', revision: 4, status: 'collected', admission: null, reviewSessionId: null, reviewRunId: null, reviewRunStatus: null, reviewDigest: null, reviewedPackage: null, verification: verification(3, 1, '5', 'mz-j1'), changes: [] });
     reviewRun(store, 'r1', 'running', 'p', 's-review'); startReview(store, 'j1', 'r1');
     const late = write('r1', 'research/MAP.md', 'completed', '2026-10-03T00:00:59.000Z');
     const early = write('r1', 'research/EVIDENCE.md', 'completed', '2026-10-03T00:00:01.000Z');
@@ -1122,6 +1122,18 @@ describe('schema v4 engine review controls', () => {
       expect(store.researchEvents(id).events.at(-1), id).toMatchObject({ from: 'reviewing', to: 'not_ready', actor: 'recovery', cause: 'RECOVERED' });
     }
     expect(published.map(r => [r.id, r.status]).sort()).toEqual([['absent', 'not_ready'], ['cancelled', 'not_ready']]);
+  });
+
+  test('research.review.context returns the verification journaled when the job was collected, and null before', () => {
+    // Main rebuilds the binding for start and packaging from this, never from the package's own manifest (B3 blocker 1).
+    const { store } = open(); project(store); create(store, 'j1');
+    const research = jobs(store).jobs;
+    expect(research.reviewContext('j1').verification).toBeNull();
+    step(store, 'j1', 'dispatching', 'main', { target }); step(store, 'j1', 'collecting', 'main', { workflowRunId: '5' });
+    const recorded = { ...verification(3, 1, '5', 'mz-j1'), artifactSha256: 'c'.repeat(64) };
+    step(store, 'j1', 'collected', 'main', { verification: recorded });
+    reviewRun(store, 'r1'); startReview(store, 'j1', 'r1');
+    expect(ResearchReviewContextSchema.parse(structuredClone(research.reviewContext('j1'))).verification).toEqual(recorded);
   });
 
   test('research.review.context reports the live admission after a trust change', () => {

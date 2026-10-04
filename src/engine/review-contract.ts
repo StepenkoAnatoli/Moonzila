@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { DigestSchema, IdSchema, ResearchSchema, RevisionSchema, RunSchema } from '../shared';
+// research.ts imports this module, so its schema is referenced lazily to keep the cycle harmless.
+import { ResearchVerificationSchema } from './research';
 
 /**
  * Frozen contracts for plan Task 5, the research review (docs/specification/research-review.md). Engine, main and the
@@ -43,6 +45,8 @@ export const ResearchReviewContextSchema = z.object({
   researchId: IdSchema, revision: RevisionSchema, status: z.string().max(32), admission: z.string().max(64).nullable(),
   reviewSessionId: IdSchema.nullable(), reviewRunId: IdSchema.nullable(), reviewRunStatus: z.string().max(32).nullable(),
   reviewDigest: DigestSchema.nullable(), reviewedPackage: ReviewedPackageSchema.nullable(),
+  /** The verification journaled on `collecting -> collected` (Task 4): main's only source for the job's binding. Null before collection. */
+  verification: z.lazy(() => ResearchVerificationSchema).nullable(),
   /** Completed review writes since the latest `fresh` edge, in creation order. */
   changes: z.array(ReviewChangeSchema).max(100_000),
 }).strict();

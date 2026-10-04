@@ -239,10 +239,15 @@ export class ResearchJobs {
       return change.data;
     });
     const run = job.reviewRunId === undefined ? undefined : this.store.getRun(job.reviewRunId);
+    const collected = this.events(researchId).find(event => event.from === 'collecting' && event.to === 'collected');
+    const recorded = collected === undefined ? undefined : ResearchVerificationSchema.safeParse((collected.detail as { verification?: unknown } | null)?.verification);
+    // A collected step without a valid verification cannot be reviewed: main would have no binding to check the bytes against.
+    if (recorded && !recorded.success) throw new Error('RESEARCH_STATE_INVALID');
     return {
       researchId: job.id, revision: job.revision, status: job.status, admission: researchAdmission(this.store.getProject(job.projectId), job) ?? null,
       reviewSessionId: job.reviewSessionId ?? null, reviewRunId: job.reviewRunId ?? null, reviewRunStatus: run?.status ?? null, reviewDigest: job.reviewDigest ?? null,
       reviewedPackage: job.reviewedPackageSha256 === undefined ? null : { sha256: job.reviewedPackageSha256, validatorRevision: job.reviewedValidatorRevision!, boundRevision: job.reviewedBoundRevision! },
+      verification: recorded?.data ?? null,
       changes,
     };
   }
