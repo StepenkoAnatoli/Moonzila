@@ -366,6 +366,9 @@ export class Store {
       const operations = this.db.prepare("SELECT id,run_id FROM operations WHERE status='started' AND kind IN ('write','command','research') ORDER BY id").all() as { id: string; run_id: string }[];
       const now = new Date().toISOString();
       this.db.prepare("UPDATE operations SET status='failed',updated_at=? WHERE status='prepared' AND kind IN ('write','command')").run(now);
+      // A read (a file read or a review run's research_preflight) changes nothing, so a crash leaves no unknown outcome:
+      // it failed with the engine, rather than staying `started` forever (Phase 3 review, S3).
+      this.db.prepare("UPDATE operations SET status='failed',updated_at=? WHERE status='started' AND kind='read'").run(now);
       for (const operation of operations) {
         this.updateOperation(operation.id,{ status:'unknown',updatedAt:now });
         this.appendEvent(operation.run_id,'operation.unknown',{ operationId:operation.id,reason:'engine_interrupted' });

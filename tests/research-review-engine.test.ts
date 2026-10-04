@@ -390,6 +390,38 @@ describe('run end', () => {
   });
 });
 
+describe('a crash during a read (Phase 3 S3)', () => {
+  test('a restart ends a research_preflight operation left started by the crash: failed, never started forever', async () => {
+    let reached = false;
+    // The kit child never returns: the engine process dies while the preflight operation is started.
+    const h = harness({ kit: () => { reached = true; return new Promise<ReviewToolResult>(() => {}); } });
+    h.script.push(() => call('gate', 'research_preflight'));
+    const { run } = await h.begin();
+    await until(() => reached, 'the kit tool');
+    const started = h.store.listOperations(run.id).find(op => op.kind === 'read')!;
+    expect(started.status).toBe('started');
+    // A second connection stands for the restarted engine; the first process never answers again.
+    const reopened = new Store(join(h.data, 'state.sqlite')); stores.push(reopened);
+    const recovered = reopened.recoverInterrupted();
+    expect(recovered.interruptedRunIds).toContain(run.id);
+    // A read changes nothing, so its outcome is not unknown: it failed with the engine.
+    expect(recovered.unknownOperationIds).toEqual([]);
+    expect(reopened.getOperation(started.id)!.status).toBe('failed');
+    expect(new ResearchJobs(reopened, () => {}, () => {}).recover([]).reviewing).toEqual(['j1']);
+  });
+
+  test('every read operation a crash left started is failed at restart, whatever its run', () => {
+    const h = harness();
+    h.store.putSession({ id: 'chat', projectId: 'p1', title: 'Chat', createdAt: at, updatedAt: at });
+    h.store.putRun({ id: 'ask', sessionId: 'chat', projectId: 'p1', mode: 'ask', status: 'running', profileId: 'profile1', profileRevisionId: 'v1', policyRevision: 1, trustRevision: 1, createdAt: at });
+    h.store.putOperation({ id: 'read-1', runId: 'ask', projectId: 'p1', kind: 'read', inputHash: 'a'.repeat(64), input: { path: 'x' }, policyRevision: 1, trustRevision: 1, status: 'started', createdAt: at, updatedAt: at });
+    h.store.putOperation({ id: 'read-2', runId: 'ask', projectId: 'p1', kind: 'read', inputHash: 'b'.repeat(64), input: { path: 'y' }, policyRevision: 1, trustRevision: 1, status: 'completed', createdAt: at, updatedAt: at });
+    expect(h.store.recoverInterrupted()).toEqual({ interruptedRunIds: ['ask'], unknownOperationIds: [] });
+    expect(h.store.getOperation('read-1')!.status).toBe('failed');
+    expect(h.store.getOperation('read-2')!.status).toBe('completed');
+  });
+});
+
 describe('main steps and cancel stream to the review run', () => {
   test('freeze and approval append research.status to the run, and approval completes the answered run', async () => {
     const h = harness(); const run = await answered(h);
