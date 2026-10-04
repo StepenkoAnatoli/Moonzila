@@ -702,3 +702,20 @@ test('start refuses with RUN_ACTIVE only while a command or kit tool runs in the
   const elsewhere = await harness({ busy: projectId => projectId === 'another-project' });
   expect(await begin(elsewhere)).toMatchObject({ status: 'reviewing' });
 }, 120000);
+
+test('approved needs a receipt that is research-ready and APPROVED_BRIEF: APPROVED_BRIEF without readiness, or readiness in another state, is refused', async () => {
+  // Guard (breaker F3): outcome records approved only when researchReady && state === 'APPROVED_BRIEF'.
+  for (const [patch, failure] of [[{ researchReady: false }, 'REVIEW_PACKAGE_INVALID'], [{ state: 'PREFLIGHT_BLOCKED' as const }, 'REVIEW_GATE_FAILED']] as const) {
+    const h = await harness({ reviewed: async real => {
+      const result = await real();
+      expect(result).toMatchObject({ status: 'PASS', state: 'APPROVED_BRIEF', researchReady: true });
+      return { ...result, ...patch };
+    } });
+    await begin(h); await rewriteFinding(h); await draftAndAnswer(h); finish(h);
+    const job = await until(h, settled);
+    expect(job, JSON.stringify(patch)).toMatchObject({ status: 'not_ready', failure });
+    expect(job.reviewedPackageSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ from: 'packaging', to: 'not_ready', cause: 'KIT_NOT_APPROVED' });
+    await h.review.close(); await h.kit.close();
+  }
+}, 360000);
