@@ -250,7 +250,8 @@ test.describe('research journeys', () => {
 
       // The reader: the collected package, validated in this call; its text as plain text; readiness is never claimed.
       await details.getByRole('button', { name: 'Open research' }).click();
-      await expect(dialog.getByTestId('research-status')).toHaveText('Collected');
+      // The status line names the job's GitHub run beside its status (ResearchPanel's research-status).
+      await expect(dialog.getByTestId('research-status')).toHaveText(/^Collected · GitHub run \d+$/);
       await dialog.getByRole('button', { name: 'Read the brief' }).click();
       await expect(dialog.getByTestId('research-reader-source')).toHaveText('Brief · collected package · verified by the Research Kit');
       const text = dialog.locator('pre.research-document');
