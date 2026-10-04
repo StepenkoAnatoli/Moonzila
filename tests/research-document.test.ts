@@ -229,14 +229,28 @@ test('a workspace that exists without the document is DOCUMENT_NOT_AVAILABLE, no
   } finally { await w.kit.close(); }
 }, 60000);
 
-test('statuses with nothing to read are DOCUMENT_NOT_AVAILABLE', async () => {
+test('statuses with nothing to read are DOCUMENT_NOT_AVAILABLE (the any-other-status refusal), even with a verification and a workspace', async () => {
+  // Guard: any status outside approved, collected and the workspace statuses is refused (mutation: fall back to the
+  // collected package, or read the workspace, for it). queued and dispatching have no verification, so they alone cannot
+  // tell the refusal from a fallback; a cancelled review has a journaled verification, a retained package and a workspace.
   const w = await world({ collect: false });
   try {
     expect((await refusal(w)).message).toBe('DOCUMENT_NOT_AVAILABLE');
     step(w, 'dispatching', 'main', { target: { collectorRevision: 1, repository: provenance.identity.repository, workflow: 'collect.yml', ref: provenance.identity.ref } });
     expect((await refusal(w, 'evidence')).message).toBe('DOCUMENT_NOT_AVAILABLE');
   } finally { await w.kit.close(); }
-});
+  const cancelled = await world();
+  try {
+    await reviewing(cancelled);
+    expect(cancelled.jobs.reviewContext(cancelled.id).verification).not.toBeNull();
+    step(cancelled, 'cancelling', 'user', {});
+    expect((await refusal(cancelled)).message).toBe('DOCUMENT_NOT_AVAILABLE');
+    endRun(cancelled); step(cancelled, 'cancelled', 'main', {});
+    expect((await refusal(cancelled)).message).toBe('DOCUMENT_NOT_AVAILABLE');
+    expect((await refusal(cancelled, 'evidence')).message).toBe('DOCUMENT_NOT_AVAILABLE');
+    expect(cancelled.verifications).toBe(0);
+  } finally { await cancelled.kit.close(); }
+}, 60000);
 
 // ------------------------------------------------------------------ the workspace read's containment and identity
 
@@ -251,9 +265,11 @@ test('a hard-linked workspace document is DOCUMENT_UNSAFE, and never falls back 
   } finally { await w.kit.close(); }
 }, 60000);
 
-test('a junction at research/, at the job folder or at storage/review is DOCUMENT_UNSAFE, never a fallback', async () => {
-  // Guards: each component below the root lstat-checked, and every folder down to the job a real directory (mutation:
-  // skip the lstat of research/; skip the walk above the job folder). Junctions on Windows, directory links on Linux.
+test('a junction at research/ (the component lstat), or at the job folder or storage/review (the ancestor walk, then containedFolder) is DOCUMENT_UNSAFE, never a fallback', async () => {
+  // Guards: research/ reaches the lstat of each component below the root (mutation: skip the lstat of research/). The job
+  // folder and storage/review links lead to a real workspace, so they reach the ancestor walk and, behind it, containedFolder:
+  // a layered pair, red only with both removed. The walk alone is the next test's guard. Junctions on Windows, directory
+  // links on Linux.
   const w = await world();
   try {
     await notReady(w);
@@ -272,6 +288,21 @@ test('a junction at research/, at the job folder or at storage/review is DOCUMEN
     // storage/review itself a link.
     await rename(w.reviewRoot, join(elsewhere, 'review')); await rename(join(elsewhere, w.id), join(elsewhere, 'review', w.id));
     await symlink(join(elsewhere, 'review'), w.reviewRoot, 'junction');
+    expect((await refusal(w)).message).toBe('DOCUMENT_UNSAFE');
+    expect(w.verifications).toBe(0);
+  } finally { await w.kit.close(); }
+}, 60000);
+
+test('the ancestor walk: a dangling link at storage/review is DOCUMENT_UNSAFE, not DOCUMENT_NOT_AVAILABLE, never a fallback', async () => {
+  // Guard: every folder from the root down to the job folder is a real directory (mutation: skip the walk, or let a non-
+  // directory through it). Through a dangling link the job folder's project/ is "not found", so without the walk the read
+  // says DOCUMENT_NOT_AVAILABLE and containedFolder is never reached.
+  const w = await world();
+  try {
+    await notReady(w, false);
+    await rm(w.reviewRoot, { recursive: true, force: true });
+    const gone = join(w.folder, 'gone-review'); await mkdir(gone);
+    await symlink(gone, w.reviewRoot, 'junction'); await rm(gone, { recursive: true });
     expect((await refusal(w)).message).toBe('DOCUMENT_UNSAFE');
     expect(w.verifications).toBe(0);
   } finally { await w.kit.close(); }

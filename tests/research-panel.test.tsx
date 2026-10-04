@@ -241,7 +241,9 @@ function deferred<T>() { let resolve!: (value: T) => void; let reject!: (reason:
 const DIGEST = '0123456789abcdef'.repeat(4);
 const approved = (patch: Partial<Research> = {}) => job({ status: 'approved', revision: 7, reviewSessionId: 's-review', reviewRunId: 'run-1', reviewedPackageDigest: DIGEST, ...patch });
 
-test('an approved job reads Checking until the reader answers, then Ready with the digest prefix only on verified: true', async () => {
+test('an approved job reads Checking until the reader answers, then Ready with the digest prefix only on verified: true (the verified flag)', async () => {
+  // Guard: Ready only when the reply says verified: true (mutation: Ready on any reply). The second render answers
+  // verified: false, so this test's own input reaches the guard.
   const reply = deferred<unknown>();
   const { api, calls } = bridge({ jobs: [approved()], routes: { 'research.document.read': () => reply.promise } });
   render(<ResearchPanel api={api} project={project} openConversation={() => {}} />);
@@ -254,6 +256,15 @@ test('an approved job reads Checking until the reader answers, then Ready with t
   expect(screen.getByTestId('research-status').textContent).toBe(`Ready: approved by the Research Kit gate · package ${DIGEST.slice(0, 12)}`);
   expect(screen.getByTestId('research-status').textContent).not.toContain(DIGEST.slice(0, 13));
   expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+  cleanup();
+  const unverified = deferred<unknown>();
+  const second = bridge({ jobs: [approved()], routes: { 'research.document.read': () => unverified.promise } });
+  render(<ResearchPanel api={second.api} project={project} openConversation={() => {}} />);
+  await waitFor(() => expect(second.calls.filter(call => call.method === 'research.document.read')).toHaveLength(1));
+  expect(screen.getByTestId('research-status').textContent).toBe('Checking the reviewed package');
+  await act(async () => unverified.resolve({ text: '', truncated: false, source: 'reviewed', verified: false }));
+  expect(screen.getByTestId('research-status').textContent).toBe('Unverified: the reviewed package is missing or no longer matches');
+  expect(screen.queryByText(/Ready/)).toBeNull();
 });
 
 test('an approved job whose package no longer verifies reads Unverified, never Ready', async () => {
