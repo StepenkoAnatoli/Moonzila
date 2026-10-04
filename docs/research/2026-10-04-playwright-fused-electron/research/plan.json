@@ -1,0 +1,57 @@
+{
+  "topic": "How Playwright 1.63.0 can drive a packaged Electron 44.4.5 Windows app whose EnableNodeCliInspectArguments fuse is off",
+  "notes": "Owning pages named directly (no queries; budget 8 pages, 0 searches). Phase-0 decompose was not run for real: its dry run planned 4 searches, over the budget of 0; the map is the dry run's seeded checklist, classified by hand. URLs found by a discovery curl pass on 2026-10-04, which is not evidence. The fuses, command-line-switches and security pages were also captured by docs/research/2026-10-03-electron-fuses; they are collected again here because this corpus asks them a different question (remote debugging, not --inspect) and a claim can only cite a capture in its own ledger.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 8,
+  "prefer": [
+    "raw.githubusercontent.com",
+    "playwright.dev",
+    "www.electronjs.org"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/playwright/v1.63.0/packages/playwright-core/src/server/electron/electron.ts",
+      "type": "P",
+      "why": "U-1: what _electron.launch passes (--inspect=0, --remote-debugging-port=0) and which stderr lines it waits for, in order"
+    },
+    {
+      "url": "https://playwright.dev/docs/api/class-electron",
+      "type": "P",
+      "why": "U-1, U-3: the official _electron.launch API, its options and its support statement"
+    },
+    {
+      "url": "https://playwright.dev/docs/api/class-electronapplication",
+      "type": "P",
+      "why": "U-3: what an ElectronApplication gives (evaluate in main, firstWindow, close, process)"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/playwright/v1.63.0/docs/src/api/class-browsertype.md",
+      "type": "P",
+      "why": "U-3: chromium.connectOverCDP at v1.63.0, its fidelity note and what it returns"
+    },
+    {
+      "url": "https://www.electronjs.org/docs/latest/tutorial/fuses",
+      "type": "P",
+      "why": "U-2, U-4: what the nodeCliInspect fuse disables, and the full fuse list (no remote-debugging fuse)"
+    },
+    {
+      "url": "https://www.electronjs.org/docs/latest/api/command-line-switches",
+      "type": "P",
+      "why": "U-2, U-4: --remote-debugging-port as an Electron/Chromium switch, separate from the Node --inspect flags"
+    },
+    {
+      "url": "https://www.electronjs.org/docs/latest/tutorial/automated-testing",
+      "type": "P",
+      "why": "U-3, U-4: Electron's own testing guidance (Playwright, WebdriverIO, Selenium/ChromeDriver)"
+    },
+    {
+      "url": "https://www.electronjs.org/docs/latest/tutorial/security",
+      "type": "P",
+      "why": "U-4: Electron security guidance on debugging surfaces in a shipped build"
+    }
+  ]
+}
