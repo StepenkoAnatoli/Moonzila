@@ -84,7 +84,7 @@ const harnesses: Harness[] = [];
 let count = 0;
 /** The reviewed package's validation, given the real one to call and the binding main passed; the collected package's is always real. */
 type Reviewed = (real: () => Promise<Result>, binding: Binding) => Promise<Result> | Result;
-async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: Reviewed } = {}): Promise<Harness> {
+async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: Reviewed; busy?: (projectId: string) => boolean } = {}): Promise<Harness> {
   const name = `h${++count}`; const folder = join(root, name); await mkdir(folder);
   const store = new Store(join(folder, 'state.sqlite'));
   const notices: Research[] = []; const jobs = new ResearchJobs(store, research => notices.push(research));
@@ -109,7 +109,7 @@ async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: R
   h.review = new ReviewSupervisor({
     control: async control => engine(h, control), kit: options.kit === false ? null : options.reviewed ? reviewedBy(kit, options.reviewed) : kit, redact: async text => text.replaceAll(SENTINEL, '[redacted]'),
     runSignal: runId => { const signal = signals.get(runId)?.signal; if (!signal || signal.aborted) throw new Error('RUN_CANCELLED'); return signal; },
-    retryDelayMs: 10,
+    retryDelayMs: 10, ...(options.busy ? { projectBusy: options.busy } : {}),
   });
   harnesses.push(h); return h;
 }
@@ -689,3 +689,16 @@ test('a validation fault of this machine is never blamed on the package: REVIEW_
     await h.review.close(); await h.kit.close();
   }
 }, 300000);
+
+test('start refuses with RUN_ACTIVE only while a command or kit tool runs in the job\'s own project', async () => {
+  // Guard: start's per-project busy check (spec review 6), before any kit child or begin.
+  const asked: string[] = [];
+  const busy = await harness({ busy: projectId => { asked.push(projectId); return projectId === 'p'; } });
+  const children = busy.seen.length;
+  await expect(busy.review.start(busy.id, 'm')).rejects.toThrow('RUN_ACTIVE');
+  expect(asked).toEqual(['p']); expect(busy.begins).toEqual([]);
+  // Refused before the collected package's re-validation: no kit child.
+  expect(busy.seen).toHaveLength(children);
+  const elsewhere = await harness({ busy: projectId => projectId === 'another-project' });
+  expect(await begin(elsewhere)).toMatchObject({ status: 'reviewing' });
+}, 120000);

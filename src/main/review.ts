@@ -29,6 +29,8 @@ export interface ReviewDeps {
   sleep?(ms: number, signal: AbortSignal): Promise<void>;
   /** Pause before re-reading a held or waiting job (default 1 s). */
   retryDelayMs?: number;
+  /** True while a command or kit tool of a run in this project executes in main: start then refuses RUN_ACTIVE. */
+  projectBusy?(projectId: string): boolean;
 }
 
 type Transition = { to: 'packaging' | 'approved' | 'not_ready' | 'cancelled'; expectedRevision: number; cause: string; failure?: string; reviewDigest?: string; reviewedPackage?: ReviewedPackage };
@@ -156,6 +158,8 @@ export class ReviewSupervisor {
     const kit = this.deps.kit; if (!kit) throw new Error('RESEARCH_KIT_UNAVAILABLE');
     if (!ctx.verification) throw new Error('REVIEW_NOT_AVAILABLE');
     const { projectId } = await this.job(researchId);
+    // Only work in the job's own project can touch what the review reads; another project's command is no reason to refuse.
+    if (this.deps.projectBusy?.(projectId)) throw new Error('RUN_ACTIVE');
     let bytes: Buffer;
     try { ({ bytes } = await kit.verifyRetained(ctx.verification.artifactSha256, reviewBinding(projectId, researchId, ctx.verification, ctx.verification.jobRevision))); }
     catch (error) { throw new Error(message(error) === 'INSTALLATION_INVALID' ? 'RESEARCH_KIT_UNAVAILABLE' : 'STALE_VERIFICATION', { cause: error }); }

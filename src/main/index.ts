@@ -38,7 +38,8 @@ let collector: CollectorSupervisor | undefined;
 let review: ReviewSupervisor | undefined;
 let researchKit: ResearchKit | null = null;
 const active = new Map<string, { run: Run; stop: AbortController; github: GitHubReader }>();
-const executingCommands = new Set<Promise<unknown>>();
+/** Commands and kit tools executing in main, each with its run's project (undefined when main holds no capability for it). */
+const executingCommands = new Map<Promise<unknown>, string | undefined>();
 
 if (ownsInstance) void app.whenReady().then(async () => {
   const data = app.getPath('userData'); await mkdir(data, { recursive: true });
@@ -121,6 +122,8 @@ if (ownsInstance) void app.whenReady().then(async () => {
   const reviewSupervisor = new ReviewSupervisor({
     control: control => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.control(control); },
     kit: researchKit, runSignal: commandSignal, redact: text => vault.redact(text),
+    // A task whose project main does not know counts for every project.
+    projectBusy: projectId => [...executingCommands.values()].some(owner => owner === undefined || owner === projectId),
   });
   review = reviewSupervisor;
   const reviewRoot = join(researchData, 'storage', 'review');
@@ -157,15 +160,15 @@ if (ownsInstance) void app.whenReady().then(async () => {
     async prepareCommand(runId, input, epoch) { return commands.prepare(runId, input, commandSignal(runId, epoch)); },
     async executeCommand(runId, operationId, epoch) {
       const task = commands.execute(runId, operationId, commandSignal(runId, epoch));
-      executingCommands.add(task); try { return await task; } finally { executingCommands.delete(task); }
+      executingCommands.set(task, active.get(runId)?.run.projectId ?? undefined); try { return await task; } finally { executingCommands.delete(task); }
     },
     async inspectGit(runId, name, input, epoch) {
       const task = commands.inspectGit(runId, name, input, commandSignal(runId, epoch));
-      executingCommands.add(task); try { return await task; } finally { executingCommands.delete(task); }
+      executingCommands.set(task, active.get(runId)?.run.projectId ?? undefined); try { return await task; } finally { executingCommands.delete(task); }
     },
     async reviewTool(runId, name, input, epoch) {
       const task = reviewSupervisor.reviewTool(runId, name, input, epoch);
-      executingCommands.add(task); try { return await task; } finally { executingCommands.delete(task); }
+      executingCommands.set(task, active.get(runId)?.run.projectId ?? undefined); try { return await task; } finally { executingCommands.delete(task); }
     },
     cancel(runId) { active.get(runId)?.stop.abort(); vault.revokeContext(runId); },
     restarted(epoch) { for (const item of active.values()) item.stop.abort(); active.clear(); vault.setEpoch(epoch); },
@@ -271,7 +274,7 @@ if (ownsInstance) void app.whenReady().then(async () => {
       case 'research.collector.read': return collectorSettings.read();
       case 'research.collector.save': return collectorSettings.save(request.params, request.clientRequestId);
       case 'research.review.start': {
-        if (executingCommands.size) throw new Error('RUN_ACTIVE');
+        // RUN_ACTIVE only for a command or kit tool in the job's own project: the supervisor checks it (projectBusy).
         // The workspace exists before the engine admits the run; main then holds the run's capability, as for run.start.
         const { research, run } = await reviewSupervisor.start(request.params.researchId, request.params.profileId);
         if (!active.has(run.id) && ['queued', 'running'].includes(run.status)) active.set(run.id, { run, stop: new AbortController(), github: new GitHubReader() });
