@@ -170,6 +170,11 @@ test('research text is bounded plain text and no control can authorize or approv
   // An older approved job is never called ready from its status alone.
   const history = (await screen.findByText(/^Earlier research/)).closest('details')!;
   expect(history.textContent).not.toMatch(/Ready/);
+  // The older approved job offers Delete stored corpus (research-purge spec 8); it and its confirmation are under the rule too.
+  fireEvent.click(within(history).getByRole('button', { name: 'Delete stored corpus' }));
+  const confirmation = within(history).getByRole('group', { name: 'Delete the stored corpus?' });
+  expect(within(confirmation).getAllByRole('button').map(button => button.textContent)).toEqual(['Cancel', 'Delete stored corpus']);
+  expect(confirmation.textContent).not.toMatch(/authori[sz]e|approv/i);
   for (const button of screen.getAllByRole('button')) expect(button.textContent).not.toMatch(/authori[sz]e|approve/i);
 });
 

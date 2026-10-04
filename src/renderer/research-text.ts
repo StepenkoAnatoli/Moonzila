@@ -90,7 +90,27 @@ export const CANCELLABLE_RESEARCH: readonly Research['status'][] = ['queued', 'd
 export const REVIEWABLE_RESEARCH: readonly Research['status'][] = ['collected', 'not_ready'];
 /** Statuses main's `research.document.read` has a source for (research-review-ui spec 3). */
 export const READABLE_RESEARCH: readonly Research['status'][] = ['collected', 'reviewing', 'packaging', 'approved', 'not_ready'];
-export const cancelLabel = (status: Research['status']) => status === 'reviewing' || status === 'packaging' ? 'Cancel review' : 'Cancel collection';
+/** Statuses main's `research.purge` admits (research-purge spec decision 2); never `collected` or `not_ready`. */
+export const PURGEABLE_RESEARCH: readonly Research['status'][] = ['approved', 'failed', 'cancelled'];
+/** Delete stored corpus (research-purge spec decision 8): the confirmation's disclosures; no text says approve or authorize. */
+export const PURGE_TEXT = {
+  open: 'Delete stored corpus', title: 'Delete the stored corpus?', confirm: 'Delete stored corpus',
+  points: [
+    'The brief and evidence of this research can no longer be read.',
+    'If this research passed review, it reads "Unverified" instead of "Ready" from then on.',
+    'The research record stays in this list. Packages another research job uses are kept.',
+  ],
+  unexpected: 'Moonzila could not tell what was deleted. Check the research status before trying again.',
+} as const;
+/** The purge result in words; each clause follows one field of `ResearchPurgeResultSchema`. */
+export function purgeResultText(result: { removed: number; keptShared: number; keptBusy: boolean }): string {
+  return [
+    `Removed ${result.removed} stored package${result.removed === 1 ? '' : 's'}.`,
+    ...(result.keptShared > 0 ? [`${result.keptShared} kept because another job uses them.`] : []),
+    ...(result.keptBusy ? ['Unused packages were kept because research is running.'] : []),
+  ].join(' ');
+}
+export const cancelLabel =(status: Research['status']) => status === 'reviewing' || status === 'packaging' ? 'Cancel review' : 'Cancel collection';
 
 // Bidirectional overrides and isolates can make untrusted text read differently from what it contains.
 const BIDI = /[‪-‮⁦-⁩]/g;

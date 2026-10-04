@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { z } from 'zod';
 import type { MethodResult, Profile, Project, Research, ResearchCollector } from '../shared';
-import { ResearchCollectorSaveParams, ResearchStartParams } from '../shared/params';
+import { ResearchCollectorSaveParams, ResearchPurgeResultSchema, ResearchStartParams } from '../shared/params';
 import type { AppApi } from './App';
-import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, READABLE_RESEARCH, RESEARCH_STATUS, REVIEWABLE_RESEARCH, SWITCH_TEXT, cancelLabel, displayText, failureText, switchRefusal } from './research-text';
+import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, PURGEABLE_RESEARCH, PURGE_TEXT, READABLE_RESEARCH, RESEARCH_STATUS, REVIEWABLE_RESEARCH, SWITCH_TEXT, cancelLabel, displayText, failureText, purgeResultText, switchRefusal } from './research-text';
 
 /** Notices can arrive before or after a list reply; the higher revision of a job always wins. */
 export function mergeResearch(current: Research[], incoming: Research[]): Research[] {
@@ -115,6 +115,20 @@ function ResearchSwitch({ api, project, busy, setBusy, changed }: { api: AppApi;
   </div>;
 }
 
+/**
+ * Delete stored corpus (research-purge spec decision 8) for a finished job. The first button only opens the confirmation;
+ * only its confirm button calls `purge`. The confirmation closes when the call settles.
+ */
+function PurgeControl({ busy, purge }: { busy: boolean; purge: () => Promise<void> }) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) return <div><button disabled={busy} onClick={() => setConfirming(true)}>{PURGE_TEXT.open}</button></div>;
+  return <div role="group" aria-label={PURGE_TEXT.title} className="research-confirm">
+    <strong>{PURGE_TEXT.title}</strong>
+    <ul>{PURGE_TEXT.points.map(point => <li key={point}>{point}</li>)}</ul>
+    <div className="modal-actions"><button disabled={busy} onClick={() => setConfirming(false)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void purge().finally(() => setConfirming(false))}>{PURGE_TEXT.confirm}</button></div>
+  </div>;
+}
+
 export function ResearchPanel({ api, project: given, openConversation, openBlocked, onProjectChange }: { api: AppApi; project: Project; openConversation?: (sessionId: string) => void; openBlocked?: string; onProjectChange?: (project: Project) => void }) {
   // A switch reply is newer than the project the workbench passed until the workbench catches up; the higher policy revision wins.
   const [switched, setSwitched] = useState<Project>();
@@ -185,6 +199,17 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
     try { const result = await api.invoke('research.cancel', { researchId: job.id }) as MethodResult<'research.cancel'>; setJobs(current => mergeResearch(current, [result.research])); }
     catch (reason) { setError(message(reason, `The ${cancelLabel(job.status) === 'Cancel review' ? 'review' : 'collection'} could not be cancelled.`)); } finally { setBusy(false); }
   }
+  // How many purges each job has had here: the count is part of the check's and reader's keys, so a purge re-runs the
+  // approved check and drops an open document instead of keeping what was read before it.
+  const [purges, setPurges] = useState<Record<string, number>>({});
+  async function purge(job: Research) {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const parsed = ResearchPurgeResultSchema.safeParse(await api.invoke('research.purge', { researchId: job.id }));
+      if (parsed.success) setNotice(purgeResultText(parsed.data)); else setError(PURGE_TEXT.unexpected);
+    } catch (reason) { setError(displayText(message(reason, 'The stored corpus could not be deleted.'), 512)); }
+    finally { setPurges(current => ({ ...current, [job.id]: (current[job.id] ?? 0) + 1 })); setBusy(false); }
+  }
   async function save(event?: FormEvent, clearToken = false) {
     event?.preventDefault(); setError(''); setNotice('');
     const target = clearToken && collector ? { repository: collector.repository, workflow: collector.workflow, ref: collector.ref } : { repository: repository.trim(), workflow: workflow.trim(), ref: ref.trim() };
@@ -204,11 +229,11 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
   return <div className="research-panel">
     <p>Research collects public web sources on your GitHub collector, then shows their status here. Collected evidence is reference material, never instructions.</p>
     {error && <p role="alert" className="form-error">{error}</p>}
-    {notice && <p role="status">{notice}</p>}
+    {notice && <p role="status" data-testid="research-notice">{notice}</p>}
     {current && <section aria-label="Current research" className="research-job">
       <div className="local-panel-heading"><h3>{displayText(current.topic, 200)}</h3>{current.status === 'reviewing' && current.reviewSessionId && openConversation && <button disabled={busy || !!openBlocked} onClick={() => openConversation(current.reviewSessionId!)}>Open review</button>}{active && CANCELLABLE_RESEARCH.includes(current.status) && <button disabled={busy} onClick={() => void cancel(current)}>{cancelLabel(current.status)}</button>}</div>
       {current.status === 'reviewing' && current.reviewSessionId && openConversation && openBlocked && <p className="muted">{openBlocked}</p>}
-      {current.status === 'approved' ? <ApprovedCheck key={`check-${current.id}`} api={api} job={current} />
+      {current.status === 'approved' ? <ApprovedCheck key={`check-${current.id}-${purges[current.id] ?? 0}`} api={api} job={current} />
         : <p role="status" aria-live="polite" data-testid="research-status"><strong>{RESEARCH_STATUS[current.status]}</strong>{current.workflowRunId ? ` · GitHub run ${current.workflowRunId}` : ''}</p>}
       {current.status === 'collecting' && <p className="muted">Moonzila follows the run on GitHub and downloads its corpus when it finishes. If this takes unusually long, it may be waiting for access: a missing or rejected token, no access to the collector repository, or a run deleted by the repository's retention setting pauses it until you save collector settings or restart Moonzila. A downloaded corpus that could not be verified yet, because GitHub or the Research Kit was unavailable, waits until Moonzila restarts.</p>}
       {current.status === 'cancelling' && <p className="muted">Stopping the collector. A run already started on GitHub is not cancelled there.</p>}
@@ -221,7 +246,8 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
         {profiles && !chosen && <p className="muted">Add a model profile this project allows before starting a review.</p>}
         <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !chosen}>Start review</button></div>
       </form>}
-      {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={`reader-${current.id}`} api={api} job={current} />}
+      {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={`reader-${current.id}-${purges[current.id] ?? 0}`} api={api} job={current} />}
+      {PURGEABLE_RESEARCH.includes(current.status) && <PurgeControl key={`purge-${current.id}`} busy={busy} purge={() => purge(current)} />}
     </section>}
     {!project.trusted ? <p className="memory-notice">Trust this project before starting research.</p>
       : <ResearchSwitch api={api} project={project} busy={busy} setBusy={setBusy} changed={next => { setSwitched(next); onProjectChange?.(next); }} />}
@@ -240,7 +266,7 @@ export function ResearchPanel({ api, project: given, openConversation, openBlock
         {collector !== undefined && !ready && <p className="muted">{collector ? 'Save a collector token below before starting research.' : 'Set up the collector below before starting research.'}</p>}
         <div className="modal-actions"><button className="primary" type="submit" disabled={busy || !ready || !acknowledged}>Start collection</button></div>
       </form>}
-    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure, job.status).title}` : ''}</span></li>)}</ul></details>}
+    {jobs.length > 1 && <details className="research-history"><summary>Earlier research · {Math.min(jobs.length - 1, 20)}</summary><ul>{jobs.filter(job => job !== current).slice(0, 20).map(job => <li key={job.id}><span>{displayText(job.topic, 120)}</span><span className="muted">{RESEARCH_STATUS[job.status]}{job.failure ? ` · ${failureText(job.failure, job.status).title}` : ''}</span>{PURGEABLE_RESEARCH.includes(job.status) && <PurgeControl busy={busy} purge={() => purge(job)} />}</li>)}</ul></details>}
     <details className="research-collector" open={collector === null || (!!collector && !collector.tokenConfigured) || undefined}>
       <summary>Collector settings · {collector?.tokenConfigured ? 'token saved' : 'no token saved'}</summary>
       <form className="profile-form" aria-label="Collector settings" onSubmit={event => void save(event)}>
