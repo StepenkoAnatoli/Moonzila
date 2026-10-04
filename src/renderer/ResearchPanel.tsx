@@ -35,7 +35,7 @@ type Check = { key: string; state: 'checking' } | { key: string; state: 'ready' 
  * The reviewed package is "Ready" only from a live check: `research.document.read` for the brief, answered `verified: true`
  * for this job's id, revision and reviewed package digest. A rejected call is "Cannot check", never "Unverified".
  */
-function ApprovedCheck({ api, job }: { api: AppApi; job: Research }) {
+export function ApprovedCheck({ api, job }: { api: AppApi; job: Research }) {
   const key = jobKey(job);
   const [check, setCheck] = useState<Check>({ key, state: 'checking' });
   const [attempt, setAttempt] = useState(0);

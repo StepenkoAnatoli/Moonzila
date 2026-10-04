@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, test } from 'vitest';
 import type { Research } from '../src/shared';
-import { ResearchPanel } from '../src/renderer/ResearchPanel';
+import { ApprovedCheck, ResearchPanel } from '../src/renderer/ResearchPanel';
 import { RESEARCH_FAILURES, RUN_ACTIVE_MESSAGE, failureText } from '../src/renderer/research-text';
 import { REVIEW_FAILURES } from '../src/engine/review-contract';
 
@@ -486,4 +486,19 @@ test.each([['untrusted', { ...project, trusted: false }], ['research off', offPr
   await waitFor(() => expect(calls.some(call => call.method === 'research.collector.read')).toBe(true));
   expect(screen.queryByRole('button', { name: 'Start review' })).toBeNull();
   expect(screen.queryByLabelText('Review model')).toBeNull();
+});
+
+// Unit review P4-8: a reply is stale when only the reviewed package digest changed, at the same revision. The panel's
+// merge never lets that through (it keeps only a higher revision), so the check itself is driven with the new job.
+test('a check reply for an earlier reviewed digest at the same revision is discarded', async () => {
+  const replies = [deferred<unknown>(), deferred<unknown>()]; let index = 0;
+  const { api } = bridge({ routes: { 'research.document.read': () => replies[index++]!.promise } });
+  const { rerender } = render(<ApprovedCheck api={api} job={approved()} />);
+  await waitFor(() => expect(index).toBe(1));
+  rerender(<ApprovedCheck api={api} job={approved({ reviewedPackageDigest: 'e'.repeat(64) })} />);
+  await waitFor(() => expect(index).toBe(2));
+  await act(async () => replies[0]!.resolve({ text: '', truncated: false, source: 'reviewed', verified: true }));
+  expect(screen.getByTestId('research-status').textContent).toBe('Checking the reviewed package');
+  await act(async () => replies[1]!.resolve({ text: '', truncated: false, source: 'reviewed', verified: true }));
+  expect(screen.getByTestId('research-status').textContent).toBe(`Ready: approved by the Research Kit gate · package ${'e'.repeat(12)}`);
 });
