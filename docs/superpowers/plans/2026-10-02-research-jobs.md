@@ -330,6 +330,22 @@ User direction, October 2: the mission should decide from the machine's resource
 - **The planner fills the approval card; the user still approves** (agent count, model per agent, parallel or sequential, local or cloud, step budget). Resources are rechecked under the lease before each agent starts; if they drop, the mission falls back to sequential instead of failing.
 - On the current PC (about 1.15 GiB free, below the reserve) the planner must report that no local agent fits and offer only policy-permitted cloud agents.
 
+## Self-unblocking with research (user request, October 4; its own task after Task 5)
+
+User request, October 4: when a Moonzila run is blocked, it first tries to resolve the blocker itself. If it cannot, it uses the research tool to find out how, applies the findings to the project, and pushes a pull request without merging. The user chose to make it its own task after Task 5 (not part of Phases 4-5). Its order relative to project memory and missions is decided when it is brainstormed.
+
+What is fixed by the request:
+- Moonzila tries its own fix first; research only when that fails.
+- The fix rests on the research findings: the reviewed, research-ready package from Task 5, never an unreviewed corpus.
+- The result is a pull request on the project's repository. **Moonzila never merges**; the user does.
+
+Open for the brainstorm (not decided):
+- What "blocked" means: a failed command or test, an unknown API, a refused tool, a budget ended; and how many self-attempts come first.
+- Disclosure: a collection's topic and queries are readable in the user's collector repository on GitHub. A blocker description built from project code could leak private content. The research query must be public-technical only and shown to the user before dispatch, as the research switch requires today.
+- Approval: whether starting the research, and opening the PR, each need the user's confirmation (missions already require approval for multi-agent work).
+- GitHub write access: Moonzila has a collector token and read-only GitHub URL reading; pushing a branch and opening a PR needs a write path, a token scope and its own vault handling.
+- Budgets: the research page budget and the run's step budget across both attempts.
+
 ## Project memory (proposed for after this phase, before missions)
 
 User request, October 2: sessions must be stored and the user must be able to switch modes freely without Moonzila forgetting where work stopped, repeating mistakes or rewriting finished work. Reference: [ProjectBrain](https://www.projectbrain.tools/), a hosted, structured memory of tasks, decisions, facts and skills shared across sessions and agents.
