@@ -2,7 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstat, open, rename, stat, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
-import { Store, type StoreOperation } from '../engine/store';
+import { Store, type StoreOperation, type StoreProject } from '../engine/store';
+import { projectRoot, type RunRootResolver } from '../engine/research-review';
 import { assertToolPolicy, approvalMatches, canonicalHash } from '../engine/policy';
 import { ApprovalSchema, type Approval } from '../shared';
 import { resolveProjectPath, validateRelativePath } from './paths';
@@ -17,27 +18,34 @@ const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'ca
 export class FileJournal {
   private readonly lanes = new Set<string>();
   readonly snapshots: SnapshotStore;
-  constructor(private readonly store: Store, snapshots: string, snapshotLimitBytes?: number) {
+  /** `rootFor`: where a run's files resolve (the project folder, or a review run's workspace). */
+  constructor(private readonly store: Store, snapshots: string, snapshotLimitBytes?: number, private readonly rootFor: RunRootResolver = projectRoot) {
     this.snapshots = new SnapshotStore(snapshots, () => store.protectedSnapshotRefs(), snapshotLimitBytes);
   }
 
-  private authority(runId: string, signal?: AbortSignal) {
+  private authority(runId: string, signal?: AbortSignal): { project: StoreProject; root: string } {
     const run = this.store.getRun(runId); if (!run || terminal.has(run.status)) throw new Error('RUN_CANCELLED');
     if (run.projectId === null) throw new Error('PROJECT_REQUIRED');
     if (this.store.getSession(run.sessionId)?.policy.revision !== run.sessionPolicyRevision) throw new Error('RUN_CANCELLED');
     const project = this.store.getProject(run.projectId); if (!project) throw new Error('PROJECT_NOT_FOUND');
-    assertToolPolicy(run.mode, 'write', project, signal);
+    const root = this.rootFor(run, project);
+    // A review run writes only while it is its job's live review run.
+    if (!root.current) throw new Error('RUN_CANCELLED');
+    assertToolPolicy(run.mode, 'write', project, signal, { reviewWorkspace: root.review });
     if (run.trustRevision !== project.trustRevision || run.policyRevision !== project.policy.revision) throw new Error('APPROVAL_STALE');
-    return project;
+    return { project, root: root.root };
   }
-  private undoAuthority(projectId: string, signal?: AbortSignal) {
-    const project = this.store.getProject(projectId); if (!project) throw new Error('PROJECT_NOT_FOUND');
-    assertToolPolicy('build', 'write', project, signal);
-    if (this.store.listSessions(projectId).some(session => this.store.listRuns(session.id).some(run => !['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)))) throw new Error('RUN_ACTIVE');
-    return project;
+  /** Undo and recovery act on a finished run's write, under that run's mode and root (rootFor), never a fixed Build root. */
+  private undoAuthority(operation: StoreOperation, signal?: AbortSignal): { project: StoreProject; root: string } {
+    const project = this.store.getProject(operation.projectId); if (!project) throw new Error('PROJECT_NOT_FOUND');
+    const run = this.store.getRun(operation.runId); if (!run) throw new Error('RUN_NOT_FOUND');
+    const root = this.rootFor(run, project);
+    assertToolPolicy(run.mode, 'write', project, signal, { reviewWorkspace: root.review });
+    if (this.store.listSessions(operation.projectId).some(session => this.store.listRuns(session.id).some(item => !['completed', 'failed', 'cancelled', 'interrupted'].includes(item.status)))) throw new Error('RUN_ACTIVE');
+    return { project, root: root.root };
   }
   private operationAuthority(operation: StoreOperation, signal?: AbortSignal) {
-    return WriteInput.parse(operation.input).undoOf ? this.undoAuthority(operation.projectId, signal) : this.authority(operation.runId, signal);
+    return WriteInput.parse(operation.input).undoOf ? this.undoAuthority(operation, signal) : this.authority(operation.runId, signal);
   }
   private async current(target: string): Promise<Buffer | null> {
     let info;
@@ -67,8 +75,8 @@ export class FileJournal {
     return this.propose(runId, path, content, signal);
   }
   async prepareEdit(runId: string, path: string, search: string, replacement: string, signal?: AbortSignal): Promise<StoreOperation> {
-    const project = this.authority(runId, signal);
-    const before = await this.current(await resolveProjectPath(project.rootPath, path));
+    const { root } = this.authority(runId, signal);
+    const before = await this.current(await resolveProjectPath(root, path));
     if (before === null) throw new Error('FILE_CONFLICT');
     const content = before.toString('utf8');
     const crlf = (content.match(/\r\n/g) ?? []).length;
@@ -81,10 +89,10 @@ export class FileJournal {
     return this.propose(runId, path, next, signal, digest(before));
   }
   private async propose(runId: string, path: string, content: string, signal?: AbortSignal, expectedBeforeHash?: string): Promise<StoreOperation> {
-    const project = this.authority(runId, signal); const relative = validateRelativePath(path);
+    const { project, root } = this.authority(runId, signal); const relative = validateRelativePath(path);
     const bytes = Buffer.from(content, 'utf8'); if (bytes.byteLength > MAX_BYTES) throw new Error('FILE_TOO_LARGE');
     if (content.includes('\0') || bytes.toString('utf8') !== content) throw new Error('UNSUPPORTED_ENCODING');
-    const target = await resolveProjectPath(project.rootPath, relative, { allowMissing: true });
+    const target = await resolveProjectPath(root, relative, { allowMissing: true });
     const before = await this.current(target);
     if (expectedBeforeHash !== undefined && (before === null || digest(before) !== expectedBeforeHash)) throw new Error('FILE_CONFLICT');
     return this.snapshots.retain(before === null ? [bytes] : [before, bytes], hashes => {
@@ -98,6 +106,8 @@ export class FileJournal {
   async prepareUndo(operationId: string, expectedAfterHash: string | null, signal?: AbortSignal, record?: (operation: StoreOperation) => void): Promise<StoreOperation> {
     const original = this.store.getOperation(operationId);
     if (!original || original.kind !== 'write' || original.status !== 'completed') throw new Error('UNDO_UNAVAILABLE');
+    // A review edit is never undone: the agent proposes a new edit (spec "Tools").
+    if (this.store.getRun(original.runId)?.mode === 'research') throw new Error('UNDO_UNAVAILABLE');
     const previous = WriteInput.parse(original.input);
     if (previous.undoOf) throw new Error('UNDO_UNAVAILABLE');
     return this.snapshots.retainExisting([previous.beforeHash, previous.afterHash].filter((hash): hash is string => hash !== null), () => this.prepareRetainedUndo(original, expectedAfterHash, signal, record)).catch(error => {
@@ -106,14 +116,14 @@ export class FileJournal {
   }
   private async prepareRetainedUndo(original: StoreOperation, expectedAfterHash: string | null, signal?: AbortSignal, record?: (operation: StoreOperation) => void): Promise<StoreOperation> {
     const previous = WriteInput.parse(original.input);
-    const project = this.undoAuthority(original.projectId, signal);
+    const { project, root } = this.undoAuthority(original, signal);
     // A relink/retrust invalidates old path authority, even if the relative name still exists.
     if (original.trustRevision !== project.trustRevision) throw new Error('APPROVAL_STALE');
     if (expectedAfterHash !== previous.afterHash) throw new Error('FILE_CONFLICT');
-    const target = await resolveProjectPath(project.rootPath, previous.path, { allowMissing: true });
+    const target = await resolveProjectPath(root, previous.path, { allowMissing: true });
     const current = await this.current(target);
     const content = previous.beforeHash === null ? null : await this.readSnapshot(previous.beforeHash).catch(() => { throw new Error('UNDO_UNAVAILABLE'); });
-    this.undoAuthority(original.projectId, signal);
+    this.undoAuthority(original, signal);
     if (this.store.listOperations(original.runId).some(operation => operation.kind === 'write' && WriteInput.safeParse(operation.input).data?.undoOf === original.id && operation.status !== 'failed')) throw new Error('UNDO_UNAVAILABLE');
     if ((current === null ? null : digest(current)) !== previous.afterHash) throw new Error('FILE_CONFLICT');
     const input = { path: previous.path, content, beforeHash: previous.afterHash, afterHash: previous.beforeHash, undoOf: original.id };
@@ -127,10 +137,10 @@ export class FileJournal {
     const operation = this.store.getOperation(operationId);
     if (!operation || operation.kind !== 'write' || operation.status !== 'unknown') throw new Error('OPERATION_NOT_UNKNOWN');
     const input = WriteInput.parse(operation.input);
-    const project = this.undoAuthority(operation.projectId);
+    const { project, root } = this.undoAuthority(operation);
     if (project.trustRevision !== operation.trustRevision) throw new Error('APPROVAL_STALE');
-    const current = await this.current(await resolveProjectPath(project.rootPath, input.path, { allowMissing: true }));
-    const live = this.undoAuthority(operation.projectId);
+    const current = await this.current(await resolveProjectPath(root, input.path, { allowMissing: true }));
+    const { project: live } = this.undoAuthority(operation);
     if (live.trustRevision !== operation.trustRevision) throw new Error('APPROVAL_STALE');
     const hash = current === null ? null : digest(current);
     return hash === input.afterHash ? 'applied' : hash === input.beforeHash ? 'not-applied' : 'conflict';
@@ -147,10 +157,10 @@ export class FileJournal {
     const operation = this.store.getOperation(operationId);
     if (!operation || operation.kind !== 'write' || operation.status !== 'prepared') throw new Error('OPERATION_NOT_PREPARED');
     const input = WriteInput.parse(operation.input);
-    const project = this.operationAuthority(operation, signal);
+    const { project, root } = this.operationAuthority(operation, signal);
     if (!approvalMatches(operation, approval, project) || canonicalHash(input) !== operation.inputHash) throw new Error('APPROVAL_STALE');
     ApprovalSchema.parse(approval);
-    const target = await resolveProjectPath(project.rootPath, input.path, { allowMissing: true });
+    const target = await resolveProjectPath(root, input.path, { allowMissing: true });
     const lane = target.toLowerCase(); if (this.lanes.has(lane)) throw new Error('FILE_BUSY'); this.lanes.add(lane);
     const temporary = join(dirname(target), `.moonaliza-${randomUUID()}.tmp`);
     let started = false; let renamed = false;
@@ -168,8 +178,8 @@ export class FileJournal {
         try { await file.writeFile(input.content, 'utf8'); await file.sync(); } finally { await file.close(); }
       }
       const live = this.operationAuthority(operation, signal);
-      if (!approvalMatches(operation, approval, live)) throw new Error('APPROVAL_STALE');
-      if (await resolveProjectPath(live.rootPath, input.path, { allowMissing: true }) !== target) throw new Error('FILE_CONFLICT');
+      if (!approvalMatches(operation, approval, live.project)) throw new Error('APPROVAL_STALE');
+      if (await resolveProjectPath(live.root, input.path, { allowMissing: true }) !== target) throw new Error('FILE_CONFLICT');
       const current = await this.current(target);
       if ((current === null ? null : digest(current)) !== input.beforeHash) throw new Error('FILE_CONFLICT');
       if (signal?.aborted) throw new Error('RUN_CANCELLED');
