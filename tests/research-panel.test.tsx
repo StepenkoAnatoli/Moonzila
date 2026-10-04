@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, expect, test } from 'vitest';
 import type { Research } from '../src/shared';
 import { ResearchPanel } from '../src/renderer/ResearchPanel';
-import { RESEARCH_FAILURES, failureText } from '../src/renderer/research-text';
+import { RESEARCH_FAILURES, RUN_ACTIVE_MESSAGE, failureText } from '../src/renderer/research-text';
 import { REVIEW_FAILURES } from '../src/engine/review-contract';
 
 afterEach(cleanup);
@@ -391,4 +391,89 @@ test('removing the saved token keeps the saved destination, not unsaved edits', 
   fireEvent.click(screen.getByRole('button', { name: 'Remove saved token' }));
   expect(await screen.findByText('The saved token was removed.')).toBeTruthy();
   expect(calls.find(call => call.method === 'research.collector.save')!.params).toEqual({ repository: 'octo/collector', workflow: 'collect.yml', ref: 'main', expectedRevision: 1, clearToken: true });
+});
+
+// Research switch (research-review-ui spec section 4).
+const offProject = { ...project, policy: { revision: 3, inference: 'cloud-allowed' as const, research: 'off' as const } };
+const policyCalls = (calls: Array<{ method: string; params: Record<string, unknown> }>) => calls.filter(call => call.method === 'project.policy.update');
+
+test('research off: Allow research opens a confirmation with every disclosure, and Cancel sends nothing', async () => {
+  const { api, calls } = bridge();
+  render(<ResearchPanel api={api} project={offProject} />);
+  expect(screen.queryByText(/Allow research in the project policy/)).toBeNull();
+  fireEvent.click(await screen.findByRole('button', { name: 'Allow research' }));
+  const confirm = screen.getByRole('group', { name: 'Allow public research?' });
+  expect(confirm.textContent).toMatch(/topic, search queries and URLs of a collection are sent to your collector repository on GitHub and are readable there/);
+  expect(confirm.textContent).toMatch(/Only public web pages are fetched/);
+  expect(confirm.textContent).toMatch(/No project files are sent/);
+  expect(confirm.textContent).toMatch(/A collection already started on GitHub keeps running there; Moonzila stops following it and does not use its result/);
+  expect(confirm.textContent).not.toMatch(/private/i);
+  fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('group', { name: 'Allow public research?' })).toBeNull();
+  expect(policyCalls(calls)).toEqual([]);
+  for (const button of screen.getAllByRole('button')) expect(button.textContent).not.toMatch(/authori[sz]e|approve/i);
+});
+
+test('Allow public research sends public-technical with inference exactly as stored, then offers a collection', async () => {
+  const { api, calls } = bridge({ routes: { 'project.policy.update': () => ({ project: { ...offProject, policy: { revision: 4, inference: 'cloud-allowed', research: 'public-technical' } } }) } });
+  const changed: unknown[] = [];
+  render(<ResearchPanel api={api} project={offProject} onProjectChange={next => changed.push(next.policy)} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Allow research' }));
+  fireEvent.click(within(screen.getByRole('group', { name: 'Allow public research?' })).getByRole('button', { name: 'Allow public research' }));
+  expect(await screen.findByRole('button', { name: 'Start collection' })).toBeTruthy();
+  expect(policyCalls(calls).map(call => call.params)).toEqual([{ projectId: 'p1', expectedRevision: 3, policy: { inference: 'cloud-allowed', research: 'public-technical' } }]);
+  expect(changed).toEqual([{ revision: 4, inference: 'cloud-allowed', research: 'public-technical' }]);
+  expect(screen.getByRole('button', { name: 'Turn research off' })).toBeTruthy();
+});
+
+test('research on: Turn research off asks first, warns what stops, and sends off with inference unchanged', async () => {
+  const { api, calls } = bridge({ routes: { 'project.policy.update': () => ({ project: { ...project, policy: { revision: 2, inference: 'local-only', research: 'off' } } }) } });
+  render(<ResearchPanel api={api} project={project} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Turn research off' }));
+  expect(policyCalls(calls)).toEqual([]);
+  const confirm = screen.getByRole('group', { name: 'Turn research off?' });
+  expect(confirm.textContent).toMatch(/Waiting and running research jobs, collections and reviews, stop/);
+  expect(confirm.textContent).toMatch(/A collection already started on GitHub keeps running there; Moonzila stops following it and does not use its result/);
+  fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+  expect(policyCalls(calls)).toEqual([]);
+  fireEvent.click(screen.getByRole('button', { name: 'Turn research off' }));
+  fireEvent.click(within(screen.getByRole('group', { name: 'Turn research off?' })).getByRole('button', { name: 'Turn research off' }));
+  expect(await screen.findByRole('button', { name: 'Allow research' })).toBeTruthy();
+  expect(policyCalls(calls).map(call => call.params)).toEqual([{ projectId: 'p1', expectedRevision: 1, policy: { inference: 'local-only', research: 'off' } }]);
+  expect(screen.queryByRole('button', { name: 'Start collection' })).toBeNull();
+});
+
+test.each([['on', project], ['off', offProject]] as const)('a RUN_ACTIVE refusal while turning research %s reads "Finish or stop the running task first" and is not retried', async (_state, start) => {
+  const { api, calls } = bridge({ routes: { 'project.policy.update': () => { throw new Error(RUN_ACTIVE_MESSAGE); } } });
+  render(<ResearchPanel api={api} project={start} />);
+  const opener = start.policy.research === 'off' ? 'Allow research' : 'Turn research off';
+  const confirmName = start.policy.research === 'off' ? 'Allow public research?' : 'Turn research off?';
+  const confirmButton = start.policy.research === 'off' ? 'Allow public research' : 'Turn research off';
+  fireEvent.click(await screen.findByRole('button', { name: opener }));
+  fireEvent.click(within(screen.getByRole('group', { name: confirmName })).getByRole('button', { name: confirmButton }));
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toBe('Finish or stop the running task first.');
+  await new Promise(resolve => setTimeout(resolve, 50));
+  expect(policyCalls(calls)).toHaveLength(1);
+  expect(screen.queryByRole('group', { name: confirmName })).toBeNull();
+});
+
+test('another refusal shows its own public message', async () => {
+  const { api } = bridge({ routes: { 'project.policy.update': () => { throw new Error('The project changed. Reload and try again.'); } } });
+  render(<ResearchPanel api={api} project={offProject} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Allow research' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow public research' }));
+  expect((await screen.findByRole('alert')).textContent).toBe('The project changed. Reload and try again.');
+});
+
+test('the RUN_ACTIVE text the panel recognises is the bridge\'s public message', () => {
+  const bridgeSource = readFileSync('src/main/bridge.ts', 'utf8');
+  expect(bridgeSource).toContain(`RUN_ACTIVE: '${RUN_ACTIVE_MESSAGE}'`);
+});
+
+test.each([['off'], ['public-technical']] as const)('an untrusted project with research %s shows the trust text and no switch', async research => {
+  render(<ResearchPanel api={bridge().api} project={{ ...project, trusted: false, policy: { ...project.policy, research } }} />);
+  expect(await screen.findByText(/Trust this project before starting research/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Allow research' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Turn research off' })).toBeNull();
 });

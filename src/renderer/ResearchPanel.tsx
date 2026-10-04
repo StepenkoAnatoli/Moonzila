@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { MethodResult, Profile, Project, Research, ResearchCollector } from '../shared';
 import { ResearchCollectorSaveParams, ResearchStartParams } from '../shared/params';
 import type { AppApi } from './App';
-import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, READABLE_RESEARCH, RESEARCH_STATUS, REVIEWABLE_RESEARCH, cancelLabel, displayText, failureText } from './research-text';
+import { ACTIVE_RESEARCH, CANCELLABLE_RESEARCH, READABLE_RESEARCH, RESEARCH_STATUS, REVIEWABLE_RESEARCH, SWITCH_TEXT, cancelLabel, displayText, failureText, switchRefusal } from './research-text';
 
 /** Notices can arrive before or after a list reply; the higher revision of a job always wins. */
 export function mergeResearch(current: Research[], incoming: Research[]): Research[] {
@@ -87,7 +87,38 @@ function DocumentReader({ api, job }: { api: AppApi; job: Research }) {
   </div>;
 }
 
-export function ResearchPanel({ api, project, openConversation }: { api: AppApi; project: Project; openConversation?: (sessionId: string) => void }) {
+/**
+ * The research switch (research-review-ui spec 4). Each direction asks first; the update keeps `inference` exactly as
+ * stored and only ever sends `public-technical` or `off`. A refusal is shown once and never retried.
+ */
+function ResearchSwitch({ api, project, busy, setBusy, changed }: { api: AppApi; project: Project; busy: boolean; setBusy: (value: boolean) => void; changed: (project: Project) => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [refusal, setRefusal] = useState('');
+  const on = project.policy.research !== 'off';
+  const text = on ? SWITCH_TEXT.off : SWITCH_TEXT.on;
+  async function apply() {
+    setBusy(true); setRefusal('');
+    try {
+      const result = await api.invoke('project.policy.update', { projectId: project.id, expectedRevision: project.policy.revision, policy: { inference: project.policy.inference, research: on ? 'off' : 'public-technical' } }) as MethodResult<'project.policy.update'>;
+      setConfirming(false); changed(result.project);
+    } catch (reason) { setConfirming(false); setRefusal(switchRefusal(message(reason, 'The research setting could not be changed.'))); } finally { setBusy(false); }
+  }
+  return <div className="research-switch">
+    {on ? <p className="muted">Research is on for this project: public web pages only. {!confirming && <button className="link-button" disabled={busy} onClick={() => { setRefusal(''); setConfirming(true); }}>{SWITCH_TEXT.off.open}</button>}</p>
+      : <p className="memory-notice">Research is off for this project. {!confirming && <button disabled={busy} onClick={() => { setRefusal(''); setConfirming(true); }}>{SWITCH_TEXT.on.open}</button>}</p>}
+    {refusal && <p role="alert" className="form-error">{displayText(refusal, 512)}</p>}
+    {confirming && <div role="group" aria-label={text.title} className="research-confirm">
+      <strong>{text.title}</strong>
+      <ul>{text.points.map(point => <li key={point}>{point}</li>)}</ul>
+      <div className="modal-actions"><button disabled={busy} onClick={() => setConfirming(false)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void apply()}>{text.confirm}</button></div>
+    </div>}
+  </div>;
+}
+
+export function ResearchPanel({ api, project: given, openConversation, onProjectChange }: { api: AppApi; project: Project; openConversation?: (sessionId: string) => void; onProjectChange?: (project: Project) => void }) {
+  // A switch reply is newer than the project the workbench passed until the workbench catches up; the higher policy revision wins.
+  const [switched, setSwitched] = useState<Project>();
+  const project = switched && switched.id === given.id && switched.policy.revision > given.policy.revision ? switched : given;
   const [jobs, setJobs] = useState<Research[]>([]);
   const [collector, setCollector] = useState<ResearchCollector | null>();
   const [busy, setBusy] = useState(false);
@@ -192,8 +223,8 @@ export function ResearchPanel({ api, project, openConversation }: { api: AppApi;
       {READABLE_RESEARCH.includes(current.status) && <DocumentReader key={current.id} api={api} job={current} />}
     </section>}
     {!project.trusted ? <p className="memory-notice">Trust this project before starting research.</p>
-      : project.policy.research === 'off' ? <p className="memory-notice">Research is off for this project. Allow research in the project policy to start a collection.</p>
-      : !active && <form className="profile-form research-form" aria-label="Start research" onSubmit={event => void start(event)}>
+      : <ResearchSwitch api={api} project={project} busy={busy} setBusy={setBusy} changed={next => { setSwitched(next); onProjectChange?.(next); }} />}
+    {project.trusted && project.policy.research !== 'off' && !active && <form className="profile-form research-form" aria-label="Start research" onSubmit={event => void start(event)}>
         <fieldset disabled={busy || !ready}>
           <legend>Becomes public on GitHub</legend>
           <p className="research-disclosure" data-testid="research-disclosure">The topic, search queries, known URLs, preferred domains, depth and page budget are sent to the collector repository <strong>{collector?.repository ?? '(not set up)'}</strong> and become readable by anyone who can read it, in its workflow runs. A random run reference is added. Your project name, folder, files and conversations are not sent.</p>

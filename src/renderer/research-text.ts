@@ -99,3 +99,24 @@ export function displayText(value: string, max: number): string {
   const text = value.replace(BIDI, '');
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
+
+const GITHUB_KEEPS_RUNNING = 'A collection already started on GitHub keeps running there; Moonzila stops following it and does not use its result.';
+/** The research switch's confirmations (research-review-ui spec 4). `private-connected` is never offered. */
+export const SWITCH_TEXT = {
+  on: { open: 'Allow research', title: 'Allow public research?', confirm: 'Allow public research', points: [
+    'The topic, search queries and URLs of a collection are sent to your collector repository on GitHub and are readable there.',
+    'Only public web pages are fetched.',
+    'No project files are sent.',
+    GITHUB_KEEPS_RUNNING,
+  ] },
+  off: { open: 'Turn research off', title: 'Turn research off?', confirm: 'Turn research off', points: [
+    'Waiting and running research jobs, collections and reviews, stop.',
+    GITHUB_KEEPS_RUNNING,
+  ] },
+} as const;
+/**
+ * The bridge's public RUN_ACTIVE message (src/main/bridge.ts; the preload passes only the message, not the code). A test
+ * keeps the two equal. Main refuses a research-only change while another task runs; the panel says so and never retries.
+ */
+export const RUN_ACTIVE_MESSAGE = 'Wait for the active run to finish, or stop it first.';
+export const switchRefusal = (text: string) => text === RUN_ACTIVE_MESSAGE ? 'Finish or stop the running task first.' : text;
