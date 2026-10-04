@@ -236,3 +236,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: gap-audit returned: P5-11..P5-14 fixed in this run (units G13, G45); P5-15, P5-16 open items; ledger notes to the docs unit.
 - 2026-10-04: G13 integrated (P5-11, P5-12).
 - 2026-10-04: G45 integrated (P5-13, P5-14). Every gap-audit in-scope gap fixed. Pushed for Windows CI.
+- 2026-10-04: Windows CI green on `0171ff7` (run 37228866576): `research-purge.test.ts` 23 tests, none skipped (the held-guard test ran), `research-review-native.test.ts` 1 passed through `MoonAlizaHost.exe`; whole run 1120 passed, 1 skipped (the POSIX-only FIFO test). Phase 5 docs integrated (`85ed055`).
