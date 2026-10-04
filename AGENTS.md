@@ -83,6 +83,7 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 | The research document reader returns only redacted text, and its refusals carry no document text | `tests/research-document.test.ts` (a vault secret redacted in the result and absent from a refusal of the same document; a secret straddling the 262,144-byte cut; redaction unavailable returns no text) |
 | A reader result is `verified: true`, and the panel shows Ready, only for bytes validated in that call | `tests/research-document.test.ts` (every call validates again; a package replaced after validation still yields the verified buffer; deleted or tampered is `verified: false`), `tests/research-panel.test.tsx` (Ready only on `verified: true`) |
 | A research-only policy change during a non-research run is refused before any run is stopped | `tests/policy-route.test.ts` (no signal aborted, context revoked, supervisor held; `run.start` serialized by the lock), `tests/project-policy-engine.test.ts` (the engine re-check) |
+| A purge never deletes a digest another job references, and leaves the job rows unchanged | `tests/research-purge.test.ts` ("a digest another job references is kept (keptShared), its receipt stays, and the other job's reader still verifies"; the byte-compare test "a refused, a shared-digest and an approved purge leave the research, research_events, runs and events rows byte-identical") |
 
 ### Research-Kit
 | Item | Value |

@@ -46,3 +46,37 @@
 
 - **P4-40:** generate the e2e test CA and leaf certificate at test time, so no private key is committed, and prove it on Windows CI. This clears the kit 0.9.5 `doctor` blocker.
 - **Carry-overs from Phase 4** for the gap-audit and break-test: P4-12, P4-17, P4-30 to P4-33, P4-39, P4-42.
+
+## Phase 5 as built (October 4)
+
+Units B7a (`research.purge` in main, the adapter's locked step and the `research.retained` control), B7b (the panel) and P4-40 (test-time TLS), their unit reviews, the integration spec review and invariant audit, and the gap-audit (findings P5-1 to P5-16 in the [run ledger](../orchestration/2026-10-03-task5-research-review/RUN.md)). The decisions above are what was designed; where the build differs from them or adds to them, this section says so, and the build is what runs. Code: `src/main/research-purge.ts` (`purgeResearch`), `ResearchKit.purgeRetained` in `src/adapters/research-kit/adapter.ts`, `Store.researchRetained` in `src/engine/store.ts`, `PurgeControl` in `src/renderer/ResearchPanel.tsx` and `PURGE_TEXT` in `src/renderer/research-text.ts`. Tests: `tests/research-purge.test.ts` and `tests/research-panel-purge.test.tsx`.
+
+**The result** (decisions 1, 3 and 5)
+- **`removed` counts every ZIP deleted, orphans included**, not only the job's own digests. A target whose file is already gone (ENOENT), or that is no longer a regular file when it is checked again just before its delete, is skipped and not counted.
+- **`keptShared` counts only the job's own shared digests whose file is in the store** (P5-6). A digest another job references but whose file is gone is not counted, so a second purge of the same job reports 0, not 1.
+- **`keptBusy` is true only when unreferenced ZIPs were actually kept.** While a job is active, a store with no unreferenced ZIP answers `keptBusy: false`; it does not mean "a job was active".
+- **`research.retained` also returns each job's `projectId`** besides its id, status, collected digest and reviewed digest. A journal row for `collecting -> collected` whose verification digest is not a lowercase 64-hex digest makes the whole read `RESEARCH_STATE_INVALID`, so the purge deletes nothing rather than treat a referenced ZIP as unreferenced.
+
+**The order of checks** (decisions 2 and 4)
+1. No kit installed: `RESEARCH_KIT_UNAVAILABLE` at once, before the engine is asked anything. So on such a machine an unknown job or a `collected` job also answers `RESEARCH_KIT_UNAVAILABLE`, not `NOT_FOUND` or `PURGE_NOT_ALLOWED`.
+2. Under the storage lock, the `research.retained` read, then the job's status: an unknown job is `NOT_FOUND` ("This operation is no longer available."), a job outside `approved`, `failed` and `cancelled` is `PURGE_NOT_ALLOWED`. The engine's own refusals (`ENGINE_UNAVAILABLE` and the like) pass through unchanged; a code outside `ErrorCodeSchema` (`RESEARCH_STATE_INVALID`, a schema error in the reply) reaches the renderer as `INTERNAL_ERROR`.
+3. Only then is `storage/artifacts` listed (review F2): a link or non-folder there is `RESEARCH_KIT_UNAVAILABLE`, but only after the status has been decided, so a refused purge never reports a store fault.
+
+**The Windows retry and `PURGE_INCOMPLETE`** (requirement N-1, P5-5)
+- A delete refused with `EBUSY` or `EPERM` is retried once after 100 ms. No other code is retried; `ENOENT` on either attempt counts as already gone.
+- Refused again with `EBUSY` or `EPERM`, the purge stops with `PURGE_INCOMPLETE`: "Some stored packages could not be deleted because another program is using them. Close that program and delete the stored corpus again; the packages already deleted stay deleted." This replaces N-1's "`RESEARCH_KIT_UNAVAILABLE` with nothing half done", which was not true for a purge with several targets: what was deleted before the held file stays deleted, and the message now says so instead of telling the user to reinstall the kit. The receipts of the ZIPs that were deleted are forgotten; the held ZIP keeps its own.
+- Any other failed delete, on the first attempt or the retry, is the store's fault: `RESEARCH_KIT_UNAVAILABLE`, again keeping what was already deleted.
+- The Linux tests answer the delete through the adapter's injectable `unlink`; a Windows-only test holds a real ZIP open through the native helper (review F1) and checks that a second purge, once it is released, removes it.
+
+**Shared digests between finished jobs** (P5-10). Two finished jobs that share a digest each keep it for the other, so purging either of them never deletes that ZIP, even when both are purged. This is the user's 2026-10-03 rule (delete only when no other job references the digest) applied as written, and it is kept: sharing needs identical package bytes, which the unique `client_ref` makes rare.
+
+**Receipts** (decision 6 overstated). A purge forgets the receipts of exactly the digests it deleted, and nothing else. Every other receipt stays until the app quits (`close()`): each reader call and review start validates afresh and leaves one, so receipts for digests that are never purged still grow by one per call. Decision 6's "this also bounds P4-30's growth" holds only for purged digests; P4-30 itself stays recorded (bounded by clicks; a receipt is small).
+
+**`verifyRetained` is now one locked step.** Before Phase 5 the existence check ran outside the storage lock and validation and read each took it. Now the existence check, the validation and the read of the validated bytes run in one step under the lock, so a purge of the same digest runs wholly before or wholly after a review start's or the reader's `verifyRetained`; tests cover both orders for the review start and the reader. The order inside it is unchanged from before (review F3): a missing file is `STALE_VERIFICATION` before the binding is parsed.
+
+**The panel** (decisions 7 and 8)
+- **The "Unverified" disclosure is shown only for the panel's current job when it is `approved`**, and it is worded conditionally: "If this research passed review and no other research uses its stored package, it reads "Unverified" instead of "Ready" from then on." A history row's confirmation has two lines: the brief and evidence can no longer be read; the record stays and packages another research job uses are kept. Failed and cancelled jobs never get the Unverified line (P5-2).
+- **History rows offer Delete stored corpus** for their finished jobs, as well as the current job. A refusal is shown once, beside the control that was used, and automatic errors do not replace it.
+- **There is no "corpus deleted" state.** The panel reports the result once (`purgeResultText`), then re-runs the approved check and closes an open document. An approved job then reads Unverified; a failed or cancelled job looks as before (the reader is not offered for those statuses); and the control stays offered: a second purge finds none of the job's own packages left to delete (it can still remove orphans, by the rules above).
+
+**Invariant 4 (rows unchanged).** `tests/research-purge.test.ts` "a refused, a shared-digest and an approved purge leave the research, research_events, runs and events rows byte-identical" compares full dumps of those tables before and after (P5-8); the integration audit had shown it only with a scratch test.
