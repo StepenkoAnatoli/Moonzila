@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { execFile } from 'node:child_process';
+import Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -318,6 +319,35 @@ test('the status is decided before artifacts/ is listed: with a link there, an u
   expect(await refusal(purge(w, 'done'))).toBe('RESEARCH_KIT_UNAVAILABLE');
   expect(w.unlinks).toEqual([]);
 });
+
+/** Every row of the engine tables a purge must not touch, as full SQL `quote()` text, from a read-only connection closed at once. */
+const DUMPED = ['research', 'research_events', 'runs', 'events'] as const;
+function dump(w: World): Record<typeof DUMPED[number], string[]> {
+  const db = new Database(join(w.folder, 'state.sqlite'), { readonly: true, fileMustExist: true });
+  try {
+    const out = {} as Record<typeof DUMPED[number], string[]>;
+    for (const table of DUMPED) {
+      const columns = (db.prepare(`SELECT name FROM pragma_table_info('${table}') ORDER BY cid`).all() as { name: string }[]).map(column => `quote("${column.name}")`);
+      out[table] = (db.prepare(`SELECT ${columns.join(" || '|' || ")} AS row FROM ${table} ORDER BY rowid`).all() as { row: string }[]).map(item => item.row);
+    }
+    return out;
+  } finally { db.close(); }
+}
+
+test('a refused, a shared-digest and an approved purge leave the research, research_events, runs and events rows byte-identical', async () => {
+  // Guard: the purge writes nothing to the engine (P5-8; mutation: research.retained touching a row while it reads).
+  const w = await world(); await realApproved(w, 'j1');
+  job(w, 'kept', 'collected');
+  job(w, 'x', 'cancelled', { via: ['dispatching', 'collecting', 'collected', 'reviewing', 'cancelling', 'cancelled'], collected: { sha: digest(collectedBytes), bytes: collectedBytes.length } });
+  const before = dump(w);
+  expect(before.research).toHaveLength(3); expect(before.research_events.length).toBeGreaterThan(10); expect(before.runs).toHaveLength(2); expect(before.events.length).toBeGreaterThan(0);
+  expect(await refusal(purge(w, 'kept'))).toBe('PURGE_NOT_ALLOWED');
+  expect(dump(w)).toEqual(before);
+  expect(await purge(w, 'x')).toEqual({ removed: 0, keptShared: 1, keptBusy: false });
+  expect(dump(w)).toEqual(before);
+  expect(await purge(w, 'j1')).toEqual({ removed: 1, keptShared: 1, keptBusy: false });
+  expect(dump(w)).toEqual(before);
+}, 120000);
 
 // ------------------------------------------------------------------ the storage lock
 
