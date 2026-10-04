@@ -167,3 +167,5 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: Windows CI red on `9f69e1c` and `5e084ff`: the reader test's cleanup (P4-34), fixed. BRK-1 fix integrated (44/44; revision check removed -> red).
 - 2026-10-04: full gate on `de1425c`: one failure outside the baseline, a flaky renderer test (P4-35), fixed. Re-gating.
 - 2026-10-04: Windows CI on `de1425c`: unit stage green (P4-34 fix works); the new journey reached `collected` and failed on the status text (P4-36), fixed.
+- 2026-10-04: full Linux gate twice on `1fa8561` (after the P4-35 fix): both typecheck, lint, build clean; 956 passed, 74 failed, exactly the baseline, 0 new. (`9c90fd2`/`bad5909` change only the e2e spec and RUN.md, which the Linux gate does not run.)
+- 2026-10-04 17:09: Windows CI green on `bad5909` (push run 37217502754 and PR run 37217507014): the e2e journey passes end to end, reader included. Remaining before merge: the mutation audit, and an independent re-review of the S2 fixes (P4-10, P4-14, P4-29) and the CI fixes (P4-34..P4-36) on the final head.
