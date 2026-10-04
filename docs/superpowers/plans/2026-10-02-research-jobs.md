@@ -362,6 +362,17 @@ User direction, October 2: the mission should decide from the machine's resource
 - On the current PC (about 1.15 GiB free, below the reserve) the planner must report that no local agent fits and offer only policy-permitted cloud agents.
 - **Project lock (P4-27, recorded October 4).** Main's policy route (`src/main/policy-route.ts`) locks only `run.start`. Any mission path that creates a non-research run outside `run.start` must take the same per-project lock; otherwise a research-only policy change can pass main's check, so main aborts and holds before the engine's re-check refuses it.
 
+## More models (user request, October 4; its own task after Task 5)
+
+User request, October 4: add more models to Moonzila, as its own task after Task 5, research first. Today Moonzila already reaches many models through profiles (`ollama`, `openai-compatible`, `openai-responses`, `anthropic`; `ProfileKindSchema` in `src/shared/contracts.ts`) and a signed managed catalogue of local models and runtimes (`src/models/catalogue.ts`), hardware-qualified before use.
+
+Three directions, all in scope; their order is decided at the brainstorm:
+1. **More one-click local models** in the managed catalogue: each needs a download artifact, a hardware qualification and a signed catalogue update.
+2. **Native profile kinds** for providers that are not OpenAI-compatible (for example Google Gemini's own API): an adapter and tests each.
+3. **Smarter selection**: rank cloud and local models by cost and quality per task, building on `docs/research/2026-10-02-model-pricing-and-ranking`.
+
+Research first (a Research-Kit project): which coding models are worth adding, judged on tool-calling reliability, licence, size and hardware, and price. A curated, tested shortlist, not a count. Constraints: the current PC has about 1.15 GiB free memory (below the reserve), so new local models must not be offered where they do not fit; cloud models stay behind the project's inference policy.
+
 ## Linked parent above the data folder (found October 4 as P4-23; its own task)
 
 Main's folder guards refuse every storage path when any folder above Moonzila's data folder is a link (Fedora Atomic's `/home -> var/home`, a `C:\Users` junction): `privateDirectory` (`src/models/artifact-files.ts:16`, used by the model store, downloads, archives, the runtime, managed Ollama and the Research Kit store), `containedFolder` (`src/main/review-workspace.ts`) and the reader's walk all lstat from the filesystem root. The engine's `containedReviewWorkspace` checks only below the data folder and compares realpaths, which is what both specs say. Pre-existing since before Task 5; taken out of Phase 4 because the fix changes a security guard used across the app. To do: anchor each guard explicitly (models, downloads, runtime, research-kit storage), lstat only below the anchor, keep the realpath equality check, record the rule as a decision, and test both directions. Red tests: `docs/orchestration/2026-10-03-task5-research-review/reports/p4-23-red-tests.patch`.

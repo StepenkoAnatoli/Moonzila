@@ -88,6 +88,7 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-03: research is turned on through a confirm dialog offering only public-technical; `research.purge` deletes retained ZIPs only; inference-only policy edits do not end research jobs.
 - 2026-10-04: D1, one public code `REVIEW_NOT_READY`. D2, packaged e2e on a test-only package (decision 13). The product name is Moonzila (decision 12). PRs open as drafts; the user's "Ready for review" lets the lead merge on green CI.
 - 2026-10-04: user: "merge as you decide, just be careful". The lead merges a phase PR itself once every check in AGENTS.md's merge rule holds on the exact head (S1/S2 fixed and re-reviewed, Linux gate against baseline, Windows CI green, mergeable, no open thread). Supersedes "the user marks Ready for review".
+- 2026-10-04: user request, more models (local catalogue, native profile kinds, smarter selection), research first: its own task after Task 5, recorded in the plan.
 - 2026-10-04: user request, self-unblocking with research (blocked run: self-fix, else research, then a PR, never merged), out of this run's scope: its own task after Task 5, recorded in the plan.
 - 2026-10-04: a cross-vendor (GPT) reviewer joins Phase 3's review and is offered for Phase 5's gap-audit.
 
