@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import provenance from './fixtures/research-kit/provenance.json';
 import { ResearchKit } from '../src/adapters/research-kit/adapter';
 import type { OwnedCommand, OwnedOptions, OwnedResult, OwnedRunner } from '../src/tools/commands';
@@ -53,14 +53,25 @@ function runner(seen: Seen[], hooks: Hooks): OwnedRunner {
     await hooks.whileRunning?.(request, kind, signal);
     if (signal?.aborted) return { status: 'exited', code: 1, output: '', truncated: false, cancelled: true, timedOut: false };
     const fake = await hooks.fake?.(request, kind); if (fake) return fake;
-    return new Promise(done => execFile(request.executable, request.args, { cwd: request.cwd, env: request.env, timeout: request.timeoutMs, maxBuffer: request.maxOutputBytes, encoding: 'utf8', signal }, (error, stdout) => {
+    const held = await lockedState(options.readLocks ?? []);
+    const result = await new Promise<OwnedResult>(done => execFile(request.executable, request.args, { cwd: request.cwd, env: request.env, timeout: request.timeoutMs, maxBuffer: request.maxOutputBytes, encoding: 'utf8', signal }, (error, stdout) => {
       const failure = error as (NodeJS.ErrnoException & { killed?: boolean; code?: number | string }) | null;
       if (failure?.name === 'AbortError') { done({ status: 'exited', code: 1, output: stdout, truncated: false, cancelled: true, timedOut: false }); return; }
       if (failure?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') { done({ status: 'exited', code: 1, output: stdout, truncated: true, cancelled: false, timedOut: false }); return; }
       if (failure?.killed) { done({ status: 'exited', code: 1, output: stdout, truncated: false, cancelled: false, timedOut: true }); return; }
       done({ status: 'exited', code: failure ? (typeof failure.code === 'number' ? failure.code : 1) : 0, output: stdout, truncated: false, cancelled: false, timedOut: false });
     }));
+    // The helper opens every read lock with FILE_SHARE_READ only, so on Windows the child cannot replace, rewrite or delete
+    // a locked file: the kit's write fails and it exits 2 (lib/core.mjs writeFailure). Linux takes no lock, so the
+    // runner refuses after the fact what Windows would have refused.
+    return await lockedState(options.readLocks ?? []) === held ? result : { status: 'exited', code: 2, output: '', truncated: false, cancelled: false, timedOut: false };
   };
+}
+/** Identity of each read-locked file (inode, size, modification time): a write into any of them changes it. */
+async function lockedState(locks: readonly string[]): Promise<string> {
+  const parts: string[] = [];
+  for (const file of locks) { const info = await lstat(file).catch(() => null); parts.push(info ? `${file}:${info.ino}:${info.size}:${info.mtimeMs}` : `${file}:absent`); }
+  return parts.join('\n');
 }
 
 interface Harness {
@@ -286,7 +297,13 @@ test('research_draft_brief runs in a scratch copy: the workspace is unchanged, a
   // No scratch or temp folder is left behind.
   expect(await readdir(join(h.storage, 'review', h.id))).toEqual(['project']);
   expect(h.seen.filter(s => s.kind === 'brief').map(s => s.request.args.slice(2))).toEqual([[], [], ['--force']]);
-  for (const s of h.seen.filter(s => s.kind === 'brief')) expect(resolve(s.request.cwd).startsWith(resolve(h.storage, 'review', h.id, 'scratch-'))).toBe(true);
+  for (const s of h.seen.filter(s => s.kind === 'brief')) {
+    expect(resolve(s.request.cwd).startsWith(resolve(h.storage, 'review', h.id, 'scratch-'))).toBe(true);
+    // The file the kit writes is never read-locked (on Windows the lock would deny its rename); every other copy file is.
+    const locked = s.options.readLocks!.filter(file => resolve(file).startsWith(resolve(s.request.cwd) + sep)).map(file => relative(s.request.cwd, file).split(sep).join('/'));
+    expect(locked).not.toContain('research/BRIEF.md');
+    expect(locked.sort()).toEqual(before.map(entry => entry.path).filter(file => file !== 'research/BRIEF.md').sort());
+  }
 }, 120000);
 
 test('research_preflight: only a whole JSON verdict with its matching exit counts; exit 2, a crash with no JSON or truncation is REVIEW_TOOL_FAILED', async () => {

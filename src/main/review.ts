@@ -39,6 +39,12 @@ type Verdict = { failure: string; cause: string; reviewedPackage?: ReviewedPacka
 
 const LIVE_RUN: ReadonlySet<string> = new Set(['queued', 'running', 'awaiting_approval', 'cancelling']);
 const MAX_BRIEF = 1024 * 1024;
+/**
+ * Workspace files the kit's brief.mjs replaces (pinned kit, lib/brief.mjs renderBrief via lib/core.mjs writeBytes: a
+ * scratch dotfile renamed over the target; with --force also a new BRIEF.md.bak-<date>). preflight.mjs writes nothing in
+ * the project; create writes only its --output, outside the workspace.
+ */
+const BRIEF_WRITES: ReadonlySet<string> = new Set(['research/BRIEF.md']);
 const MAX_DETAIL = 1024;
 const MAX_FINDINGS = 200;
 /** Ordinary request failures `research.review.start` may return; anything else from the kit is mapped first. */
@@ -226,7 +232,10 @@ export class ReviewSupervisor {
       // The brief is drafted in a scratch copy: its write goes through the journal as an approved edit, never straight here.
       let copy: string;
       try { copy = await copyWorkspace(folder.project, tree, scratch); } catch { throw new Error('REVIEW_TOOL_FAILED'); }
-      const run = await this.runTool(launch, { tool: 'brief', force: input.force === true }, { cwd: copy, temp, locks: tree.map(entry => join(copy, ...entry.path.split('/'))), check: live, signal });
+      // Read locks cover what the kit reads, never what it writes: the helper's locks share only reading, so on Windows a
+      // lock on research/BRIEF.md would deny brief.mjs's rename over it (lib/core.mjs writeBytes) and drafting would fail.
+      const locks = tree.filter(entry => !BRIEF_WRITES.has(entry.path)).map(entry => join(copy, ...entry.path.split('/')));
+      const run = await this.runTool(launch, { tool: 'brief', force: input.force === true }, { cwd: copy, temp, locks, check: live, signal });
       await live();
       if (launchCause(run) || run.cancelled) throw new Error('REVIEW_TOOL_FAILED');
       if (run.code === 1) throw new Error('BRIEF_NOT_DRAFTED');

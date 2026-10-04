@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -10,7 +10,7 @@ import type { UtilityProcess } from 'electron';
 import Database from 'better-sqlite3';
 import provenance from './fixtures/research-kit/provenance.json';
 import { ResearchKit } from '../src/adapters/research-kit/adapter';
-import type { OwnedCommand, OwnedOptions, OwnedRunner } from '../src/tools/commands';
+import type { OwnedCommand, OwnedOptions, OwnedResult, OwnedRunner } from '../src/tools/commands';
 import { Store } from '../src/engine/store';
 import { Application } from '../src/engine/application';
 import { createControl, ReviewToolPort } from '../src/engine/control-dispatch';
@@ -67,14 +67,25 @@ function runner(seen: Seen[], hooks: Hooks): OwnedRunner {
     options.onStarted?.({ pid: 4242, createdAt: '1' });
     await hooks.whileRunning?.(request, kind, signal);
     if (signal?.aborted) return { status: 'exited', code: 1, output: '', truncated: false, cancelled: true, timedOut: false };
-    return new Promise(done => execFile(request.executable, request.args, { cwd: request.cwd, env: request.env, timeout: request.timeoutMs, maxBuffer: request.maxOutputBytes, encoding: 'utf8', signal }, (error, stdout) => {
+    const held = await lockedState(options.readLocks ?? []);
+    const result = await new Promise<OwnedResult>(done => execFile(request.executable, request.args, { cwd: request.cwd, env: request.env, timeout: request.timeoutMs, maxBuffer: request.maxOutputBytes, encoding: 'utf8', signal }, (error, stdout) => {
       const failure = error as (NodeJS.ErrnoException & { killed?: boolean; code?: number | string }) | null;
       if (failure?.name === 'AbortError') { done({ status: 'exited', code: 1, output: stdout, truncated: false, cancelled: true, timedOut: false }); return; }
       if (failure?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') { done({ status: 'exited', code: 1, output: stdout, truncated: true, cancelled: false, timedOut: false }); return; }
       if (failure?.killed) { done({ status: 'exited', code: 1, output: stdout, truncated: false, cancelled: false, timedOut: true }); return; }
       done({ status: 'exited', code: failure ? (typeof failure.code === 'number' ? failure.code : 1) : 0, output: stdout, truncated: false, cancelled: false, timedOut: false });
     }));
+    // The helper opens every read lock with FILE_SHARE_READ only, so on Windows the child cannot replace, rewrite or delete
+    // a locked file: the kit's write fails and it exits 2 (lib/core.mjs writeFailure). Linux takes no lock, so the
+    // runner refuses after the fact what Windows would have refused.
+    return await lockedState(options.readLocks ?? []) === held ? result : { status: 'exited', code: 2, output: '', truncated: false, cancelled: false, timedOut: false };
   };
+}
+/** Identity of each read-locked file (inode, size, modification time): a write into any of them changes it. */
+async function lockedState(locks: readonly string[]): Promise<string> {
+  const parts: string[] = [];
+  for (const file of locks) { const info = await lstat(file).catch(() => null); parts.push(info ? `${file}:${info.ino}:${info.size}:${info.mtimeMs}` : `${file}:absent`); }
+  return parts.join('\n');
 }
 
 // ------------------------------------------------------------------ the engine utility process, in-process
