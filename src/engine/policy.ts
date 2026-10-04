@@ -14,9 +14,14 @@ function assertActive(project: PolicyProject, signal?: AbortSignal) {
   if (!project.trusted) throw new Error('PROJECT_UNTRUSTED');
 }
 
-export function assertToolPolicy(mode: RunMode, kind: ToolKind, project: PolicyProject, signal?: AbortSignal): void {
+/**
+ * `reviewWorkspace`: the run's files resolve to a research review workspace (rootFor). A review run (mode `research`)
+ * may write only there and never runs commands (docs/specification/research-review.md, "Mode and root").
+ */
+export function assertToolPolicy(mode: RunMode, kind: ToolKind, project: PolicyProject, signal?: AbortSignal, options: { reviewWorkspace?: boolean } = {}): void {
   assertActive(project, signal);
-  if ((kind === 'write' || kind === 'command') && mode !== 'build' && mode !== 'mission') throw new Error('MODE_RESTRICTED');
+  const reviewWrite = kind === 'write' && mode === 'research' && options.reviewWorkspace === true;
+  if ((kind === 'write' || kind === 'command') && mode !== 'build' && mode !== 'mission' && !reviewWrite) throw new Error('MODE_RESTRICTED');
   if (kind === 'research' && project.policy.research === 'off') throw new Error('RESEARCH_NOT_ALLOWED');
 }
 

@@ -18,6 +18,7 @@ const publicMessages: Record<string, string> = {
   PROFILE_NOT_FOUND: 'Choose an available model profile.',
   INVALID_ENDPOINT: 'Use an https:// endpoint, or http:// only on this computer (localhost, 127.0.0.1 or [::1]). Ollama profiles must use a local endpoint. Remove any user name, password, query or fragment from the address.',
   REVIEW_NOT_AVAILABLE: 'This research cannot be reviewed now. Only a collected corpus, or one that is not ready yet, can be reviewed.',
+  REVIEW_NOT_READY: 'The review ended without a research-ready package. The research panel says why and what to do next.',
   REVIEW_WORKSPACE_TOO_LARGE: 'This corpus has too many files to review safely on this computer.',
   STALE_VERIFICATION: 'The collected corpus could not be verified again. Start a new collection.',
   RESEARCH_KIT_UNAVAILABLE: 'The Research Kit is not installed or failed its integrity check. Install or repair it, then restart Moonzila.',

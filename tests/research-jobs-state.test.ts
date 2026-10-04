@@ -1045,7 +1045,7 @@ describe('schema v4 engine review controls', () => {
     expect(dto).toMatchObject({ reviewRunId: 'r1', reviewSessionId: 's-review', reviewedPackageDigest: digestOf('e') });
   });
 
-  test('research.review.context lists the completed writes of the review runs since the latest fresh edge, in creation order', () => {
+  test('research.review.context lists the completed and unknown writes of the review runs since the latest fresh edge, each with its status, in creation order', () => {
     const { store } = open(); collectedJob(store);
     const research = jobs(store).jobs;
     let clock = 0; let ops = 0;
@@ -1053,13 +1053,13 @@ describe('schema v4 engine review controls', () => {
       const id = `op-${++ops}`;
       const input = { path, content: 'x', beforeHash: digestOf('b'), afterHash: digestOf(String(clock % 10)) };
       store.putOperation({ id, runId, projectId: 'p', kind, inputHash: digestOf('c'), policyRevision: 1, trustRevision: 1, status, input, createdAt, updatedAt: createdAt });
-      return { operationId: id, runId, path, beforeHash: input.beforeHash, afterHash: input.afterHash };
+      return { operationId: id, runId, path, beforeHash: input.beforeHash, afterHash: input.afterHash, status };
     };
-    expect(research.reviewContext('j1')).toEqual({ researchId: 'j1', revision: 4, status: 'collected', admission: null, reviewSessionId: null, reviewRunId: null, reviewRunStatus: null, reviewDigest: null, reviewedPackage: null, changes: [] });
+    expect(research.reviewContext('j1')).toEqual({ researchId: 'j1', revision: 4, status: 'collected', admission: null, reviewSessionId: null, reviewRunId: null, reviewRunStatus: null, reviewDigest: null, reviewedPackage: null, verification: verification(3, 1, '5', 'mz-j1'), changes: [] });
     reviewRun(store, 'r1', 'running', 'p', 's-review'); startReview(store, 'j1', 'r1');
     const late = write('r1', 'research/MAP.md', 'completed', '2026-10-03T00:00:59.000Z');
     const early = write('r1', 'research/EVIDENCE.md', 'completed', '2026-10-03T00:00:01.000Z');
-    write('r1', 'research/BRIEF.md', 'failed'); write('r1', 'research/BRIEF.md', 'unknown'); write('r1', 'research/DISCOVERY.md', 'completed', undefined, 'read');
+    write('r1', 'research/BRIEF.md', 'failed'); const unknown = write('r1', 'research/BRIEF.md', 'unknown'); write('r1', 'research/DISCOVERY.md', 'completed', undefined, 'read');
     reviewRun(store, 'build', 'completed', 'p', 's-build'); write('build', 'research/MAP.md');
     store.appendEvent('r1', 'run.failed', {}, { status: 'failed' });
     step(store, 'j1', 'not_ready', 'engine', { failure: 'REVIEW_RUN_FAILED' });
@@ -1067,7 +1067,9 @@ describe('schema v4 engine review controls', () => {
     const kept = write('r2', 'research/BRIEF.md', 'completed', '2026-10-03T00:01:00.000Z');
     let context = ResearchReviewContextSchema.parse(structuredClone(research.reviewContext('j1')));
     expect(context).toMatchObject({ status: 'reviewing', revision: 7, reviewRunId: 'r2', reviewSessionId: 's-review', reviewRunStatus: 'running', reviewDigest: null, reviewedPackage: null });
-    expect(context.changes).toEqual([early, late, kept]);
+    // An unknown write (a crash between its rename and its record) may be on disk, so it is listed with its status (Phase 3 F1).
+    expect(context.changes).toEqual([early, unknown, late, kept]);
+    expect(unknown.status).toBe('unknown');
     // A fresh restart drops every earlier run's writes from the expected tree.
     store.appendEvent('r2', 'run.failed', {}, { status: 'failed' });
     step(store, 'j1', 'not_ready', 'engine', { failure: 'REVIEW_RUN_FAILED' });
@@ -1122,6 +1124,18 @@ describe('schema v4 engine review controls', () => {
       expect(store.researchEvents(id).events.at(-1), id).toMatchObject({ from: 'reviewing', to: 'not_ready', actor: 'recovery', cause: 'RECOVERED' });
     }
     expect(published.map(r => [r.id, r.status]).sort()).toEqual([['absent', 'not_ready'], ['cancelled', 'not_ready']]);
+  });
+
+  test('research.review.context returns the verification journaled when the job was collected, and null before', () => {
+    // Main rebuilds the binding for start and packaging from this, never from the package's own manifest (B3 blocker 1).
+    const { store } = open(); project(store); create(store, 'j1');
+    const research = jobs(store).jobs;
+    expect(research.reviewContext('j1').verification).toBeNull();
+    step(store, 'j1', 'dispatching', 'main', { target }); step(store, 'j1', 'collecting', 'main', { workflowRunId: '5' });
+    const recorded = { ...verification(3, 1, '5', 'mz-j1'), artifactSha256: 'c'.repeat(64) };
+    step(store, 'j1', 'collected', 'main', { verification: recorded });
+    reviewRun(store, 'r1'); startReview(store, 'j1', 'r1');
+    expect(ResearchReviewContextSchema.parse(structuredClone(research.reviewContext('j1'))).verification).toEqual(recorded);
   });
 
   test('research.review.context reports the live admission after a trust change', () => {

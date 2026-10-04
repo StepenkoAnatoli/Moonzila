@@ -9,6 +9,8 @@ import { Store, type StoreOperation } from './store';
 import { approvalMatches, assertToolPolicy, canonicalHash } from './policy';
 import { CommandPlanSchema, type CommandPlan } from '../shared/commands';
 import type { OwnedResult } from '../tools/commands';
+import { projectRoot, type RunRootResolver } from './research-review';
+import { REVIEW_WRITE_ALLOWLIST } from './review-contract';
 
 export interface CommandHost {
   prepareCommand(runId: string, input: unknown, signal: AbortSignal): Promise<CommandPlan>;
@@ -33,7 +35,9 @@ export class Operations {
   readonly journal: FileJournal;
   private readonly waiting = new Map<string, { resolve: (approval: Approval) => void }>();
   private readonly maintenance = new Set<string>();
-  constructor(private readonly store: Store, snapshots: string, private readonly protectedRoots: string[], private readonly publish: (event: RunEvent) => void, private readonly commandHost?: CommandHost) { this.journal = new FileJournal(store, snapshots); }
+  constructor(private readonly store: Store, snapshots: string, private readonly protectedRoots: string[], private readonly publish: (event: RunEvent) => void, private readonly commandHost?: CommandHost, private readonly rootFor: RunRootResolver = projectRoot) {
+    this.journal = new FileJournal(store, snapshots, undefined, rootFor);
+  }
   isBusy(projectId: string) { return this.maintenance.has(projectId); }
   private event(runId: string, type: RunEvent['type'], payload: unknown, status?: 'awaiting_approval' | 'running') {
     this.publish(this.store.appendEvent(runId, type, payload, status ? { status } : undefined) as RunEvent);
@@ -43,21 +47,26 @@ export class Operations {
     if (run.projectId === null) throw new Error('PROJECT_REQUIRED');
     if (this.store.getSession(run.sessionId)?.policy.revision !== run.sessionPolicyRevision) throw new Error('RUN_CANCELLED');
     const project = this.store.getProject(run.projectId); if (!project) throw new Error('PROJECT_NOT_FOUND');
-    assertToolPolicy(run.mode, 'write', project, signal);
+    const root = this.rootFor(run, project);
+    assertToolPolicy(run.mode, 'write', project, signal, { reviewWorkspace: root.review });
     const name = validateRelativePath(path);
     if (isSensitiveContextPath(name)) throw new Error('PATH_OUTSIDE_PROJECT');
-    let component = project.rootPath;
+    // A review run writes only the four research files (Decisions, Q3), checked before an operation is prepared.
+    if (root.review && !(REVIEW_WRITE_ALLOWLIST as readonly string[]).includes(name)) throw new Error('PATH_OUTSIDE_PROJECT');
+    let component = root.root;
     for (const part of name.split('/')) {
       component = join(component, part);
       const info = await lstat(component).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return null; throw error; });
       if (info?.isSymbolicLink()) throw new Error('PATH_OUTSIDE_PROJECT');
     }
-    const target = await resolveProjectPath(project.rootPath, name, { allowMissing: true });
+    const target = await resolveProjectPath(root.root, name, { allowMissing: true });
     if (isSensitiveContextPath(target)) throw new Error('PATH_OUTSIDE_PROJECT');
-    for (const root of this.protectedRoots) {
-      const canonical = await realpath(root).catch(() => resolve(root));
-      const rel = relative(canonical, target);
-      if (!rel || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))) throw new Error('PATH_OUTSIDE_PROJECT');
+    const within = (base: string) => { const rel = relative(base, target); return !rel || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)); };
+    // Exactly the review workspace is exempt from the protected data folder; the rest of that folder stays protected.
+    const workspace = root.review ? await realpath(root.root) : undefined;
+    for (const protectedRoot of this.protectedRoots) {
+      const canonical = await realpath(protectedRoot).catch(() => resolve(protectedRoot));
+      if (within(canonical) && !(workspace !== undefined && within(workspace))) throw new Error('PATH_OUTSIDE_PROJECT');
     }
     return name;
   }
@@ -162,9 +171,13 @@ export class Operations {
       throw error;
     } finally { this.waiting.delete(op.id); signal.removeEventListener('abort', abort); }
   }
+  /**
+   * The project's own operations. A review run's operations resolve against its workspace, not the project root, so they
+   * are left out of changes, undo, recovery and requiresReview; review start reconciles them instead.
+   */
   private projectOperations(projectId: string, runId?: string) {
     if (!this.store.getProject(projectId)) throw new Error('PROJECT_NOT_FOUND');
-    return this.store.listSessions(projectId).flatMap(session => this.store.listRuns(session.id)).filter(run => !runId || run.id === runId).flatMap(run => this.store.listOperations(run.id));
+    return this.store.listSessions(projectId).flatMap(session => this.store.listRuns(session.id)).filter(run => run.mode !== 'research' && (!runId || run.id === runId)).flatMap(run => this.store.listOperations(run.id));
   }
   private change(op: StoreOperation): Change {
     const input = journalInput.parse(op.input);
@@ -242,6 +255,7 @@ export class Operations {
     const replay = this.store.lookupAcceptedRequest(key);
     if (replay) return { change: this.change(this.store.getOperation(changeId)!), operationId: replay.entityId };
     const original = this.store.getOperation(changeId); if (!original || original.projectId !== projectId) throw new Error('NOT_FOUND');
+    if (this.store.getRun(original.runId)?.mode === 'research') throw new Error('UNDO_UNAVAILABLE');
     if (this.maintenance.has(projectId)) throw new Error('RUN_ACTIVE');
     this.maintenance.add(projectId);
     try {

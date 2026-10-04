@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Store } from '../engine/store';
 import type { ToolSpec } from '../shared/contracts';
 import { assertToolPolicy } from '../engine/policy';
+import { projectRoot, type RunRootResolver } from '../engine/research-review';
 import { isSensitiveContextPath, resolveProjectPath, validateRelativePath } from './paths';
 
 const MAX_BYTES = 1024 * 1024;
@@ -26,7 +27,8 @@ export const READ_TOOL_SPECS: ToolSpec[] = [
 interface CheckedPath { absolute: string; relative: string; stats: BigIntStats }
 interface Context {
   runId: string; projectId: string; root: string; sourceRoot: string; signal?: AbortSignal;
-  protectedPaths: string[]; snapshots: Map<string, CheckedPath>;
+  /** `exempt`: a review run's own workspace, the one place inside the protected data folder it may read. */
+  protectedPaths: string[]; exempt: string[]; snapshots: Map<string, CheckedPath>;
 }
 interface Traversal { entriesScanned: number; truncated: boolean }
 interface Entry { path: string; type: 'file' | 'directory' }
@@ -58,9 +60,9 @@ function splitLines(text: string): string[] {
 
 /** Reads are admitted against live engine state; all returned data is bounded and untrusted. */
 export class FileReader {
-  constructor(private readonly store: Store, private readonly protectedRoots: string[] = []) {}
+  constructor(private readonly store: Store, private readonly protectedRoots: string[] = [], private readonly rootFor: RunRootResolver = projectRoot) {}
 
-  private authorize(runId: string, signal?: AbortSignal) {
+  private authorize(runId: string, signal?: AbortSignal): { id: string; root: string; review: boolean } {
     if (signal?.aborted) throw new Error('RUN_CANCELLED');
     const run = this.store.getRun(runId);
     if (!run || run.status !== 'running') throw new Error('RUN_NOT_ACTIVE');
@@ -70,7 +72,12 @@ export class FileReader {
     if (!project || project.missing) throw new Error('PROJECT_UNAVAILABLE');
     assertToolPolicy(run.mode, 'read', project, signal);
     if (project.trustRevision !== run.trustRevision || project.policy.revision !== run.policyRevision) throw new Error('POLICY_CHANGED');
-    return project;
+    const root = this.rootFor(run, project);
+    if (!root.current) throw new Error('RUN_NOT_ACTIVE');
+    return { id: project.id, root: root.root, review: root.review };
+  }
+  private isProtected(ctx: Context, candidate: string): boolean {
+    return ctx.protectedPaths.some(root => inside(root, candidate)) && !ctx.exempt.some(root => inside(root, candidate));
   }
 
   private async protectedPaths(): Promise<string[]> {
@@ -85,21 +92,23 @@ export class FileReader {
 
   private async context(runId: string, signal?: AbortSignal): Promise<Context> {
     const project = this.authorize(runId, signal);
-    const sourceRoot = path.resolve(project.rootPath);
+    const sourceRoot = path.resolve(project.root);
     const root = await realpath(sourceRoot);
     let ancestor = path.parse(sourceRoot).root;
     for (const part of sourceRoot.slice(ancestor.length).split(path.sep).filter(Boolean)) {
       ancestor = path.join(ancestor, part);
       if ((await lstat(ancestor)).isSymbolicLink()) throw new Error('FILE_LINK_DENIED');
     }
-    const ctx: Context = { runId, projectId: project.id, root, sourceRoot, signal, protectedPaths: await this.protectedPaths(), snapshots: new Map() };
+    // Exactly the review workspace is exempt from the protected data folder; the rest of that folder stays excluded.
+    const exempt = project.review ? [sourceRoot, root] : [];
+    const ctx: Context = { runId, projectId: project.id, root, sourceRoot, signal, protectedPaths: await this.protectedPaths(), exempt, snapshots: new Map() };
     await this.checked(ctx, '');
     return ctx;
   }
 
   private assertContext(ctx: Context): void {
     const project = this.authorize(ctx.runId, ctx.signal);
-    if (project.id !== ctx.projectId || !samePath(project.rootPath, ctx.sourceRoot)) throw new Error('POLICY_CHANGED');
+    if (project.id !== ctx.projectId || !samePath(project.root, ctx.sourceRoot)) throw new Error('POLICY_CHANGED');
   }
 
   private async checked(ctx: Context, relative: string): Promise<CheckedPath> {
@@ -107,7 +116,7 @@ export class FileReader {
     const normalized = normalize(relative);
     const candidate = path.resolve(ctx.root, ...normalized.split('/').filter(Boolean));
     if (!inside(ctx.root, candidate)) throw new Error('PATH_OUTSIDE_PROJECT');
-    if (isSensitiveContextPath(normalized) || isSensitiveContextPath(candidate) || ctx.protectedPaths.some(root => inside(root, candidate))) throw new Error('CONTEXT_PATH_EXCLUDED');
+    if (isSensitiveContextPath(normalized) || isSensitiveContextPath(candidate) || this.isProtected(ctx, candidate)) throw new Error('CONTEXT_PATH_EXCLUDED');
     let current = ctx.root;
     const components = [ctx.root, ...normalized.split('/').filter(Boolean).map(part => { current = path.join(current, part); return current; })];
     let finalStats: BigIntStats | undefined;
@@ -116,7 +125,7 @@ export class FileReader {
       if (stats.isSymbolicLink() || (stats.isFile() && stats.nlink > 1n)) throw new Error('FILE_LINK_DENIED');
       const canonical = await realpath(component);
       if (!inside(ctx.root, canonical)) throw new Error('PATH_OUTSIDE_PROJECT');
-      if (ctx.protectedPaths.some(root => inside(root, canonical))) throw new Error('CONTEXT_PATH_EXCLUDED');
+      if (this.isProtected(ctx, canonical)) throw new Error('CONTEXT_PATH_EXCLUDED');
       if (!samePath(component, canonical)) throw new Error('FILE_LINK_DENIED');
       const previous = ctx.snapshots.get(component);
       if (previous && !sameFile(previous.stats, stats)) throw new Error('FILE_CHANGED');
@@ -202,7 +211,7 @@ export class FileReader {
       if (!sameFile(item.stats, stats) || (stats.isFile() && !sameContents(item.stats, stats))) throw new Error('FILE_CHANGED');
       const canonical = await realpath(item.absolute);
       if (!samePath(canonical, item.absolute) || !inside(ctx.root, canonical)) throw new Error('FILE_CHANGED');
-      if (protectedPaths.some(root => inside(root, canonical))) throw new Error('CONTEXT_PATH_EXCLUDED');
+      if (protectedPaths.some(root => inside(root, canonical)) && !ctx.exempt.some(root => inside(root, canonical))) throw new Error('CONTEXT_PATH_EXCLUDED');
     }
     if (!samePath(await realpath(ctx.sourceRoot), ctx.root)) throw new Error('FILE_CHANGED');
     this.assertContext(ctx);

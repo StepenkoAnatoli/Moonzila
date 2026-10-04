@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { IdSchema, ResearchCollectorSchema, ResearchSchema, ResearchStartParams, ResearchStatusSchema, RevisionSchema, type MethodInput, type Research } from '../shared';
+import { IdSchema, ResearchCollectorSchema, ResearchSchema, ResearchStartParams, ResearchStatusSchema, RevisionSchema, type MethodInput, type PublicError, type Research } from '../shared';
 import { canonicalHash } from './policy';
 import { ACTIVE_RESEARCH } from './research-state';
-import type { Store, StoreProject, StoreResearch, StoreResearchEvent } from './store';
+import type { Store, StoreEvent, StoreProject, StoreResearch, StoreResearchEvent, StoreResearchStatus } from './store';
 import { REVIEW_WRITE_ALLOWLIST, ReviewChangeSchema, type ResearchReviewContext, type ReviewChange, type ReviewedPackage } from './review-contract';
 
 /** A review folder name: one plain path segment (job ids are UUIDs), never '.', '..', a separator or a drive. */
-const REVIEW_FOLDER = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+export const REVIEW_FOLDER = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const { queries, urls, preferDomains, depth, maxPages } = ResearchStartParams.shape;
 /** The collector inputs kept with a job. Strict, so nothing else (such as a token) can be stored beside them. */
 export const ResearchInputsSchema = z.object({ queries, urls, preferDomains, depth, maxPages }).strict().refine(value => value.urls.length <= value.maxPages, 'Each known URL counts against the page budget');
@@ -102,12 +102,41 @@ export interface ResearchRecovery {
 }
 
 const TERMINAL_RUN: ReadonlySet<string> = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
+
+/**
+ * Decision D1: a review run that ends without a research-ready package fails with this one public code. The exact reason
+ * stays the job's `failure`, which the research panel explains.
+ */
+export function reviewNotReady(message = 'The research review ended without a research-ready package. The research panel shows the reason; the job can be retried.'): PublicError {
+  return { code: 'REVIEW_NOT_READY', message, retry: 'never' };
+}
+/**
+ * Inside the transaction of a job's step: append `research.status` to the job's review run while that run exists
+ * (spec "Streaming research.status"). `job` is the job after the step.
+ */
+export function streamReviewStatus(store: Store, job: StoreResearch, events: StoreEvent[]): void {
+  if (job.reviewRunId === undefined || !store.getRun(job.reviewRunId)) return;
+  events.push(store.appendEvent(job.reviewRunId, 'research.status', { researchId: job.id, status: job.status }));
+}
+/**
+ * Inside the transaction of a step that leaves the review for `to`, before the job's edge: a run that gave its final
+ * answer (`awaiting_review`) has no execution left to end it, so the step ends it. `approved` completes it, `not_ready`
+ * fails it with REVIEW_NOT_READY, `cancelled` cancels it. Any other state (`packaging`, `cancelling`) keeps it.
+ */
+export function endAwaitingReviewRun(store: Store, job: StoreResearch, to: StoreResearchStatus, events: StoreEvent[]): void {
+  if (job.reviewRunId === undefined || store.getRun(job.reviewRunId)?.status !== 'awaiting_review') return;
+  const finishedAt = new Date().toISOString();
+  if (to === 'approved') events.push(store.appendEvent(job.reviewRunId, 'run.completed', {}, { status: 'completed', finishedAt }));
+  else if (to === 'not_ready') events.push(store.appendEvent(job.reviewRunId, 'run.failed', { error: reviewNotReady() }, { status: 'failed', finishedAt }));
+  else if (to === 'cancelled') events.push(store.appendEvent(job.reviewRunId, 'run.cancelled', {}, { status: 'cancelled', finishedAt }));
+}
 /** Job states whose storage/review/<id> folder may still be needed: a workspace to review, freeze, package or retry. */
 const WORKSPACE_HELD: ReadonlySet<string> = new Set(['collected', 'reviewing', 'packaging', 'not_ready']);
 
 /** Durable research jobs. The engine owns state; main owns the collector process and drives fact transitions. */
 export class ResearchJobs {
-  constructor(private readonly store: Store, private readonly publish: (research: Research) => void) {}
+  /** `publishEvents`: run events appended to a review run by a job's step, published after the step commits. */
+  constructor(private readonly store: Store, private readonly publish: (research: Research) => void, private readonly publishEvents: (events: StoreEvent[]) => void = () => {}) {}
 
   list(projectId: string): { research: Research[] } { return { research: this.store.listResearch(projectId).map(researchDto) }; }
   read(researchId: string): { research: Research } {
@@ -130,11 +159,23 @@ export class ResearchJobs {
   }
 
   /** Stopping is always allowed. Work already in flight is cancelled by main once its owned process has stopped. */
-  cancel(researchId: string, requestId: string, notices: Research[]): { research: Research } {
+  /**
+   * Runs inside the request's acceptance transaction; `events` are the review run's events, published after it commits.
+   * A `reviewing` job whose run is live is aborted by the caller in the same request, and the run's end commits
+   * `cancelled`. One whose run already gave its final answer has no execution to end it, so its run is cancelled and the
+   * job committed `cancelled` (REVIEW_CANCELLED) here. A `packaging` job waits for main to stop the kit child.
+   */
+  cancel(researchId: string, requestId: string, notices: Research[], events: StoreEvent[] = []): { research: Research } {
     const job = this.store.getResearch(researchId); if (!job) throw new Error('NOT_FOUND');
     const to = job.status === 'queued' ? 'cancelled' : ['dispatching', 'collecting', 'reviewing', 'packaging'].includes(job.status) ? 'cancelling' : undefined;
     if (!to) return { research: researchDto(job) };
-    const { research } = this.store.transitionResearch({ researchId, expectedRevision: job.revision, to, actor: 'user', cause: 'CANCEL_REQUESTED', requestId });
+    let { research } = this.store.transitionResearch({ researchId, expectedRevision: job.revision, to, actor: 'user', cause: 'CANCEL_REQUESTED', requestId });
+    streamReviewStatus(this.store, research, events);
+    if (job.status === 'reviewing' && job.reviewRunId !== undefined && this.store.getRun(job.reviewRunId)?.status === 'awaiting_review') {
+      endAwaitingReviewRun(this.store, research, 'cancelled', events);
+      research = this.store.transitionResearch({ researchId, expectedRevision: research.revision, to: 'cancelled', actor: 'engine', cause: 'REVIEW_CANCELLED', requestId }).research;
+      streamReviewStatus(this.store, research, events);
+    }
     const dto = researchDto(research); notices.push(dto); return { research: dto };
   }
 
@@ -151,6 +192,7 @@ export class ResearchJobs {
   /** A main-originated step. Dispatch is revalidated; an inadmissible one is journaled as failed and reported as refused. */
   transition(command: ResearchTransitionCommand): { outcome: 'applied' | 'refused'; research: Research } {
     const { requestId, ...input } = command;
+    const events: StoreEvent[] = [];
     const accepted = this.store.acceptRequest({ method: 'research.transition', clientRequestId: requestId, canonicalInputHash: canonicalHash(input) }, () => {
       const job = this.store.getResearch(command.researchId); if (!job) throw new Error('NOT_FOUND');
       const to = command.to;
@@ -164,13 +206,16 @@ export class ResearchJobs {
       const gated = (to === 'dispatching' || to === 'collected' || to === 'packaging' || to === 'approved') && current;
       const refusal = gated ? researchAdmission(this.store.getProject(job.projectId), job) : undefined;
       const review = to === 'packaging' || to === 'approved';
+      // A step that ends the review ends a run that already gave its final answer, before the job's edge (D1).
+      if (current) endAwaitingReviewRun(this.store, job, refusal ? (review ? 'not_ready' : 'failed') : to, events);
       const { research } = refusal
         ? this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to: review ? 'not_ready' : 'failed', actor: 'main', cause: to === 'dispatching' ? 'ADMISSION_REFUSED' : 'ADMISSION_CHANGED', requestId,
           patch: { failure: refusal, ...(to === 'approved' && command.reviewedPackage ? { reviewedPackage: command.reviewedPackage } : {}) } })
         : this.store.transitionResearch({ researchId: job.id, expectedRevision: command.expectedRevision, to, actor: 'main', cause: command.cause, requestId, patch });
+      streamReviewStatus(this.store, research, events);
       return { entityId: job.id, response: { outcome: refusal ? 'refused' as const : 'applied' as const, research: researchDto(research) } };
     });
-    if (!accepted.replayed) this.publish(accepted.response.research);
+    if (!accepted.replayed) { this.publishEvents(events); this.publish(accepted.response.research); }
     return accepted.response;
   }
 
@@ -185,6 +230,7 @@ export class ResearchJobs {
   recover(owned: readonly string[], reviewFolders: readonly string[] = []): ResearchRecovery {
     const result: ResearchRecovery = { failed: [], cancelled: [], resume: [], dispatchable: [], reviewing: [], unreadable: [], freeze: [], packaging: [], reviewDiscard: [] };
     const notices: Research[] = [];
+    const events: StoreEvent[] = [];
     const skip = new Set(owned);
     this.store.transaction(() => {
       for (const job of this.store.listResearchByStatus(ACTIVE_RESEARCH)) {
@@ -195,7 +241,8 @@ export class ResearchJobs {
               notices.push(researchDto(this.store.transitionResearch({ researchId: job.id, expectedRevision: job.revision, to: 'failed', actor: 'recovery', cause: 'RECOVERED', patch: { failure: 'REMOTE_STATE_UNKNOWN' } }).research));
               result.failed.push(job.id);
             } else if (job.status === 'cancelling') {
-              notices.push(researchDto(this.store.transitionResearch({ researchId: job.id, expectedRevision: job.revision, to: 'cancelled', actor: 'recovery', cause: 'NO_OWNED_WORK' }).research));
+              const { research } = this.store.transitionResearch({ researchId: job.id, expectedRevision: job.revision, to: 'cancelled', actor: 'recovery', cause: 'NO_OWNED_WORK' });
+              streamReviewStatus(this.store, research, events); notices.push(researchDto(research));
               result.cancelled.push(job.id);
             } else if (job.status === 'collecting') {
               if (!job.workflowRunId) throw new Error('RESEARCH_STATE_INVALID');
@@ -205,7 +252,9 @@ export class ResearchJobs {
               const run = job.reviewRunId === undefined ? undefined : this.store.getRun(job.reviewRunId);
               if (run?.status === 'awaiting_review') result.freeze.push(job.id);
               else if (!run || TERMINAL_RUN.has(run.status)) {
-                notices.push(researchDto(this.store.transitionResearch({ researchId: job.id, expectedRevision: job.revision, to: 'not_ready', actor: 'recovery', cause: 'RECOVERED', patch: { failure: 'REVIEW_INTERRUPTED' } }).research));
+                // The run was interrupted, so only research.status is appended to it (spec "Streaming research.status").
+                const { research } = this.store.transitionResearch({ researchId: job.id, expectedRevision: job.revision, to: 'not_ready', actor: 'recovery', cause: 'RECOVERED', patch: { failure: 'REVIEW_INTERRUPTED' } });
+                streamReviewStatus(this.store, research, events); notices.push(researchDto(research));
                 result.reviewing.push(job.id);
               }
             } else if (job.status === 'packaging') result.packaging.push(job.id);
@@ -221,28 +270,35 @@ export class ResearchJobs {
         if (status === undefined || !WORKSPACE_HELD.has(status)) result.reviewDiscard.push(folder);
       }
     });
+    this.publishEvents(events);
     for (const notice of notices) this.publish(notice);
     return result;
   }
 
   /**
    * What main needs to freeze, package or rebuild a review workspace (control `research.review.context`). `changes` are
-   * the completed writes of the job's review runs since its latest `fresh` edge, in creation order, without contents.
+   * the completed and unknown writes of the job's review runs since its latest `fresh` edge, each with its status, in
+   * creation order, without contents (an unknown one may or may not be on disk; begin reconciles it).
    */
   reviewContext(researchId: string): ResearchReviewContext {
     const job = this.store.getResearch(researchId); if (!job) throw new Error('NOT_FOUND');
     const changes: ReviewChange[] = this.store.listReviewWrites(researchId).map(write => {
       const input = write.input as { path?: unknown; beforeHash?: unknown; afterHash?: unknown } | null;
-      const change = ReviewChangeSchema.safeParse({ operationId: write.id, runId: write.runId, path: input?.path, beforeHash: input?.beforeHash, afterHash: input?.afterHash });
+      const change = ReviewChangeSchema.safeParse({ operationId: write.id, runId: write.runId, path: input?.path, beforeHash: input?.beforeHash, afterHash: input?.afterHash, status: write.status });
       // A review write outside the allowlist was never preparable; finding one means the journal cannot be trusted.
       if (!change.success || !(REVIEW_WRITE_ALLOWLIST as readonly string[]).includes(change.data.path)) throw new Error('RESEARCH_STATE_INVALID');
       return change.data;
     });
     const run = job.reviewRunId === undefined ? undefined : this.store.getRun(job.reviewRunId);
+    const collected = this.events(researchId).find(event => event.from === 'collecting' && event.to === 'collected');
+    const recorded = collected === undefined ? undefined : ResearchVerificationSchema.safeParse((collected.detail as { verification?: unknown } | null)?.verification);
+    // A collected step without a valid verification cannot be reviewed: main would have no binding to check the bytes against.
+    if (recorded && !recorded.success) throw new Error('RESEARCH_STATE_INVALID');
     return {
       researchId: job.id, revision: job.revision, status: job.status, admission: researchAdmission(this.store.getProject(job.projectId), job) ?? null,
       reviewSessionId: job.reviewSessionId ?? null, reviewRunId: job.reviewRunId ?? null, reviewRunStatus: run?.status ?? null, reviewDigest: job.reviewDigest ?? null,
       reviewedPackage: job.reviewedPackageSha256 === undefined ? null : { sha256: job.reviewedPackageSha256, validatorRevision: job.reviewedValidatorRevision!, boundRevision: job.reviewedBoundRevision! },
+      verification: recorded?.data ?? null,
       changes,
     };
   }

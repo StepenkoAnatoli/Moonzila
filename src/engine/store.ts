@@ -62,7 +62,7 @@ export interface StoreResearchPatch {
   reviewRunId?: string; reviewSessionId?: string; workspace?: 'fresh' | 'continued'; reviewDigest?: string; reviewedPackage?: StoreReviewedPackage;
 }
 /** A write operation of a review run, as recorded by the edit journal (contents stay in the operation). */
-export interface StoreReviewWrite { id: string; runId: string; input: unknown }
+export interface StoreReviewWrite { id: string; runId: string; input: unknown; status: 'completed' | 'unknown' }
 export interface StoreResearchStep { researchId: string; expectedRevision: number; to: StoreResearchStatus; actor: StoreResearchActor; cause: string; requestId?: string; patch?: StoreResearchPatch }
 export interface StoreResearchEvent { researchId: string; revision: number; from?: StoreResearchStatus; to: StoreResearchStatus; actor: StoreResearchActor; requestId?: string; cause: string; detail: StoreResearchPatch; engineEpoch: string; at: number }
 export interface AcceptedRequestKey { method: string; clientRequestId: string; canonicalInputHash: string }
@@ -317,16 +317,17 @@ export class Store {
     return this.many(`SELECT * FROM research WHERE status IN (${statuses.map(() => '?').join(',')}) ORDER BY created_at,id`,researchColumns,...statuses);
   }
   /**
-   * The write operations of a job's review runs since its latest `fresh` review edge, completed ones only, in creation
-   * order. The runs are the ones the job's `* -> reviewing` journal rows named from that edge on.
+   * The write operations of a job's review runs since its latest `fresh` review edge that are or may be on disk:
+   * `completed` ones and `unknown` ones (a crash between the rename and the record), in creation order. The runs are the
+   * ones the job's `* -> reviewing` journal rows named from that edge on.
    */
   listReviewWrites(researchId: string): StoreReviewWrite[] {
     const fresh = this.db.prepare("SELECT max(revision) AS revision FROM research_events WHERE research_id=? AND to_status='reviewing' AND json_extract(detail,'$.workspace')='fresh'").get(researchId) as { revision: number | null };
     if (fresh.revision === null) return [];
-    const rows = this.db.prepare(`SELECT o.id,o.run_id,o.input FROM operations o WHERE o.kind='write' AND o.status='completed'
+    const rows = this.db.prepare(`SELECT o.id,o.run_id,o.input,o.status FROM operations o WHERE o.kind='write' AND o.status IN ('completed','unknown')
       AND o.run_id IN (SELECT json_extract(detail,'$.reviewRunId') FROM research_events WHERE research_id=? AND to_status='reviewing' AND revision>=?)
-      ORDER BY o.created_at,o.rowid`).all(researchId, fresh.revision) as Array<{ id: string; run_id: string; input: string }>;
-    return rows.map(row => ({ id: row.id, runId: row.run_id, input: JSON.parse(row.input) as unknown }));
+      ORDER BY o.created_at,o.rowid`).all(researchId, fresh.revision) as Array<{ id: string; run_id: string; input: string; status: 'completed' | 'unknown' }>;
+    return rows.map(row => ({ id: row.id, runId: row.run_id, input: JSON.parse(row.input) as unknown, status: row.status }));
   }
   hasActiveResearch(projectId: string): boolean { return !!this.db.prepare(`SELECT 1 FROM research WHERE project_id=? AND status IN (${activeResearch}) LIMIT 1`).get(projectId); }
   researchEvents(researchId: string, after = 0, limit = 100): { events: StoreResearchEvent[]; hasMore: boolean } {
@@ -365,6 +366,9 @@ export class Store {
       const operations = this.db.prepare("SELECT id,run_id FROM operations WHERE status='started' AND kind IN ('write','command','research') ORDER BY id").all() as { id: string; run_id: string }[];
       const now = new Date().toISOString();
       this.db.prepare("UPDATE operations SET status='failed',updated_at=? WHERE status='prepared' AND kind IN ('write','command')").run(now);
+      // A read (a file read or a review run's research_preflight) changes nothing, so a crash leaves no unknown outcome:
+      // it failed with the engine, rather than staying `started` forever (Phase 3 review, S3).
+      this.db.prepare("UPDATE operations SET status='failed',updated_at=? WHERE status='started' AND kind='read'").run(now);
       for (const operation of operations) {
         this.updateOperation(operation.id,{ status:'unknown',updatedAt:now });
         this.appendEvent(operation.run_id,'operation.unknown',{ operationId:operation.id,reason:'engine_interrupted' });

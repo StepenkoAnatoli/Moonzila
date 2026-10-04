@@ -16,6 +16,9 @@ import { Vault } from './vault';
 import { CollectorSettings } from './collector-settings';
 import { CollectorSupervisor } from './collector';
 import { packageImporter } from './research-import';
+import { ReviewSupervisor } from './review';
+import { listReviewFolders } from './review-workspace';
+import { ResearchRecoverySchema } from '../engine/research';
 import { ResearchKit, readResearchInstallation } from '../adapters/research-kit/adapter';
 import { ProjectTickets } from './projects';
 import { createBridge } from './bridge';
@@ -32,9 +35,11 @@ let window: BrowserWindow | undefined;
 let engine: Engine | undefined;
 let quitting = false;
 let collector: CollectorSupervisor | undefined;
+let review: ReviewSupervisor | undefined;
 let researchKit: ResearchKit | null = null;
 const active = new Map<string, { run: Run; stop: AbortController; github: GitHubReader }>();
-const executingCommands = new Set<Promise<unknown>>();
+/** Commands and kit tools executing in main, each with its run's project (undefined when main holds no capability for it). */
+const executingCommands = new Map<Promise<unknown>, string | undefined>();
 
 if (ownsInstance) void app.whenReady().then(async () => {
   const data = app.getPath('userData'); await mkdir(data, { recursive: true });
@@ -113,8 +118,28 @@ if (ownsInstance) void app.whenReady().then(async () => {
     return vault.redact(result);
   }
 
-  const supervisor = new CollectorSupervisor({
+  // Research review (Task 5): main owns the private workspace, every kit child and the verified bytes; the engine the jobs.
+  const reviewSupervisor = new ReviewSupervisor({
     control: control => { if (!engine) throw new Error('ENGINE_UNAVAILABLE'); return engine.control(control); },
+    kit: researchKit, runSignal: commandSignal, redact: text => vault.redact(text),
+    // A task whose project main does not know counts for every project.
+    projectBusy: projectId => [...executingCommands.values()].some(owner => owner === undefined || owner === projectId),
+  });
+  review = reviewSupervisor;
+  const reviewRoot = join(researchData, 'storage', 'review');
+  const supervisor = new CollectorSupervisor({
+    // research.recover is called once per start (and per engine restart) by the collector: it carries the review
+    // supervisor's owned jobs and the review folder names too, and its review lists go to the review supervisor.
+    control: async control => {
+      if (!engine) throw new Error('ENGINE_UNAVAILABLE');
+      if (control.method !== 'research.recover') return engine.control(control);
+      const reviewFolders = await listReviewFolders(reviewRoot).catch(() => []);
+      const owned = [...new Set([...control.owned, ...reviewSupervisor.ownedIds()])].slice(0, 1000);
+      const reply = await engine.control({ ...control, owned, reviewFolders });
+      const recovery = ResearchRecoverySchema.safeParse(reply);
+      if (recovery.success) await reviewSupervisor.recovered(recovery.data);
+      return reply;
+    },
     epoch: () => engine?.epoch ?? '', vault, settings: collectorSettings, kit: researchKit, spoolDirectory: join(researchData, 'runs'),
     // Verified import: the run's commit and attempt from GitHub (token through a 30-second grant), then the pinned validator.
     importPackage: packageImporter({ epoch: () => engine?.epoch ?? '', vault, settings: collectorSettings, kit: researchKit }),
@@ -125,20 +150,25 @@ if (ownsInstance) void app.whenReady().then(async () => {
   engine = new Engine(join(__dirname, 'engine.cjs'), join(data, 'state.sqlite'), {
     event(event) {
       if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { active.get(event.runId)?.stop.abort(); active.delete(event.runId); vault.revokeContext(event.runId); }
+      reviewSupervisor.runEvent(event);
       if (window && !window.isDestroyed()) window.webContents.send('moonaliza:event', event);
     },
-    research(research) { supervisor.observe(research); if (window && !window.isDestroyed()) window.webContents.send('moonaliza:research', research); },
-    ready(epoch) { supervisor.engineReady(epoch); },
+    research(research) { supervisor.observe(research); reviewSupervisor.observe(research); if (window && !window.isDestroyed()) window.webContents.send('moonaliza:research', research); },
+    ready(epoch) { supervisor.engineReady(epoch); reviewSupervisor.engineReady(); },
     inference: infer,
     readGitHub,
     async prepareCommand(runId, input, epoch) { return commands.prepare(runId, input, commandSignal(runId, epoch)); },
     async executeCommand(runId, operationId, epoch) {
       const task = commands.execute(runId, operationId, commandSignal(runId, epoch));
-      executingCommands.add(task); try { return await task; } finally { executingCommands.delete(task); }
+      executingCommands.set(task, active.get(runId)?.run.projectId ?? undefined); try { return await task; } finally { executingCommands.delete(task); }
     },
     async inspectGit(runId, name, input, epoch) {
       const task = commands.inspectGit(runId, name, input, commandSignal(runId, epoch));
-      executingCommands.add(task); try { return await task; } finally { executingCommands.delete(task); }
+      executingCommands.set(task, active.get(runId)?.run.projectId ?? undefined); try { return await task; } finally { executingCommands.delete(task); }
+    },
+    async reviewTool(runId, name, input, epoch) {
+      const task = reviewSupervisor.reviewTool(runId, name, input, epoch);
+      executingCommands.set(task, active.get(runId)?.run.projectId ?? undefined); try { return await task; } finally { executingCommands.delete(task); }
     },
     cancel(runId) { active.get(runId)?.stop.abort(); vault.revokeContext(runId); },
     restarted(epoch) { for (const item of active.values()) item.stop.abort(); active.clear(); vault.setEpoch(epoch); },
@@ -159,14 +189,18 @@ if (ownsInstance) void app.whenReady().then(async () => {
       if (request.method === 'project.revokeTrust' || request.method === 'project.policy.update') {
         for (const [id, item] of active) if (item.run.projectId === request.params.projectId) { item.stop.abort(); vault.revokeContext(id); }
         // Collectors stop and launch nothing until the change is applied; on release each job re-reads its admission.
-        release = supervisor.hold(request.params.projectId);
+        const releaseCollector = supervisor.hold(request.params.projectId); const releaseReview = reviewSupervisor.hold(request.params.projectId);
+        release = () => { releaseCollector(); releaseReview(); };
       }
       if (request.method === 'session.policy.update') {
         for (const [id, item] of active) if (item.run.sessionId === request.params.sessionId) { item.stop.abort(); vault.revokeContext(id); }
       }
       let result: unknown;
       try { result = await engine.request(request); } finally { release?.(); }
-      if (request.method === 'research.start' || request.method === 'research.cancel') supervisor.observe(z.object({ research: ResearchSchema }).parse(result).research);
+      if (request.method === 'research.start' || request.method === 'research.cancel') {
+        const { research } = z.object({ research: ResearchSchema }).parse(result);
+        supervisor.observe(research); reviewSupervisor.observe(research);
+      }
       if (request.method === 'run.start') {
         const { run } = z.object({ run: RunSchema }).parse(result);
         if (!active.has(run.id) && ['queued', 'running'].includes(run.status)) active.set(run.id, { run, stop: new AbortController(), github: new GitHubReader() });
@@ -239,6 +273,13 @@ if (ownsInstance) void app.whenReady().then(async () => {
       }
       case 'research.collector.read': return collectorSettings.read();
       case 'research.collector.save': return collectorSettings.save(request.params, request.clientRequestId);
+      case 'research.review.start': {
+        // RUN_ACTIVE only for a command or kit tool in the job's own project: the supervisor checks it (projectBusy).
+        // The workspace exists before the engine admits the run; main then holds the run's capability, as for run.start.
+        const { research, run } = await reviewSupervisor.start(request.params.researchId, request.params.profileId);
+        if (!active.has(run.id) && ['queued', 'running'].includes(run.status)) active.set(run.id, { run, stop: new AbortController(), github: new GitHubReader() });
+        return { research };
+      }
       case 'external.open': await shell.openExternal(request.params.url); return { opened: true };
       default: throw new Error('NOT_IMPLEMENTED');
     }
@@ -271,6 +312,7 @@ app.on('before-quit', event => {
   const currentEngine = engine;
   void (async () => {
     await collector?.close().catch(() => {});
+    await review?.close().catch(() => {});
     await researchKit?.close().catch(() => {});
     await currentEngine.close();
   })().finally(() => app.quit());

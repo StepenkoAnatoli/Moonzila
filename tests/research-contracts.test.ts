@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { EventSchema, MethodSpec, PublicErrorSchema, RESEARCH_INPUT_BUDGET, ResearchSchema, ResearchStatusSchema } from '../src/shared';
+import { ErrorCodeSchema, EventSchema, MethodSpec, PublicErrorSchema, RESEARCH_INPUT_BUDGET, ResearchSchema, ResearchStatusSchema } from '../src/shared';
 import { commandLineFits, dispatchArgs } from '../src/adapters/research-kit/collector';
 import { safeError } from '../src/main/bridge';
 import { ACTIVE_RESEARCH as ENGINE_ACTIVE, RESEARCH_EDGES } from '../src/engine/research-state';
@@ -104,6 +104,15 @@ describe('research contracts', () => {
     expect(error.code).toBe('COLLECTOR_TOKEN_REQUIRED');
     expect(PublicErrorSchema.safeParse(error).success).toBe(true);
     expect(error.message).not.toMatch(/github_pat|token:/);
+  });
+
+  test('a review that ends without a research-ready package fails its run with the public code REVIEW_NOT_READY', () => {
+    // Decision D1 (October 4): one public code for every review failure; the job keeps the exact reason for the panel.
+    expect(ErrorCodeSchema.safeParse('REVIEW_NOT_READY').success).toBe(true);
+    const error = safeError(new Error('REVIEW_NOT_READY'));
+    expect(error.code).toBe('REVIEW_NOT_READY');
+    expect(error.message).toMatch(/research panel/);
+    expect(PublicErrorSchema.safeParse(error).success).toBe(true);
   });
 
   test('the panel\'s active and cancellable statuses are the engine\'s', () => {

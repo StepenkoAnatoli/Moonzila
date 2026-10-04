@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { DigestSchema, IdSchema, ResearchSchema, RevisionSchema, RunSchema } from '../shared';
+// research.ts imports this module, so its schema is referenced lazily to keep the cycle harmless.
+import { ResearchVerificationSchema } from './research';
 
 /**
  * Frozen contracts for plan Task 5, the research review (docs/specification/research-review.md). Engine, main and the
@@ -28,9 +30,15 @@ export const ReviewFailureSchema = z.enum(REVIEW_FAILURES);
 export const REVIEW_CAUSES = ['REVIEW_STARTED', 'REVIEW_RETRY', 'REVIEW_RESTARTED', 'WORKSPACE_FROZEN', 'KIT_APPROVED', 'KIT_NOT_APPROVED', 'IDENTITY_MISMATCH', 'INVENTORY_MISMATCH',
   'OWNED_TIMEOUT', 'HELPER_FAILED', 'KIT_OUTPUT_LIMIT', 'REVIEW_CANCELLED', 'CANCEL_REQUESTED', 'RECOVERED', 'NO_OWNED_WORK', 'BRIEF_STALE'] as const;
 
-/** One completed review write, as `research.review.context` returns it (contents never cross). */
+/**
+ * One review write, as `research.review.context` returns it (contents never cross). `completed` writes are applied;
+ * an `unknown` write (a crash between its rename and its record) may or may not be on disk, so main accepts either
+ * its before or its after hash for that path when it checks a `continued` workspace, and begin then reconciles it
+ * (spec "Crash windows"; Phase 3 review F1).
+ */
 export const ReviewChangeSchema = z.object({
   operationId: IdSchema, runId: IdSchema, path: z.enum(REVIEW_WRITE_ALLOWLIST), beforeHash: DigestSchema.nullable(), afterHash: DigestSchema.nullable(),
+  status: z.enum(['completed', 'unknown']),
 }).strict();
 export type ReviewChange = z.infer<typeof ReviewChangeSchema>;
 
@@ -43,7 +51,9 @@ export const ResearchReviewContextSchema = z.object({
   researchId: IdSchema, revision: RevisionSchema, status: z.string().max(32), admission: z.string().max(64).nullable(),
   reviewSessionId: IdSchema.nullable(), reviewRunId: IdSchema.nullable(), reviewRunStatus: z.string().max(32).nullable(),
   reviewDigest: DigestSchema.nullable(), reviewedPackage: ReviewedPackageSchema.nullable(),
-  /** Completed review writes since the latest `fresh` edge, in creation order. */
+  /** The verification journaled on `collecting -> collected` (Task 4): main's only source for the job's binding. Null before collection. */
+  verification: z.lazy(() => ResearchVerificationSchema).nullable(),
+  /** Completed and `unknown` review writes since the latest `fresh` edge, in creation order, each with its `status`. */
   changes: z.array(ReviewChangeSchema).max(100_000),
 }).strict();
 export type ResearchReviewContext = z.infer<typeof ResearchReviewContextSchema>;
