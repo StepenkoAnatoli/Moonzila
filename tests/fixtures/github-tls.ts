@@ -73,7 +73,8 @@ export async function generateTestTls(): Promise<TestTls> {
     extensions: self => [
       extension('2.5.29.19', true, new pkijs.BasicConstraints({ cA: false })),
       extension('2.5.29.15', true, keyUsage([0])), // digitalSignature
-      // SAN and serverAuth: without them Node's TLS (OpenSSL) refuses the leaf for these names.
+      // SAN is the guard that matters: without it Node's TLS refuses the leaf for these names. A leaf without EKU is
+      // accepted by both OpenSSL and BoringSSL; serverAuth is kept so the leaf matches a real server certificate.
       extension('2.5.29.37', false, new pkijs.ExtKeyUsage({ keyPurposes: ['1.3.6.1.5.5.7.3.1'] })),
       extension('2.5.29.17', false, new pkijs.AltName({ altNames: TEST_TLS_HOSTS.map(host => new pkijs.GeneralName({ type: 2, value: host })) })),
       extension('2.5.29.14', false, new asn1js.OctetString({ valueHex: keyId(self) })),

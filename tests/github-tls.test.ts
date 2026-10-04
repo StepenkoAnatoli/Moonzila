@@ -1,9 +1,10 @@
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { createPrivateKey, X509Certificate } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import https from 'node:https';
 import tls from 'node:tls';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { generateTestTls, type TestTls } from './fixtures/github-tls';
@@ -66,4 +67,12 @@ test('each fake GitHub has its own CA file while open, and close removes it', as
   expect(await readFile(first.caPath, 'utf8')).not.toBe(await readFile(second.caPath, 'utf8'));
   await first.close(); opened.splice(opened.indexOf(first), 1);
   expect(existsSync(first.caPath)).toBe(false); expect(existsSync(second.caPath)).toBe(true);
+});
+
+test('a fake whose start fails after generation leaves no temporary folder behind', async () => {
+  const folders = async () => (await readdir(tmpdir())).filter(name => name.startsWith('moonzila-github-tls-')).sort();
+  const before = await folders();
+  vi.spyOn(https, 'createServer').mockImplementationOnce(() => { throw new Error('SERVER_REFUSED'); });
+  await expect(startFakeGitHub('t')).rejects.toThrow('SERVER_REFUSED');
+  expect(await folders()).toEqual(before);
 });
