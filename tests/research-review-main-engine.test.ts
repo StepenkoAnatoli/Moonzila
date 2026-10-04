@@ -65,3 +65,14 @@ test('every research.tool request gets exactly one reply: a result outside the c
   await settle(); await settle();
   expect(child.posted).toEqual([{ type: 'research.tool.error', epoch: engine.epoch, id: 't7', code: 'REVIEW_TOOL_FAILED' }]);
 });
+
+test('an error that arrives after the engine restarted is dropped too', async () => {
+  // Guard: the research.tool.error reply is posted only within the epoch that asked (A25).
+  let fail!: (reason: Error) => void;
+  const { engine, child } = host(() => new Promise((_resolve, reject) => { fail = reject; }));
+  child.emit('message', { type: 'research.tool', epoch: engine.epoch, id: 't8', runId: 'run-1', name: 'research_preflight', input: {} });
+  await settle();
+  engine.epoch = '00000000-0000-4000-8000-000000000000';
+  fail(new Error('RUN_CANCELLED')); await settle();
+  expect(child.posted).toEqual([]);
+});

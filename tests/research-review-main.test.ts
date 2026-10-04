@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { crc32 } from 'node:zlib';
 import provenance from './fixtures/research-kit/provenance.json';
 import { ResearchKit } from '../src/adapters/research-kit/adapter';
 import type { OwnedCommand, OwnedOptions, OwnedResult, OwnedRunner } from '../src/tools/commands';
@@ -79,6 +80,10 @@ interface Harness {
   store: Store; jobs: ResearchJobs; kit: ResearchKit; review: ReviewSupervisor; seen: Seen[]; hooks: Hooks; notices: Research[]; begins: Control[];
   storage: string; id: string; runId?: string; project: string; signals: Map<string, AbortController>;
   engineBeginError?: string;
+  /** Every control the supervisor sent, in order. */
+  controls: Control[];
+  /** While set, the engine refuses every research.transition with this code. */
+  refuseTransitions?: string;
 }
 const harnesses: Harness[] = [];
 let count = 0;
@@ -105,7 +110,7 @@ async function harness(options: { kit?: boolean; trusted?: boolean; reviewed?: R
   step('collected', { verification: { artifactSha256: fixtureSha, artifactBytes: fixtureBytes.length, validatorRevision: imported.receipt!.validatorRevision, nodeSha256, state: 'REVIEW_IN_PROGRESS', jobRevision: 3, projectRevision: 1,
     repository: provenance.identity.repository, ref: provenance.identity.ref, workflow: provenance.identity.workflow, commit: provenance.identity.commit, runAttempt: 1, workflowRunId: '1', clientRef: provenance.identity.clientRef, downloadDigest: 'unverified' } });
   const begins: Control[] = []; const signals = new Map<string, AbortController>();
-  const h: Harness = { store, jobs, kit, seen, hooks, notices, begins, storage, id, project: join(storage, 'review', id, 'project'), signals, review: undefined as unknown as ReviewSupervisor };
+  const h: Harness = { controls: [], store, jobs, kit, seen, hooks, notices, begins, storage, id, project: join(storage, 'review', id, 'project'), signals, review: undefined as unknown as ReviewSupervisor };
   h.review = new ReviewSupervisor({
     control: async control => engine(h, control), kit: options.kit === false ? null : options.reviewed ? reviewedBy(kit, options.reviewed) : kit, redact: async text => text.replaceAll(SENTINEL, '[redacted]'),
     runSignal: runId => { const signal = signals.get(runId)?.signal; if (!signal || signal.aborted) throw new Error('RUN_CANCELLED'); return signal; },
@@ -130,6 +135,8 @@ async function packagingNow(h: Harness) {
 }
 /** The engine as the contract says it behaves, over the real Store and ResearchJobs; `begin` stands in for B2's review run. */
 async function engine(h: Harness, control: Control): Promise<unknown> {
+  h.controls.push(control);
+  if (control.method === 'research.transition' && h.refuseTransitions) throw new Error(h.refuseTransitions);
   switch (control.method) {
     case 'research.context': return h.jobs.context(control.researchId);
     case 'research.review.context': return h.jobs.reviewContext(control.researchId);
@@ -339,6 +346,8 @@ test('research_preflight: only a whole JSON verdict with its matching exit count
     { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: false },
     { status: 'exited', code: 1, output: json, truncated: false, cancelled: false, timedOut: false },
     { status: 'exited', code: 0, output: json.slice(0, 20), truncated: true, cancelled: false, timedOut: false },
+    // Truncated at a point where the output still parses: the bound was hit, so it is not the kit's whole verdict.
+    { status: 'exited', code: 0, output: json, truncated: true, cancelled: false, timedOut: false },
     { status: 'exited', code: 0, output: json, truncated: false, cancelled: false, timedOut: true },
   ] as OwnedResult[]) {
     h.hooks.fake = (_request, kind) => (kind === 'preflight' ? result : undefined);
@@ -450,8 +459,11 @@ test('a Stop committed by the engine during packaging (not_ready / REVIEW_STOPPE
   const job = h.store.getResearch(h.id)!;
   h.store.appendEvent(h.runId!, 'run.cancelled', {}, { status: 'cancelled', finishedAt: at });
   const { research } = h.store.transitionResearch({ researchId: h.id, expectedRevision: job.revision, to: 'not_ready', actor: 'engine', cause: 'REVIEW_STOPPED', patch: { failure: 'REVIEW_STOPPED' } });
+  const sent = h.controls.length;
   h.review.observe(researchDto(research));
   await expect.poll(() => h.review.busy(), { timeout: 20000 }).toBe(false);
+  // The stopped create records nothing: not even a commit the engine would refuse as stale.
+  expect(h.controls.slice(sent).filter(control => control.method === 'research.transition')).toEqual([]);
   expect(h.store.getResearch(h.id)).toMatchObject({ status: 'not_ready', failure: 'REVIEW_STOPPED' });
   expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ actor: 'engine', cause: 'REVIEW_STOPPED' });
   expect((await readdir(join(h.storage, 'review', h.id))).filter(name => name !== 'project')).toEqual([]);
@@ -719,3 +731,243 @@ test('approved needs a receipt that is research-ready and APPROVED_BRIEF: APPROV
     await h.review.close(); await h.kit.close();
   }
 }, 360000);
+
+// ------------------------------------------------------------------ guards the Phase 3 mutation run left unkilled
+
+/** A stored (uncompressed) ZIP: a package the archive reader accepts that the validator need not. */
+function storedZip(entries: Array<[string, string]>): Buffer {
+  const locals: Buffer[] = []; const centrals: Buffer[] = []; let offset = 0;
+  for (const [name, text] of entries) {
+    const data = Buffer.from(text); const fileName = Buffer.from(name); const crc = crc32(data);
+    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18); local.writeUInt32LE(data.length, 22); local.writeUInt16LE(fileName.length, 26);
+    const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt32LE(crc, 16); central.writeUInt32LE(data.length, 20); central.writeUInt32LE(data.length, 24); central.writeUInt16LE(fileName.length, 28); central.writeUInt32LE((0o100644 << 16) >>> 0, 38); central.writeUInt32LE(offset, 42);
+    locals.push(local, fileName, data); centrals.push(central, fileName); offset += 30 + fileName.length + data.length;
+  }
+  const directory = Buffer.concat(centrals); const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10); end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, directory, end]);
+}
+
+test('start: a reviewing job is refused before anything is touched, and retained bytes that read as a package but fail validation are STALE_VERIFICATION', async () => {
+  // Guards: start's status check before the re-validation and materialisation (M19a); the retained bytes are used only
+  // as the validator's verified bytes, never read from disk on their own (M19d).
+  const h = await harness();
+  await begin(h);
+  await writeFile(join(h.project, 'research', 'MAP.md'), 'an edit of the live review');
+  const children = h.seen.length;
+  await expect(h.review.start(h.id, 'm')).rejects.toThrow('REVIEW_NOT_AVAILABLE');
+  expect(await read(h, 'research/MAP.md')).toBe('an edit of the live review');
+  expect(h.seen).toHaveLength(children); expect(h.begins).toHaveLength(1);
+
+  const forged = await harness();
+  const content = 'a map';
+  const bytes = storedZip([['project/research/MAP.md', content], ['manifest.json', JSON.stringify({ files: [{ path: 'project/research/MAP.md', sha256: digest(content), byteLength: content.length }], source: {} })]]);
+  expect((await readPackage(bytes)).base).toEqual([{ path: 'research/MAP.md', sha256: digest(content) }]);
+  await writeFile(join(forged.storage, 'artifacts', `${fixtureSha}.zip`), bytes);
+  await expect(forged.review.start(forged.id, 'm')).rejects.toThrow('STALE_VERIFICATION');
+  expect(forged.begins).toEqual([]);
+  await expect(readdir(join(forged.storage, 'review', forged.id))).rejects.toMatchObject({ code: 'ENOENT' });
+}, 120000);
+
+test('start refuses a job whose packaging main still owns, even once the engine has moved it on', async () => {
+  // Guard: start refuses a job main owns (A35): its create may still be running in the workspace.
+  const h = await harness();
+  let running!: () => void; const started = new Promise<void>(r => { running = r; });
+  h.hooks.whileRunning = async (_request, kind, signal) => {
+    if (kind !== 'create') return;
+    running();
+    await new Promise<void>(r => { if (signal?.aborted) r(); else signal?.addEventListener('abort', () => r(), { once: true }); });
+  };
+  await packagingNow(h);
+  await started;
+  // A Stop committed by the engine whose notice main has not seen: the job is not_ready, the create still runs.
+  const job = h.store.getResearch(h.id)!;
+  h.store.appendEvent(h.runId!, 'run.cancelled', {}, { status: 'cancelled', finishedAt: at });
+  h.store.transitionResearch({ researchId: h.id, expectedRevision: job.revision, to: 'not_ready', actor: 'engine', cause: 'REVIEW_STOPPED', patch: { failure: 'REVIEW_STOPPED' } });
+  await expect(h.review.start(h.id, 'm')).rejects.toThrow('REVIEW_NOT_AVAILABLE');
+  expect(h.begins).toHaveLength(1);
+  await h.review.close();
+}, 120000);
+
+test('recovery never discards the folder of a job main owns: neither the engine (owned skip) nor main (owned filter) names it', async () => {
+  // Guards: research.recover skips owned folders (M18c), and recovered() drops owned names from reviewDiscard (M18a).
+  const h = await harness();
+  await begin(h);
+  const { research } = h.jobs.cancel(h.id, randomUUID(), []);
+  expect(research.status).toBe('cancelling');
+  // Owned, the engine neither ends the job nor names its folder; not owned, it would do both.
+  expect(h.jobs.recover([h.id], [h.id]).reviewDiscard).toEqual([]);
+  expect(h.store.getResearch(h.id)!.status).toBe('cancelling');
+
+  const other = await harness();
+  let running!: () => void; const started = new Promise<void>(r => { running = r; });
+  other.hooks.whileRunning = async (_request, kind, signal) => {
+    if (kind !== 'create') return;
+    running();
+    await new Promise<void>(r => { if (signal?.aborted) r(); else signal?.addEventListener('abort', () => r(), { once: true }); });
+  };
+  await packagingNow(other);
+  await started;
+  expect(other.review.ownedIds()).toContain(other.id);
+  // An engine that named it anyway: main keeps the folder its create is using.
+  await other.review.recovered({ failed: [], cancelled: [], resume: [], dispatchable: [], reviewing: [], unreadable: [], freeze: [], packaging: [], reviewDiscard: [other.id] });
+  expect(await readdir(join(other.storage, 'review'))).toEqual([other.id]);
+  await other.review.close();
+}, 120000);
+
+test('kit tools: the run context is re-checked before and after the child, preflight takes no force, and a brief that is not a clean exit 0 or holds a secret is refused', async () => {
+  // Guards: the tools' live check of admission (A08a), after the child (A08b) and of the run status (A08c); preflight
+  // refusing force (A09); the brief's redaction refusal (A10), launch failures (A32) and non-zero exits (A33).
+  const h = await harness();
+  await begin(h);
+  const project = h.store.getProject('p')!;
+  const tool = (name: 'research_preflight' | 'research_draft_brief', input: { force?: true } = {}) => h.review.reviewTool(h.runId!, name, input, 'epoch');
+  // force for preflight: refused before any child.
+  let children = h.seen.length;
+  await expect(tool('research_preflight', { force: true })).rejects.toThrow('REVIEW_TOOL_FAILED');
+  expect(h.seen).toHaveLength(children);
+  // The trust revoked during the child: its result is never returned.
+  h.hooks.whileRunning = (_request, kind) => { if (kind === 'preflight') h.store.putProject({ ...project, trusted: false, trustRevision: 2 }); };
+  await expect(tool('research_preflight')).rejects.toThrow('RUN_CANCELLED');
+  h.hooks.whileRunning = undefined;
+  // Revoked before: no child at all.
+  children = h.seen.length;
+  await expect(tool('research_preflight')).rejects.toThrow('RUN_CANCELLED');
+  expect(h.seen).toHaveLength(children);
+  h.store.putProject(project);
+  expect(await tool('research_preflight')).toMatchObject({ tool: 'research_preflight' });
+  // The brief: a launch failure is never BRIEF_NOT_DRAFTED, a non-zero exit other than 1 is never a draft, and a draft
+  // holding a secret is refused rather than redacted.
+  for (const result of [
+    { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: true },
+    { status: 'exited', code: 1, output: '', truncated: true, cancelled: false, timedOut: false },
+    { status: 'exited', code: 2, output: '', truncated: false, cancelled: false, timedOut: false },
+  ] as OwnedResult[]) {
+    h.hooks.fake = (_request, kind) => (kind === 'brief' ? result : undefined);
+    await expect(tool('research_draft_brief'), JSON.stringify(result)).rejects.toThrow('REVIEW_TOOL_FAILED');
+  }
+  h.hooks.fake = async (request, kind) => {
+    if (kind !== 'brief') return undefined;
+    await writeFile(join(request.cwd, 'research', 'BRIEF.md'), `# Brief\n\nThe token is ${SENTINEL}.\n`);
+    return { status: 'exited', code: 0, output: '', truncated: false, cancelled: false, timedOut: false };
+  };
+  await expect(tool('research_draft_brief')).rejects.toThrow('REVIEW_TOOL_FAILED');
+  h.hooks.fake = undefined;
+  // The run no longer running (an engine cancel in progress): refused before any child.
+  h.store.appendEvent(h.runId!, 'run.status', { status: 'cancelling' }, { status: 'cancelling' });
+  children = h.seen.length;
+  await expect(tool('research_preflight')).rejects.toThrow('RUN_CANCELLED');
+  expect(h.seen).toHaveLength(children);
+}, 180000);
+
+test('the driver: packaging waits under a hold, ends on a changed admission, and leaves a cancelling job with a live run to the engine', async () => {
+  // Guards: packaging under a hold (A13), on a changed admission (A12), and cancelling with a live run (A14).
+  const held = await harness();
+  const release = held.review.hold('p');
+  await packagingNow(held);
+  const children = held.seen.length;
+  await new Promise(r => setTimeout(r, 300));
+  expect(held.seen).toHaveLength(children);
+  expect(held.store.getResearch(held.id)!.status).toBe('packaging');
+  release();
+  expect(await until(held, settled)).toMatchObject({ status: 'not_ready', failure: 'REVIEW_INCOMPLETE' });
+
+  const untrusted = await harness();
+  await begin(untrusted);
+  untrusted.store.appendEvent(untrusted.runId!, 'run.status', { status: 'awaiting_review' }, { status: 'awaiting_review' });
+  untrusted.store.transitionResearch({ researchId: untrusted.id, expectedRevision: untrusted.store.getResearch(untrusted.id)!.revision, to: 'packaging', actor: 'main', cause: 'WORKSPACE_FROZEN', patch: { reviewDigest: reviewDigest(await treeInventory(untrusted.project)) } });
+  untrusted.store.putProject({ ...untrusted.store.getProject('p')!, trusted: false, trustRevision: 2 });
+  const before = untrusted.seen.length;
+  await untrusted.review.recovered(untrusted.jobs.recover([], []));
+  expect(await until(untrusted, settled, 20000)).toMatchObject({ status: 'not_ready', failure: 'PROJECT_UNTRUSTED' });
+  expect(untrusted.store.researchEvents(untrusted.id).events.at(-1)).toMatchObject({ from: 'packaging', to: 'not_ready', cause: 'ADMISSION_CHANGED' });
+  expect(untrusted.seen).toHaveLength(before);
+
+  const live = await harness();
+  await begin(live);
+  const { research } = live.jobs.cancel(live.id, randomUUID(), []);
+  live.review.observe(research);
+  await new Promise(r => setTimeout(r, 300));
+  // The run is still running: its end is the engine's, which then commits cancelled itself. Main sends no commit at all
+  // (the store would refuse one under a live run, so only this check tells the two apart).
+  expect(live.store.getResearch(live.id)!.status).toBe('cancelling');
+  expect(live.controls.filter(control => control.method === 'research.transition')).toEqual([]);
+  expect(live.store.researchEvents(live.id).events.at(-1)).toMatchObject({ to: 'cancelling', actor: 'user' });
+}, 180000);
+
+test('a finished review job\'s notice discards its folder', async () => {
+  // Guard: observe owns an approved or cancelled review job to discard its folder (A21).
+  const h = await harness();
+  await begin(h);
+  const { research } = h.jobs.cancel(h.id, randomUUID(), []);
+  h.store.appendEvent(h.runId!, 'run.cancelled', {}, { status: 'cancelled', finishedAt: at });
+  const done = h.store.transitionResearch({ researchId: h.id, expectedRevision: research.revision, to: 'cancelled', actor: 'engine', cause: 'REVIEW_CANCELLED' }).research;
+  expect(await readdir(join(h.storage, 'review'))).toEqual([h.id]);
+  h.review.observe(researchDto(done));
+  await expect.poll(() => readdir(join(h.storage, 'review')), { timeout: 10000 }).toEqual([]);
+}, 120000);
+
+test('the freeze retries its preflight once after a helper failure, then packages', async () => {
+  // Guard: one more freeze preflight attempt (A22).
+  const h = await harness();
+  await begin(h); await rewriteFinding(h); await draftAndAnswer(h);
+  let failed = false; let freezePreflights = 0;
+  h.hooks.fake = (_request, kind) => {
+    if (kind !== 'preflight') return undefined;
+    freezePreflights++;
+    if (failed) return undefined;
+    failed = true; return { status: 'exited', code: 1, output: '', truncated: false, cancelled: false, timedOut: true };
+  };
+  finish(h);
+  expect(await until(h, settled)).toMatchObject({ status: 'approved' });
+  expect(freezePreflights).toBe(2);
+}, 180000);
+
+test('packaging: a non-PASS verdict with a receipt is invalid, the receipt is bound to the packaging revision, and odd create exits name no exit code', async () => {
+  // Guards: a validation counts only as PASS with a receipt (A23); the binding carries the packaging revision (A24);
+  // the exit cause covers 0..255 only (A34).
+  let bound: Binding | undefined;
+  const h = await harness({ reviewed: async (real, binding) => { bound = binding; return { ...(await real()), status: 'FAIL' as const }; } });
+  await packagingNow(h);
+  const job = await until(h, settled);
+  expect(job).toMatchObject({ status: 'not_ready', failure: 'REVIEW_PACKAGE_INVALID' });
+  expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ cause: 'VALIDATOR_FAIL' });
+  const packaging = h.store.researchEvents(h.id).events.find(event => event.to === 'packaging')!;
+  expect(bound!.jobRevision).toBe(packaging.revision);
+  expect(bound!.jobRevision).not.toBe(3);
+
+  for (const code of [256, -1]) {
+    const odd = await harness();
+    odd.hooks.fake = (_request, kind) => (kind === 'create' ? { status: 'exited', code, output: '', truncated: false, cancelled: false, timedOut: false } : undefined);
+    await packagingNow(odd);
+    expect(await until(odd, settled)).toMatchObject({ status: 'not_ready', failure: 'REVIEW_PACKAGE_INVALID' });
+    expect(odd.store.researchEvents(odd.id).events.at(-1), String(code)).toMatchObject({ cause: 'KIT_CREATE_EXIT_OTHER' });
+    await odd.review.close(); await odd.kit.close();
+  }
+}, 240000);
+
+test('a commit the engine keeps refusing as stale is retried a bounded number of times, then the job is held until the next start', async () => {
+  // Guard: the bound on stale commits in a row (A29).
+  const h = await harness();
+  h.refuseTransitions = 'STALE_REVISION';
+  await packagingNow(h);
+  await expect.poll(() => h.review.busy(), { timeout: 60000 }).toBe(false);
+  expect(h.controls.filter(control => control.method === 'research.transition')).toHaveLength(5);
+  expect(h.review.ownedIds()).toEqual([h.id]);
+  expect(h.store.getResearch(h.id)!.status).toBe('packaging');
+}, 180000);
+
+test('a reviewed validation refused in its guarded start (CANCELLED) records nothing; the driver re-reads the moved job', async () => {
+  // Guard: outcome returns nothing for a CANCELLED validation (A37).
+  let refused = false;
+  const h: Harness = await harness({ reviewed: async real => {
+    if (refused) return real();
+    refused = true;
+    // The trust is revoked while the validation waits to start; the engine's notice has not reached main.
+    h.store.putProject({ ...h.store.getProject('p')!, trusted: false, trustRevision: 2 });
+    return { status: 'BLOCKED', state: null, researchReady: false, receipt: null, error: 'CANCELLED' };
+  } });
+  await packagingNow(h);
+  expect(await until(h, settled)).toMatchObject({ status: 'not_ready', failure: 'PROJECT_UNTRUSTED' });
+  expect(h.store.researchEvents(h.id).events.at(-1)).toMatchObject({ from: 'packaging', to: 'not_ready', cause: 'ADMISSION_CHANGED' });
+}, 120000);

@@ -68,6 +68,9 @@ test('verifyRetained returns the verified bytes of storage/artifacts/<sha>.zip; 
     const verified = await kit.verifyRetained(sha, binding);
     expect(verified.bytes.equals(bytes)).toBe(true); expect(verified.receipt.artifactSha256).toBe(sha);
     await expect(kit.verifyRetained('f'.repeat(64), binding)).rejects.toThrow('STALE_VERIFICATION');
+    // A valid package filed under another digest: it validates, but its receipt names its own digest, not the one asked for.
+    await writeFile(join(root, 'retained', 'artifacts', `${'a'.repeat(64)}.zip`), bytes);
+    await expect(kit.verifyRetained('a'.repeat(64), binding)).rejects.toThrow('STALE_VERIFICATION');
     await expect(kit.verifyRetained(sha, { ...binding, commit: 'f'.repeat(40) })).rejects.toThrow('STALE_VERIFICATION');
     await writeFile(join(root, 'retained', 'artifacts', `${sha}.zip`), bytes.subarray(0, 500));
     await expect(kit.verifyRetained(sha, binding)).rejects.toThrow('STALE_VERIFICATION');

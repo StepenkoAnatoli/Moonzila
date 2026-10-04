@@ -4,7 +4,7 @@ import { link, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFi
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { crc32 } from 'node:zlib';
-import { acceptsTree, copyWorkspace, excludedByCreate, foldAccepted, foldExpected, listReviewFolders, materialise, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type FoldChange } from '../src/main/review-workspace';
+import { acceptsTree, copyWorkspace, excludedByCreate, foldAccepted, foldExpected, listReviewFolders, materialise, projectInventory, readPackage, removeJournalTemps, reviewDigest, reviewFolder, sameInventory, treeInventory, type FoldChange } from '../src/main/review-workspace';
 
 // The private review workspace (spec "The private workspace"). Every path stays inside this test's own mkdtemp root.
 let root: string;
@@ -71,6 +71,14 @@ test('a name create would exclude, a path the journal would refuse, or a case du
   await expect(materialise(crafted({ 'research/con': 'x' }), job)).rejects.toThrow();
   await expect(materialise(crafted({ 'research/MAP.md': 'a', 'research/map.md': 'b' }), job)).rejects.toThrow('ARTIFACT_INVALID');
   expect(excludedByCreate('research/MAP.md')).toBe(false);
+});
+
+test('the manifest projection alone refuses a case duplicate or a name create would exclude', () => {
+  // Guards: projectInventory's own case-duplicate (W3d) and create-exclusion (W3a) checks, without the archive reader.
+  const entry = (path: string) => ({ path: `project/${path}`, sha256: digest(path), byteLength: 1 });
+  expect(projectInventory({ files: [entry('research/MAP.md')], source: {} }).base).toEqual([{ path: 'research/MAP.md', sha256: digest('research/MAP.md') }]);
+  expect(() => projectInventory({ files: [entry('research/MAP.md'), entry('research/map.md')], source: {} })).toThrow('ARTIFACT_INVALID');
+  expect(() => projectInventory({ files: [entry('research/GATE_OFF')], source: {} })).toThrow('ARTIFACT_INVALID');
 });
 
 test('more than 1,900 project files refuses with REVIEW_WORKSPACE_TOO_LARGE before anything is written', async () => {
