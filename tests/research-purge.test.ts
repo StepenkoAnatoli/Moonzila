@@ -349,7 +349,7 @@ test('a delete refused once with EBUSY or EPERM is retried once and succeeds', a
   }
 });
 
-test('a delete still refused after its retry is RESEARCH_KIT_UNAVAILABLE: what was deleted stays deleted, its receipt is forgotten, the rest is kept with its receipt', async () => {
+test('a delete still refused after its retry is PURGE_INCOMPLETE: what was deleted stays deleted, its receipt is forgotten, the rest is kept with its receipt', async () => {
   // Guards: exactly one retry (mutation: retry forever, or give up at once); receipts forgotten for the deletes that
   // happened before the failure and only for them (mutations: forget none on failure; forget every target's).
   const w = await world(); const real = await realApproved(w, 'j1');
@@ -357,7 +357,8 @@ test('a delete still refused after its retry is RESEARCH_KIT_UNAVAILABLE: what w
   // The first ZIP the purge deletes goes; the second is held open by another handle for good.
   const order: string[] = [];
   w.fault = path => { if (!order.includes(path)) order.push(path); return order.indexOf(path) === 1 ? busy('EBUSY') : undefined; };
-  expect(await refusal(purge(w, 'j1'))).toBe('RESEARCH_KIT_UNAVAILABLE');
+  // P5-5: another program holds the file; the kit is fine, so the answer is not RESEARCH_KIT_UNAVAILABLE.
+  expect(await refusal(purge(w, 'j1'))).toBe('PURGE_INCOMPLETE');
   const [deleted, blocked] = order as [string, string];
   expect(new Set(order)).toEqual(new Set([first, second]));
   expect(await exists(deleted)).toBe(false); expect(await exists(blocked)).toBe(true);
@@ -367,3 +368,13 @@ test('a delete still refused after its retry is RESEARCH_KIT_UNAVAILABLE: what w
   await expect(w.kit.readVerified(receipts.get(deleted)!.receipt.id, receipts.get(deleted)!.binding)).rejects.toThrow('STALE_VERIFICATION');
   expect((await w.kit.readVerified(receipts.get(blocked)!.receipt.id, receipts.get(blocked)!.binding)).length).toBeGreaterThan(0);
 }, 120000);
+
+test('a delete refused for any other reason, at once or on the retry, is the store\'s fault: RESEARCH_KIT_UNAVAILABLE, not PURGE_INCOMPLETE', async () => {
+  // Guard: only EBUSY/EPERM after the retry is PURGE_INCOMPLETE (mutation: every failed delete is PURGE_INCOMPLETE).
+  for (const [first, second] of [['EIO', undefined], ['EBUSY', 'EIO']] as const) {
+    const w = await world(); job(w, 'done', 'cancelled'); const orphan = await plant(w);
+    w.fault = (_path, attempt) => { const code = attempt === 1 ? first : second; return code ? Object.assign(new Error(code), { code }) : undefined; };
+    expect(await refusal(purge(w, 'done')), `${first}/${second}`).toBe('RESEARCH_KIT_UNAVAILABLE');
+    expect(await exists(zip(w, orphan))).toBe(true);
+  }
+});

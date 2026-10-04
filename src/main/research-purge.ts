@@ -26,7 +26,8 @@ const ACTIVE: ReadonlySet<string> = new Set(ACTIVE_RESEARCH);
  * - Its collected and reviewed digests are deleted unless another job, in any status, references them (`keptShared`).
  * - Store entries no job references are deleted only when no job anywhere is active; otherwise kept (`keptBusy`).
  * The engine's own refusals (NOT_FOUND, ENGINE_UNAVAILABLE, ...) pass through; any failure of the store or a delete
- * (a ZIP another handle holds open, after its one retry) is RESEARCH_KIT_UNAVAILABLE, never a partial result.
+ * is RESEARCH_KIT_UNAVAILABLE, except a ZIP another program still holds open after the delete's one retry:
+ * PURGE_INCOMPLETE (P5-5), and the ZIPs deleted before it stay deleted with their receipts forgotten.
  */
 export async function purgeResearch(deps: PurgeDeps, researchId: string): Promise<ResearchPurgeResult> {
   if (!deps.kit) throw new Error('RESEARCH_KIT_UNAVAILABLE');
@@ -54,6 +55,10 @@ export async function purgeResearch(deps: PurgeDeps, researchId: string): Promis
   };
   let removed: number;
   try { ({ removed } = await deps.kit.purgeRetained(decide)); }
-  catch (error) { if (decided && error === decided) throw error; throw new Error('RESEARCH_KIT_UNAVAILABLE', { cause: error }); }
+  catch (error) {
+    if (decided && error === decided) throw error;
+    if (error instanceof Error && error.message === 'PURGE_INCOMPLETE') throw new Error('PURGE_INCOMPLETE', { cause: error });
+    throw new Error('RESEARCH_KIT_UNAVAILABLE', { cause: error });
+  }
   return { removed, keptShared, keptBusy };
 }

@@ -352,7 +352,8 @@ export class ResearchKit {
    * then asks `decide` (main's read of every job's references, made inside this lock) which of them to delete, deletes
    * those and forgets the receipts of every digest it deleted. A digest `decide` names that is not listed is ignored.
    * A delete refused with EBUSY or EPERM (Windows: a handle opened without FILE_SHARE_DELETE) is retried once; refused
-   * again, the purge stops with PURGE_INCOMPLETE, keeping what it deleted deleted and its receipts forgotten. An
+   * again with either, the purge stops with PURGE_INCOMPLETE (another program holds the file), keeping what it deleted
+   * deleted and its receipts forgotten; any other failed delete is thrown as it is (the store's fault). An
    * artifacts folder that is not a real folder of storage is INSTALLATION_INVALID; nothing beneath it is listed.
    * `decide`'s own errors pass through unchanged.
    */
@@ -381,7 +382,11 @@ export class ResearchKit {
             if (code !== 'EBUSY' && code !== 'EPERM') throw error;
             await new Promise(done => setTimeout(done, 100));
             try { await this.unlink(file); }
-            catch (retry) { if ((retry as NodeJS.ErrnoException)?.code === 'ENOENT') continue; throw new Error('PURGE_INCOMPLETE', { cause: retry }); }
+            catch (retry) {
+              const again = (retry as NodeJS.ErrnoException)?.code;
+              if (again === 'ENOENT') continue;
+              throw again === 'EBUSY' || again === 'EPERM' ? new Error('PURGE_INCOMPLETE', { cause: retry }) : retry;
+            }
           }
           deleted.add(sha);
         }
