@@ -204,6 +204,32 @@ October 3, integration of the five build teams (import, collector items, small f
     - **B7 `research.purge`** (retained ZIPs only);
     - docs;
     - Phase 4 review (spec, breaker, mutation, invariant) on the integrated branch.
+- **Resume here (October 4 handoff; the conversation was cleared).** The rest of Task 5 ships in phases. Each phase is one draft PR from `main-axuse`; the user merges it, then `main-axuse` is fast-forwarded to `main`, and the lead asks before starting the next phase.
+  - Skills, every phase:
+    - `lead-orchestrator`, with each sub-agent on the model most likely to succeed at its role;
+    - `careful-coding` in the lead's own work and in every brief;
+    - `brainstorming` at the start of a phase whose shape or a decision is open: ask, compare, and get the user's approval before building;
+    - `gap-audit` and `break-test` in the last phase, on the integrated feature.
+  - **Phase 0, in review:** the research corpora, the decisions, the frozen contracts, the Q1 admission fix, the lead-orchestrator skill update and a merge of `main` (PR #30). Gate on the merged head: typecheck, lint and build pass; 74 tests fail, all of them the Linux baseline.
+  - **Phase 1: schema v4 and the Windows guard tests.** Wave 1 already built B0 and B6 and reviewed them adversarially. They sit on the branches `build/b0-schema` (head `26f7420`) and `build/b6-guards` (head `2bb122c`); the full reports are outside the repository (see the session handoff). Before integrating:
+    - B0 still has two reds outside its files, to be fixed as part of the unit:
+      - `packaging` is missing from `RESEARCH_STATUS`, `ACTIVE_RESEARCH` and `CANCELLABLE_RESEARCH` in `src/renderer/research-text.ts`;
+      - the v3 status list in `tests/research-contracts.test.ts:115`.
+    - `src/engine/index.ts` still drops `reviewFolders` in `research.recover`; this needs a control-level test.
+    - The `FINISHED` sets in `src/main/collector-plan.ts` and `src/main/collector.ts` lack `packaging`.
+    - B0 is stricter than the spec in two places, both written under "Schema v4 as built": it refuses `RUN_ACTIVE` beside an active job, and a review ends only once its run holds no live engine work. As a result, B2 must append the run's terminal event before the job's edge, in the same transaction.
+    - B6's tests run only on Windows CI. Their directory-guard gap is recorded in the test file. If Windows CI shows a rename over a destination held open by a Node handle succeeding, revisit the brief's U-07/U-10 decision; do not weaken the test.
+  - **Decision D1, needed before B2/B3:** how a review run ends when main's step leaves the review. The spec says `run.failed` carries a public error code, but `ErrorCodeSchema` has none for the review failures. Either map them onto existing codes or add codes to the contract, and name the unit that owns the change. Until this is settled, after a refused freeze or a failed gate the run stays `awaiting_review` until restart.
+  - **Phase 2: Electron fuses (B5).** Branch `build/b5-fuses`, head `858ada4`.
+    - **Decision D2, needed:** turning off `enableNodeCliInspectArguments` stops Playwright from launching the packaged exe. It was reproduced on Linux: the stock exe started in 323 ms; with only that fuse off, the launch timed out after 15 s. So the packaged e2e step would fail on every `workflow_dispatch` run. The options:
+      - (a) keep that fuse on;
+      - (b) drop the packaged e2e step, or make it non-blocking;
+      - (c) build a second, test-only package with the fuse on (needs an ADR, because the e2e step would no longer test the shipped binary).
+    - Also open: pinning `eol=lf` for `electron-builder.yml` and the workflows; `grantFileProtocolExtraPrivileges` stays at Electron's default (enabled) because the renderer loads over `file://`.
+  - **Phase 3:** B2 engine review run and B3 main review supervisor, as in the breakdown above.
+  - **Phase 4:** B4 renderer review UI and B8 research enable dialog.
+  - **Phase 5:** B7 `research.purge`, docs, the four-role review, then `gap-audit` and `break-test`.
+  - **Watch:** draft PR #31 (another session) renames the product to Monnzila and specifies Operate mode. Check whether it has merged before each phase starts; merge `main` into `main-axuse` (never rebase) when it moves.
 - **Open after the October 3 integration (owner: the next research cycle unless the user decides otherwise).**
   - Decisions for the user:
     - `research.purge` semantics. The contract deletes the job; the source plan keeps the metadata. The import team recommends keeping the job and its journal and deleting only the retained ZIP, for finished jobs whose digest no other verification references.
