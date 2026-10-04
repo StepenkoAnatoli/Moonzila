@@ -17,7 +17,7 @@ What it touched: <files and areas; schema, API or configuration changes, or "non
 What was verified (<environment, runtime version>):
 - <command or test file>: <result, counts>
 - Repetition: <test> × <n> consecutive passes
-- Mutations detected: <list>
+- Mutations detected: <test>: fails with <guard> removed, on its own input
 - Baseline: <no failures outside the known set>
 - Research gate: <research project path>: preflight exit <0>, or "not applicable"
 
@@ -40,7 +40,7 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `chore`.
 - Research: <project path>, preflight exit <0>, <n> unknowns CLOSED, <m> KNOWN-UNKNOWN,
   audit snapshot attached; or "not applicable"
 - **Acceptance check:** <the environment or CI job that must confirm what could not be
-  verified here, and why>
+  verified here, and why>. Merge held until every such leg is green.
 
 ## Defects found and fixed during this work
 - <defect>: <root cause, one line>

@@ -38,7 +38,9 @@ evidence to be checked, never a conclusion to be repeated.
 4. **Separate building from reviewing.** No agent reviews its own work. Independent review is the
    main defence against confident but wrong output.
 5. **Evidence over assertion.** "Verified" means a command was run and its result observed. Every
-   new test must be shown to fail without the change it guards.
+   new test must be shown to fail without the change it guards - with the guard the test names
+   removed, on the test's own input. A test that stays green with its guard removed proves
+   nothing, however many other rules happen to catch that input.
 6. **Protect the lead's context.** Delegate wide reading, collection and long-running loops;
    consume summaries. The lead's context is for decisions.
 7. **Report honestly.** State what was not verified, what went wrong, and what remains open.
@@ -199,8 +201,16 @@ failure. Re-measure it whenever the base branch moves.
   - **Breaker:** process termination and restart at each step; races and reordering; retries and
     duplicate delivery; lost or ambiguous responses; malformed, empty and oversized input; limits;
     platform and path differences; alternate working directories; stale build artifacts; slow CI.
-    Every finding requires a reproduction.
-  - **Mutation auditor:** mutates each guard and invariant in the diff; reports surviving mutations.
+    Every finding requires a reproduction. The breaker runs on one host, and that host is one
+    platform: for every new test that touches the filesystem it also reads for what another
+    platform would do - a symlink made outside the project's own guard, a fixed host path such
+    as `/etc/hostname` or `/tmp` as a target, an assertion on a link's stored text (Windows
+    stores a POSIX absolute target resolved against the current drive), separators, case, line
+    endings - and reports each as a finding even though the test is green here.
+  - **Mutation auditor:** mutates each guard and invariant in the diff, and for every new test
+    removes the guard that test names and runs that test alone. A new test that stays green with
+    its guard removed is SURVIVED, whatever else catches its input; the report names the input
+    that would reach the guard. Reports every surviving mutation.
   - **Invariant auditor:** demonstrates each project invariant still holds.
 - **Exit:** every finding triaged and dispositioned (see Finding triage); every S1 fixed and
   re-reviewed.
@@ -223,13 +233,18 @@ failure. Re-measure it whenever the base branch moves.
   - Write commits and the pull request using `references/report-templates.md`, unless the project
     defines its own conventions.
   - Push to the working branch only.
+  - Where the gate has legs the lead's host cannot run (another operating system, another
+    runtime version), list them under "Not verified here" and hold the merge until every leg is
+    green. A leg that goes red after review is a review miss, not noise: fix it with the same
+    discipline as a unit (red-first, the mutation shown, the fix through the gate), record it in
+    the review's dispositions, and never patch the test until the leg happens to pass.
 - **Exit:** the Definition of Done is met; the final report is delivered.
 
 ## Handling sub-agent reports
 
 - Accept a builder report only if it contains: the commit ID; the commands run with their results;
-  for each new test, the mutation or revert that made it fail; and a list of what could not be
-  verified. Otherwise return it, naming the missing items.
+  for each new test, the guard it names and the removal of that guard that made it fail; and a
+  list of what could not be verified. Otherwise return it, naming the missing items.
 - Accept a researcher report only if `preflight` exited 0, `BRIEF.md` exists, and every blocking
   unknown is CLOSED with an evidence row or KNOWN-UNKNOWN with a verification step.
 - Treat any claim without a command and an observed result as unverified.
@@ -248,8 +263,13 @@ Include these in every builder brief.
   only at process or network boundaries, using recorded real outputs where available.
 - Repeat concurrency- and timing-sensitive tests (default: 30 consecutive runs). Any failure is a
   defect, not chance.
-- Demonstrate that each new test detects its defect: mutate or revert the guarded code, observe the
-  failure, then restore.
+- Demonstrate that each new test detects its defect: remove the guard the test names, run the test
+  on its own input, observe the failure, then restore. A test that stays green with its guard
+  removed is not a test, whatever other rule catches its input.
+- Make every filesystem test hold on every CI platform: create links only through the project's
+  own guard (where the guard refuses, take the project's unsupported-platform result rather than
+  linking another way), target the test's scratch directory and never a fixed host path, and
+  assert by lstat and real path, never by a link's stored text.
 - Assert against the system's actual output. An expected value constructed in the test and compared
   with itself proves nothing.
 - Implement externally sourced behaviour from the research brief's claims; do not guess and do not
@@ -262,7 +282,7 @@ Include these in every builder brief.
 
 | Severity | Definition                                                                      | Action                                                             |
 |----------|---------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| S1       | Incorrect results, data loss, security exposure, invariant at risk, flaky test, design built on an unproven external fact | Fix before delivery; issue a fix or research brief; re-review |
+| S1       | Incorrect results, data loss, security exposure, invariant at risk, flaky test, a new test that stays green with its guard removed, design built on an unproven external fact | Fix before delivery; issue a fix or research brief; re-review |
 | S2       | Real defect with limited impact, or a divergence from specification or brief    | Fix now if contained; otherwise record in the plan with rationale  |
 | S3       | Style, naming or minor improvement with no behavioural effect                   | Record under "Recorded for later", or fix if trivial               |
 | Rejected | Not a defect                                                                    | Record the reason in one line                                      |
@@ -275,14 +295,15 @@ under "Kit findings"; they are never worked around by editing the kit's output.
 
 - [ ] All units on the working branch in plan order
 - [ ] Full gate run on the final branch; failures equal the baseline exactly
-- [ ] Every new test shown to fail without its change
+- [ ] Every new test shown to fail with the guard it names removed, on its own input
 - [ ] Concurrency- and timing-sensitive tests repeated without failure
 - [ ] Where the research trigger applied: each research project committed with its ledger,
       `preflight` exit 0, brief present, and every design decision traceable to a claim
 - [ ] Required reviewers completed; all S1 findings fixed and re-reviewed; all others dispositioned
 - [ ] Invariants demonstrated to hold
 - [ ] Documentation and plan updated
-- [ ] Anything verifiable only elsewhere (for example, CI on another platform) explicitly listed
+- [ ] Anything verifiable only elsewhere (for example, CI on another platform) explicitly listed,
+      and every such leg green before a merge
 
 ## Escalation and limits
 
@@ -308,6 +329,20 @@ Deliver in this order, concisely (template in `references/report-templates.md`):
 7. **Recommended next step**
 
 Never describe something as working unless it was checked.
+
+## Recorded lessons
+
+Dated, from runs of this skill. Each one changed a rule above; the entry says which.
+
+- **2026-10-04, Research-Kit PR #236 (merge `a4f6d9d`).** Four reviewers passed a new filesystem
+  test that then failed on the Windows CI leg: it planted a symlink to `/etc/hostname` without the
+  project's symlink guard and compared the link's stored text, which Windows resolves to a drive
+  path. The same test also stayed green with the guard it named removed, because an earlier rule
+  caught its input - the mutation auditor had mutated the diff, not the guard the test named.
+  Rules changed: operating principle 5, the breaker and mutation auditor bullets in Phase 4, the
+  CI-legs bullet in Phase 6, builder report acceptance, the engineering standards for builders, S1
+  in the triage table, and the Definition of Done; in the references, the builder, fix, breaker
+  and mutation auditor briefs, the project facts environments, and the report templates.
 
 ## Environments without sub-agents
 
