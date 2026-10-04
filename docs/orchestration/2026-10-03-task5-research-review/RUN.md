@@ -69,10 +69,10 @@ Briefs: `briefs/p4-*` (builders, unit reviewers, integration reviewers, docs), e
 | Unit | Owns | Status | Commit on main-axuse | Model |
 |------|------|--------|----------------------|-------|
 | B11 reader | `src/main/` reader, `index.ts` case, tests | BUILDING | - | Opus |
-| B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | BUILDING | - | Opus |
+| B4 panel | `ResearchPanel.tsx`, `research-text.ts`, `App.tsx`, tests | INTEGRATED, IN UNIT REVIEW (report `p4-b4-builder-1.md`) | `6019045` (branch `a8a5b42`); lead `runMode` wiring `792e68e` | Opus |
 | B4b card label | `ChangesPanel.tsx`, tests | REVIEWED, P4-1 FIXED (reports `p4-b4b-builder-1.md`, `-2.md`, `p4-b4b-reviewer-1.md`; App.tsx `runMode` wiring with B4) | `f8972f7`, fix `58bafd9` | Opus |
-| B8e policy guard | main route module, `index.ts`, engine re-check, tests | BUILDING | - | Opus |
-| B8 switch | `ResearchPanel.tsx` switch section | BRIEFED (after B4) | - | Opus |
+| B8e policy guard | main route module, `index.ts`, engine re-check, tests | INTEGRATED, IN UNIT REVIEW (report `p4-b8e-builder-1.md`) | `805b97d`, `5e5e35e` (branch `581c19a`, `d85fbdd`) | Opus |
+| B8 switch | `ResearchPanel.tsx` switch section | BUILDING (B4 builder continued) | - | Opus |
 
 ## Reviews (Phase 3)
 | Scope | Role | Model | Status |
@@ -93,8 +93,14 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 | ID | Source | Severity | Finding | Disposition |
 |----|--------|----------|---------|-------------|
 | P4-1 | B4b unit review | S2 (proposed S3; raised: it is the mislabel spec section 2 forbids) | `ChangesPanel.tsx:59` labels a stale card from the current `runMode`; when a research run ends the card briefly reads "Review edit" with Approve enabled | FIXED (`4cfdb3b` on the branch): the card binds its mode at load; red first, lead re-ran 18/18 and the guard removal (new test red) |
+| P4-2 | B8e builder | S3 | each policy update reads every session of the project with `session.read` (messages included) to find active runs | RECORDED: correct; a lighter engine read is a later optimisation |
+| P4-3 | B8e builder | S3 | a replayed `project.policy.update` can now be answered `RUN_ACTIVE` instead of its stored result when a Build run started since | RECORDED for the unit and integration reviewers to judge; no side effect either way |
+| P4-4 | B4 builder | S3 | spec decisions taken by the builder: `approved` history label "Approved review, not checked here"; reader shown while reviewing/packaging; review wording for shared codes | ACCEPTED; to be written into the spec's "Phase 4 as built" |
+| P4-5 | B4 builder | process | the permission system refused the builder's `git cherry-pick f8972f7` ("Logging/Audit Tampering") | NOT worked around by the builder; the lead wired `runMode` itself at integration, as planned before the refusal; reported to the user |
 
 ## Kit findings
+
+
 - none
 
 ## Log
@@ -108,3 +114,4 @@ Phase 3 dispositions are in `docs/specification/research-review.md` "Phase 3 as 
 - 2026-10-04: B4b accepted (key test re-run 6/6; weakening the mode check turns 4 red) and integrated as f8972f7; unit reviewer launched. Its one-line App.tsx wiring went to the B4 builder, who owns App.tsx.
 - 2026-10-04: B4b unit review: activeRun confirmed as the right source; one finding P4-1 (S2), fix sent to the B4b builder.
 - 2026-10-04: P4-1 fixed and integrated; the lead re-ran the tests and the guard removal.
+- 2026-10-04: B4 and B8e accepted and integrated (lead re-ran their tests: 81/81 and 42/42; guard removals: Ready on any reply -> 2 red; main's check removed -> 2 red). Lead wired `runMode` in App.tsx (792e68e) after the B4 builder's cherry-pick was refused. B4 and B8e unit reviewers launched; B4 builder continued with B8.
