@@ -229,3 +229,38 @@ test('the Windows workflow checks the test-only package and runs the packaged e2
   const executables = [...text.matchAll(/MOONALIZA_TEST_EXECUTABLE:\s*'([^']*)'/g)].map(match => match[1]);
   expect(executables).toEqual([`\${{ github.workspace }}/release-e2e/win-unpacked/${productName}.exe`]);
 });
+
+test('a required fuse byte that is none of the documented states is named by its value', async () => {
+  const failure = await check(await executable(HARDENED.slice(0, 3) + 'x' + HARDENED.slice(4))).then(() => undefined, (error: { code: number; stderr: string }) => error);
+  expect(failure).toMatchObject({ code: 1 }); expect(failure?.stderr).toContain('EnableNodeCliInspectArguments expected disabled, found unknown byte 120');
+});
+
+test('with no path the check reads release/win-unpacked/Moonzila.exe from the working directory, in both modes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'moonaliza-fuses-default-')); directories.push(root);
+  await mkdir(join(root, 'release', 'win-unpacked'), { recursive: true });
+  await copyFile(await executable(HARDENED), join(root, 'release', 'win-unpacked', 'Moonzila.exe'));
+  const run = (...args: string[]) => promisify(execFile)(process.execPath, [resolve('scripts/check-fuses.mjs'), ...args], { cwd: root, windowsHide: true, timeout: 15000, maxBuffer: 65536 });
+  expect(JSON.parse((await run()).stdout).path).toBe('release/win-unpacked/Moonzila.exe');
+  // --test-package with no path reads the same shipped exe, which is not a test package.
+  await expect(run('--test-package')).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('release/win-unpacked/Moonzila.exe') });
+});
+
+/** The text of one workflow step, from its `- name:` line to the next step. */
+function stepBlock(workflow: string, name: string) {
+  const text = workflow.replace(/\r\n/g, '\n'); const start = text.indexOf(`      - name: ${name}\n`);
+  if (start < 0) return undefined;
+  const next = text.indexOf('\n      - ', start + 1); return text.slice(start, next < 0 ? undefined : next);
+}
+
+test('the packaging steps cannot be made non-blocking and both packages build unsigned the same way', async () => {
+  const workflow = await readFile(resolve('.github/workflows/windows.yml'), 'utf8');
+  const names = ['Build unsigned development installer', 'Verify packaged Electron fuses', 'Build test-only package for the packaged e2e', 'Verify test-only package fuses', 'Verify packaged desktop workflows'];
+  for (const name of names) { const block = stepBlock(workflow, name); expect(block, name).toBeDefined(); expect(block, name).not.toMatch(/continue-on-error|\|\|\s*true/); }
+  for (const name of [names[0], names[2]]) expect(stepBlock(workflow, name!), name).toMatch(/\n {8}env:\n {10}CSC_IDENTITY_AUTO_DISCOVERY: 'false'/);
+  expect(workflow).not.toMatch(/^ {4}continue-on-error/m);
+});
+
+test('the package keeps asar on, which the asar-only and integrity fuses depend on', async () => {
+  const config = (await readFile(resolve('electron-builder.yml'), 'utf8')).replace(/\r\n/g, '\n');
+  expect(config).toMatch(/^asar: true$/m);
+});

@@ -5,7 +5,8 @@ import fuses from '@electron/fuses';
 // Usage: node scripts/check-fuses.mjs [--test-package] [path-to-exe]  (default release/win-unpacked/Moonzila.exe)
 // --test-package checks the test-only package (`npm run package:win-e2e`): identical except that
 // EnableNodeCliInspectArguments is on, because Playwright's launcher needs --inspect (decision 13;
-// docs/research/2026-10-04-playwright-fused-electron, U-1). Any other difference fails it.
+// docs/research/2026-10-04-playwright-fused-electron, U-1). Of the five, any other difference fails it;
+// fuses outside the five, and everything else in the package, are not compared.
 // Evidence: docs/research/2026-10-03-electron-fuses/research/BRIEF.md ("Decision").
 const { getCurrentFuseWire, FuseV1Options, FuseVersion } = fuses;
 // Fuse byte values from Electron's documented wire format ('0', '1', 'r'); @electron/fuses does not export them.
