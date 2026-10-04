@@ -18,7 +18,7 @@ const approved = (patch: Partial<Research> = {}) => job({ status: 'approved', re
 const PURGE_NOT_ALLOWED = 'Only finished research can have its stored corpus deleted: approved, failed or cancelled.';
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes; }); return { promise, resolve }; }
 function bridge({ jobs = [] as Research[], routes = {} as Record<string, (params: Record<string, unknown>) => unknown> } = {}) {
-  const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const calls: Array<{ method: string; params: Record<string, unknown> }> = []; let listener: ((research: Research) => void) | undefined;
   const api = {
     async invoke(method: string, params: Record<string, unknown> = {}) {
       calls.push({ method, params });
@@ -30,9 +30,9 @@ function bridge({ jobs = [] as Research[], routes = {} as Record<string, (params
       throw new Error('Unexpected route');
     },
     onEvent: () => () => {},
-    onResearch: () => () => {},
+    onResearch(callback: (research: Research) => void) { listener = callback; return () => { listener = undefined; }; },
   };
-  return { api, calls, purges: () => calls.filter(call => call.method === 'research.purge') };
+  return { api, calls, purges: () => calls.filter(call => call.method === 'research.purge'), notify: (research: Research) => act(() => listener!(research)) };
 }
 const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
 const openConfirmation = async () => { fireEvent.click(await screen.findByRole('button', { name: 'Delete stored corpus' })); return screen.getByRole('group', { name: PURGE_TEXT.title }); };
@@ -72,7 +72,8 @@ test('the confirmation lists the three disclosures; Cancel closes it without a c
   let group = await openConfirmation();
   expect(purges()).toEqual([]);
   expect(group.textContent).toContain('The brief and evidence of this research can no longer be read.');
-  expect(group.textContent).toContain('"Unverified"');
+  // A failed job has no reviewed package, so the Unverified line is not part of its confirmation.
+  expect(group.textContent).not.toContain('Unverified');
   expect(group.textContent).toMatch(/record stays/);
   expect(within(group).getAllByRole('button').map(button => button.textContent)).toEqual(['Cancel', 'Delete stored corpus']);
   // While the confirmation is open, the only Delete stored corpus button is its confirm button.
@@ -91,8 +92,8 @@ test('the confirmation lists the three disclosures; Cancel closes it without a c
 test.each([
   [{ removed: 2, keptShared: 0, keptBusy: false }, 'Removed 2 stored packages.'],
   [{ removed: 1, keptShared: 0, keptBusy: false }, 'Removed 1 stored package.'],
-  [{ removed: 0, keptShared: 3, keptBusy: false }, 'Removed 0 stored packages. 3 kept because another job uses them.'],
-  [{ removed: 1, keptShared: 1, keptBusy: true }, 'Removed 1 stored package. 1 kept because another job uses them. Unused packages were kept because research is running.'],
+  [{ removed: 0, keptShared: 3, keptBusy: false }, 'Removed 0 stored packages. 3 stored packages were kept because another research job uses them.'],
+  [{ removed: 1, keptShared: 1, keptBusy: true }, 'Removed 1 stored package. 1 stored package was kept because another research job uses it. Unused packages were kept because research is running.'],
   [{ removed: 4, keptShared: 0, keptBusy: true }, 'Removed 4 stored packages. Unused packages were kept because research is running.'],
 ])('the result %o reads "%s"', async (result, line) => {
   // Guard: each clause follows its own field (mutation: drop the keptShared or keptBusy clause, or always show them).
@@ -108,7 +109,7 @@ test('a reply outside the result schema is not reported as a deletion', async ()
   const { api } = bridge({ jobs: [job()], routes: { 'research.purge': () => ({ removed: 1, keptShared: 0 }) } });
   render(<ResearchPanel api={api} project={project} />);
   confirm(await openConfirmation());
-  expect((await screen.findByRole('alert')).textContent).toBe(PURGE_TEXT.unexpected);
+  expect((await screen.findByTestId('research-purge-refusal')).textContent).toBe(PURGE_TEXT.unexpected);
   expect(screen.queryByTestId('research-notice')).toBeNull();
 });
 
@@ -117,7 +118,8 @@ test('a refusal shows the public message once and is not retried', async () => {
   const { api, purges } = bridge({ jobs: [job({ status: 'cancelled' })], routes: { 'research.purge': () => { throw new Error(PURGE_NOT_ALLOWED); } } });
   render(<ResearchPanel api={api} project={project} />);
   confirm(await openConfirmation());
-  expect((await screen.findByRole('alert')).textContent).toBe(PURGE_NOT_ALLOWED);
+  expect((await screen.findByTestId('research-purge-refusal')).textContent).toBe(PURGE_NOT_ALLOWED);
+  expect(screen.getByTestId('research-purge-refusal').getAttribute('role')).toBe('alert');
   await settle(); await settle();
   expect(purges()).toHaveLength(1);
   expect(screen.queryByTestId('research-notice')).toBeNull();
@@ -154,6 +156,45 @@ test('after a purge an approved job is checked again, never Ready from the check
 });
 
 test('no purge text says approve or authorize', () => {
-  const texts = [PURGE_TEXT.open, PURGE_TEXT.title, PURGE_TEXT.confirm, PURGE_TEXT.unexpected, ...PURGE_TEXT.points];
+  const texts = [PURGE_TEXT.open, PURGE_TEXT.title, PURGE_TEXT.confirm, PURGE_TEXT.unexpected, PURGE_TEXT.unverified, ...PURGE_TEXT.points];
   for (const text of texts) expect(text).not.toMatch(/authori[sz]e|approv/i);
+});
+
+test('the Unverified line is shown only for the current approved job, worded for a package another job keeps', async () => {
+  // Guard: the line is passed only for the current approved job (mutation: show it in every confirmation).
+  expect(PURGE_TEXT.unverified).toBe('If this research passed review and no other research uses its stored package, it reads "Unverified" instead of "Ready" from then on.');
+  render(<ResearchPanel api={bridge({ jobs: [approved(), approved({ id: 'r0', topic: 'Older approved', createdAt: '2026-10-01T00:00:00Z' })] }).api} project={project} openConversation={() => {}} />);
+  const section = await screen.findByRole('region', { name: 'Current research' });
+  fireEvent.click(await within(section).findByRole('button', { name: 'Delete stored corpus' }));
+  expect(within(section).getByRole('group', { name: PURGE_TEXT.title }).textContent).toContain(PURGE_TEXT.unverified);
+  const history = (await screen.findByText(/^Earlier research/)).closest('details')!;
+  fireEvent.click(within(history).getByRole('button', { name: 'Delete stored corpus' }));
+  expect(within(history).getByRole('group', { name: PURGE_TEXT.title }).textContent).not.toContain('Unverified');
+  for (const status of ['failed', 'cancelled'] as const) {
+    cleanup();
+    render(<ResearchPanel api={bridge({ jobs: [job({ status })] }).api} project={project} />);
+    expect((await openConfirmation()).textContent).not.toContain('Unverified');
+  }
+});
+
+test('a refused history purge stays beside its row when an automatic error follows, until dismissed', async () => {
+  // Guard: the refusal has its own state (mutation: send it through the panel's shared error line, which the
+  // profile.list failure below overwrites).
+  const collecting = job({ id: 'r2', status: 'collecting', topic: 'Running one', createdAt: '2026-10-04T00:00:00Z' });
+  const { api, purges, notify } = bridge({ jobs: [collecting, job({ status: 'cancelled', topic: 'Cancelled one' })], routes: {
+    'research.purge': () => { throw new Error(PURGE_NOT_ALLOWED); },
+    'profile.list': () => { throw new Error('Model profiles are unavailable right now.'); },
+  } });
+  render(<ResearchPanel api={api} project={project} />);
+  const history = (await screen.findByText(/^Earlier research/)).closest('details')!;
+  const row = within(history).getByText('Cancelled one').closest('li')!;
+  fireEvent.click(within(row).getByRole('button', { name: 'Delete stored corpus' }));
+  confirm(within(row).getByRole('group', { name: PURGE_TEXT.title }));
+  await waitFor(() => expect(within(row).getByTestId('research-purge-refusal').textContent).toBe(PURGE_NOT_ALLOWED));
+  notify({ ...collecting, revision: 3, status: 'collected' });
+  await waitFor(() => expect(screen.getByText('Model profiles are unavailable right now.')).toBeTruthy());
+  expect(within(row).getByTestId('research-purge-refusal').textContent).toBe(PURGE_NOT_ALLOWED);
+  fireEvent.click(within(row).getByRole('button', { name: 'Dismiss' }));
+  expect(screen.queryByTestId('research-purge-refusal')).toBeNull();
+  expect(purges()).toHaveLength(1);
 });
