@@ -1,0 +1,445 @@
+[
+ {
+  "folder": "/home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats",
+  "unknowns": [
+   {
+    "id": "U-01",
+    "question": "Gemini native API: generateContent / streamGenerateContent routes (v1 or v1beta, model path), how SSE is selected (alt=sse?), which header carries the key (x-goog-api-key or only ?key=), chunk schema and how the stream ends (any [DONE]-like marker)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/api",
+     "https://ai.google.dev/api/generate-content"
+    ]
+   },
+   {
+    "id": "U-02",
+    "question": "Gemini function calling: tool declaration (functionDeclarations), functionCall part (name, args as JSON object, id or not), parallel calls, whole vs fragmented in a stream, how functionResponse goes back (role, matched by id or name)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/gemini-api/docs/function-calling",
+     "https://ai.google.dev/api/generate-content"
+    ]
+   },
+   {
+    "id": "U-03",
+    "question": "Gemini thought signatures: which parts carry thoughtSignature, must it be returned unchanged across function-calling turns, what happens if missing (400 or degraded), how it travels on the OpenAI-compatible endpoint",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/gemini-api/docs/thought-signatures",
+     "https://ai.google.dev/gemini-api/docs/function-calling"
+    ]
+   },
+   {
+    "id": "U-04",
+    "question": "Gemini finishReason values, prompt-level block signal (promptFeedback.blockReason), usageMetadata field names in a stream and which chunk carries them",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/api/generate-content"
+    ]
+   },
+   {
+    "id": "U-05",
+    "question": "Gemini over-window status/body (INVALID_ARGUMENT message), documented retryable codes, countTokens request and response",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/gemini-api/docs/troubleshooting",
+     "https://ai.google.dev/api/tokens"
+    ]
+   },
+   {
+    "id": "U-06",
+    "question": "Gemini OpenAI-compatibility endpoint: base URL and auth, streamed tool calls with index and id and finish_reason tool_calls, acceptance of max_completion_tokens and stream_options.include_usage, documented limitations / beta status",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/gemini-api/docs/openai",
+     "https://ai.google.dev/gemini-api/docs/thought-signatures"
+    ]
+   },
+   {
+    "id": "U-07",
+    "question": "Anthropic Messages: required headers (x-api-key, anthropic-version value, content-type), POST /v1/messages, mandatory max_tokens, SSE event sequence and delta types (text_delta, input_json_delta, thinking_delta, signature_delta), where usage arrives",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://platform.claude.com/docs/en/api/overview",
+     "https://platform.claude.com/docs/en/api/messages/create",
+     "https://platform.claude.com/docs/en/build-with-claude/streaming"
+    ]
+   },
+   {
+    "id": "U-08",
+    "question": "Anthropic tool_use / tool_result blocks (ids, input object, tool_use_id, is_error, placement), parallel tool_use, stop_reason values incl. pause_turn, refusal, model_context_window_exceeded; thinking-block continuation rule reused from docs/handoff/work/research E-03 (2026-09-24, capture lines 337-389), only re-confirmed if the new pages state it",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://platform.claude.com/docs/en/api/messages/create",
+     "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons",
+     "https://platform.claude.com/docs/en/build-with-claude/streaming"
+    ]
+   },
+   {
+    "id": "U-09",
+    "question": "Anthropic over-window (400 'prompt is too long' vs stop_reason model_context_window_exceeded; input+max_tokens over window), 413 request_too_large, 529 overloaded_error, error events mid-stream after HTTP 200; count_tokens reused from 2026-09-28-open-gaps",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://platform.claude.com/docs/en/api/errors",
+     "https://platform.claude.com/docs/en/build-with-claude/context-windows",
+     "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons"
+    ]
+   },
+   {
+    "id": "U-10",
+    "question": "Anthropic OpenAI SDK compatibility endpoint: exists, base URL, streamed tool calls, usage in stream, max_completion_tokens accepted, ignored/unsupported fields, production caveats",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://platform.claude.com/docs/en/api/openai-sdk"
+    ]
+   },
+   {
+    "id": "U-11",
+    "question": "OpenAI Responses: streaming event types (output_item, output_text.delta, function_call_arguments.delta/done, completed, incomplete, failed, error), status and incomplete_details.reason, usage fields incl. reasoning/cached tokens, over-window behaviour (truncation disabled -> 400); function-call item shapes already in the 2026-09-29-streaming-tool-calls capture",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://platform.openai.com/docs/api-reference/responses",
+     "https://developers.openai.com/api/docs/guides/streaming-responses"
+    ]
+   },
+   {
+    "id": "U-12",
+    "question": "OpenAI Responses reasoning items: must they be sent back with function_call_output; store:false + include reasoning.encrypted_content; previous_response_id vs resending (needs store:true?); do reasoning tokens count against max_output_tokens",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://developers.openai.com/api/docs/guides/reasoning",
+     "https://platform.openai.com/docs/api-reference/responses"
+    ]
+   },
+   {
+    "id": "U-13",
+    "question": "DeepSeek thinking mode with tool calls: must reasoning_content be sent back within one question and dropped between questions; does reasoning count against max_tokens; does it accept max_completion_tokens and stream_options.include_usage; streamed tool calls with index and id",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://api-docs.deepseek.com/guides/thinking_mode",
+     "https://api-docs.deepseek.com/api/create-chat-completion"
+    ]
+   },
+   {
+    "id": "U-14",
+    "question": "Mistral chat completions: max_completion_tokens vs max_tokens, stream_options.include_usage or other stream usage, streamed tool-call deltas with index and id, finish_reason tool_calls, tool-call id constraints in replayed history",
+    "status": "OPEN",
+    "plannedSources": [
+     "search: \"Mistral AI API chat completions reference max_tokens stream tool_calls usage\" (prefer docs.mistral.ai, up to 2 pages)"
+    ]
+   },
+   {
+    "id": "U-15",
+    "question": "OpenRouter chat completions: accepted fields (max_completion_tokens/max_tokens, stream_options.include_usage, tools), streamed tool calls with index and id, usage in stream, SSE comment/keep-alive lines, mid-stream error reporting, reasoning details passed back on tool turns",
+    "status": "OPEN",
+    "plannedSources": [
+     "search: \"OpenRouter API reference chat completions parameters streaming usage tool calls\" (prefer openrouter.ai, up to 2 pages)"
+    ]
+   },
+   {
+    "id": "U-16",
+    "question": "Rate-limit signals for Anthropic (429 rate_limit_error, retry-after, anthropic-ratelimit-* headers) and Gemini (429 RESOURCE_EXHAUSTED, retry delay in body); OpenAI 429+Retry-After reused from 2026-09-29-context-overflow, Gemini spend-limit 429 reused from 2026-10-02 pricing corpus",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://platform.claude.com/docs/en/api/rate-limits",
+     "https://platform.claude.com/docs/en/api/errors",
+     "https://ai.google.dev/gemini-api/docs/troubleshooting"
+    ]
+   },
+   {
+    "id": "U-17",
+    "question": "Ollama cloud models behind a loopback Ollama: can 127.0.0.1 serve models that forward prompts to ollama.com, how they are named/listed, how a client detects or forbids them (remote_host/remote_model, /api/status cloud.disabled, OLLAMA_NO_CLOUD); source-level mechanism reused from docs/handoff/work/research v0.34.4 types.go/config.go/routes.go and context-overflow main captures",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://docs.ollama.com/cloud"
+    ]
+   },
+   {
+    "id": "U-18",
+    "question": "Measurement no page owns: does each OpenAI-compatible endpoint (Gemini, Anthropic, DeepSeek, Mistral, OpenRouter) accept Moonzila's exact body (inference.ts:153-155) and stream a tool call OpenAIAccumulator accepts; exact over-window status/body per vendor incl. the three native APIs; SSE framing (CRLF, comment lines, keep-alives)",
+    "status": "KNOWN-UNKNOWN",
+    "plannedSources": [
+     "day-one live requests with the user's key on the collector machine (steps written in the Evidence cell); nearest owner pages already planned: https://ai.google.dev/gemini-api/docs/openai, https://platform.claude.com/docs/en/api/openai-sdk, https://api-docs.deepseek.com/api/create-chat-completion"
+    ]
+   }
+  ],
+  "mapRows": {
+   "covered": 18,
+   "dismissed": 3,
+   "gap": 0
+  },
+  "dryRun": "$ node \"$HOME/.agents/research-kit/bin/research.mjs\" --plan research/plan.json --dry-run   (EXIT 0)\ntransport: firecrawl-cli-anonymous - the CLI is installed but NOT authenticated - anonymous, capped per IP\nsearch:    http-keyless - firecrawl-cli-anonymous cannot search without a key - searching with http-keyless\nfallback:  none - if credits run out the run stops and says what is left (--fallback to switch to browser or http-keyless instead)\n  would search \"Mistral AI API chat completions reference max_tokens stream tool_calls usage\" on http-keyless, keeping up to 2 page(s)\n  would search \"OpenRouter API reference chat completions parameters streaming usage tool calls\" on http-keyless, keeping up to 2 page(s)\n  skipped   https://ai.google.dev/api - would collect (first capture)\n  skipped   https://ai.google.dev/api/generate-content - would collect (first capture)\n  ... (21 lines total, one per plan URL, every one \"would collect (first capture)\": 7 ai.google.dev, 8 platform.claude.com, 1 platform.openai.com, 2 developers.openai.com, 2 api-docs.deepseek.com, 1 docs.ollama.com)\n  skipped   https://docs.ollama.com/cloud - would collect (first capture)\n\nrun\n---\ndepth      deep (budget 25 scrapes)\ncollected  0\ncached     0\nfailed     0\nspent      0 (budget consumed: collected + failed)\nat most    25 page fetch(es) and 2 search(es) on http-keyless - on Firecrawl at least 1 credit a page; a cached page costs nothing\n\nsearches   0 on http-keyless\n\n$ node \"$HOME/.agents/research-kit/bin/research.mjs\" --status   (EXIT 0)\ncorpus: captures on disk 0, evidence rows 0, ledger entries 0 (0 scrape, 0 failed)\nplan: depth deep - up to 25 scrapes a run; queries / urls 2 / 21; refresh-days 30\nmachine: role collector; transport firecrawl-cli-anonymous (the CLI is installed but NOT authenticated - anonymous, capped per IP); search transport http-keyless; searches (this project) 0 in the last hour, 0 this month\n\n$ node \"$HOME/.agents/research-kit/bin/decompose.mjs\" --dry-run --recipe api-integration   (EXIT 0)\ncompound topic: searching each of its 5 parts (ADR-0085) - 5 \"would search ... on http-keyless\" lines; wrote research/MAP.md: 13 rows (9 universal + 4 from recipe api-integration), 0 candidate pages.\n\n$ node \"$HOME/.agents/research-kit/bin/preflight.mjs\"   (EXIT 1)\nfail discovery-contract/status x17 (U-01..U-17 \"OPEN\")\nfail provenance/ledger-missing - research/raw/.fetches.jsonl is absent\nwarn collection-attempts/unknown-attempted - U-18 is KNOWN-UNKNOWN with no recorded fetch attempt\nverdict: FAIL 18 blocking, 1 warning(s), 10 passing [evidencePolicy=pluralist] (subtopic-coverage passes)",
+  "estimatedCredits": 29,
+  "preflightNonOpenIssues": [
+   "fail provenance/ledger-missing: research/raw/.fetches.jsonl is absent. Expected before the first fetch, because the collector writes the ledger. It clears on collection.",
+   "warn collection-attempts/unknown-attempted: U-18 is KNOWN-UNKNOWN with no recorded fetch attempt. Its Evidence cell names three planned URLs (ai.google.dev/gemini-api/docs/openai, platform.claude.com/docs/en/api/openai-sdk, api-docs.deepseek.com/api/create-chat-completion), so the warning clears once those pages are in the ledger.",
+   "No other failure or warning. subtopic-coverage passes (21 MAP rows, every universal dimension present). discovery-contract build-intent passes. The run wrote no file outside the project folder: git status shows only my folder as new, plus the lead's orchestration folder and a sibling researcher's docs/research/2026-10-05-coding-model-shortlist, which I did not touch."
+  ],
+  "reusedFromExistingCorpora": [
+   "docs/handoff/work/research E-03 (https://platform.claude.com/docs/en/build-with-claude/thinking, retrieved 2026-09-24). Anthropic thinking blocks must be passed back complete and unmodified with tool results (capture lines 337-389). signature_delta streaming is at lines 190-251. Not re-collected; U-08 re-confirms it only if the new pages state it.",
+   "docs/research/2026-09-28-open-gaps E-04: Anthropic count_tokens.",
+   "docs/research/2026-09-28-open-gaps E-05: Chat Completions usage arrives only on the last chunk, with stream_options.include_usage.",
+   "docs/research/2026-09-29-streaming-tool-calls E-06 and E-07: Chat Completions streamed tool calls (index-keyed deltas, id and name on the first delta, string argument fragments, finish_reason tool_calls).",
+   "docs/research/2026-09-29-streaming-tool-calls, capture raw/2026-09-29-function-calling-openai-api-openai-ec4f8c98.md lines 852-854 and 2561-2600: Responses function-call streaming (output_item.added with a function_call item carrying call_id, then function_call_arguments.delta and .done), and 'reasoning items returned with tool calls must also be passed back'. This is in the capture but not in any E-row there, so the new Responses pages confirm it.",
+   "docs/research/2026-09-29-context-overflow E-11 (OpenAI error-codes guide): over-window is a 400 with no dedicated code, and 429 carries Retry-After (capture lines 128-133).",
+   "docs/research/2026-10-02-model-pricing-and-ranking E-06: Gemini 429 RESOURCE_EXHAUSTED on spend-based limits (capture line 128), plus the tier structure.",
+   "docs/research/2026-10-02-model-pricing-and-ranking E-04: DeepSeek OpenAI-format and Anthropic-format base URLs, tool-call support, 1M context, 384K maximum output.",
+   "docs/research/2026-09-29-streaming-tool-calls E-05 and docs/research/2026-09-28-open-gaps E-03: Ollama /v1 supports stream_options.include_usage and tools, but not tool_choice.",
+   "docs/handoff/work/research captures of Ollama v0.34.4 api/types.go, types/model/config.go and server/routes.go (2026-09-27), and docs/research/2026-09-29-context-overflow captures of main api/types.go and server/routes.go (2026-09-29). Together they show: remote_host and remote_model on show, list and chat responses; CloudStatus in the status response; cloud-model requests proxied off the machine; a 403 when cloud is disabled. Only the user-facing owner page, docs.ollama.com/cloud, is planned for U-17."
+  ],
+  "risks": [
+   "The transport in this shell is not authenticated. The dry run and --status both report transport firecrawl-cli-anonymous and search http-keyless. If research.mjs runs without the user's key supplied inline, as RUN.md describes, it collects anonymously and searches keyless. That gives unmetered captures, which warn as transport-not-metered under pluralist and fail under strict. Run collection only with the key present, then confirm the first ledger entry says transport firecrawl-cli.",
+   "The budget is used exactly. Depth deep caps a run at 25 scrapes: 21 plan URLs plus up to 2 pages from each of 2 searches. A failed URL (404) still takes its slot and probably a credit. The estimate is about 29 credits: 25 pages plus 2 searches at about 2 credits each, under the 40 cap. There are no spare slots for re-tries in the same run.",
+   "Some slugs were not seen in any existing capture and come from my own knowledge (cutoff June 2026). Each one that is wrong costs a credit for a 404 or a redirect. They are: ai.google.dev/api, ai.google.dev/api/tokens, gemini-api/docs/troubleshooting, gemini-api/docs/thought-signatures, gemini-api/docs/openai, platform.claude.com/docs/en/api/overview, /api/errors, /api/openai-sdk, api-docs.deepseek.com/api/create-chat-completion and docs.ollama.com/cloud. These slugs were seen as links inside existing captures: messages/create, streaming, handling-stop-reasons, context-windows, api/rate-limits, the two developers.openai.com guides, platform.openai.com/docs/api-reference/responses and deepseek guides/thinking_mode.",
+   "platform.openai.com/docs/api-reference/responses probably redirects to the whole Responses resource page on developers.openai.com. The chat equivalent captured as one page with about 1,400 links. The capture will be large, and it may also hold the streaming events, which would make the streaming-responses guide partly redundant.",
+   "Mistral and OpenRouter are reached by search because their current documentation paths could not be named with confidence: Mistral's docs appear restructured under docs.mistral.ai/en/studio-api/..., and OpenRouter may have reorganised. The ranked results may include a secondary page instead of the owner reference, leaving U-14 or U-15 secondary-only.",
+   "Some facts may be documented nowhere: exact over-window bodies, whether Gemini's OpenAI layer accepts max_completion_tokens and stream_options.include_usage, and whether Mistral or DeepSeek ignore max_completion_tokens. Those cells would then move to U-18 (KNOWN-UNKNOWN, live request on day one), which needs a key per vendor. Which vendors the user holds keys for is still an open intent question for the lead.",
+   "Found while planning, for the design. If U-03 shows Gemini thought signatures are mandatory on function-calling turns, the existing openai-compatible kind would break against Gemini on the second tool turn, because it drops any signature extra field. If U-13 shows DeepSeek's thinking mode requires reasoning_content back on tool turns, the same applies there. In either case an adapter alone is not enough, and the unused wire-state plumbing (contracts.ts:38-44, store.ts:227-238) has to be wired.",
+   "Out of scope here and named to the lead, with no corpus collecting them yet: vendors' data-use and retention terms (MAP D-4, needed before any cloud vendor is offered under cloud-allowed), and per-model context windows and output caps (MAP T-8).",
+   "kit.json records kitPath as the literal string '$HOME/.agents/research-kit', because the --kit value was single-quoted as instructed. The other corpora record the absolute /root/.agents/research-kit. Preflight and research.mjs ran fine with it."
+  ]
+ },
+ {
+  "folder": "/home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist",
+  "unknowns": [
+   {
+    "id": "U-01",
+    "question": "Anthropic API: current Claude model ids and aliases, context windows, max output tokens (Fable 5.1, Opus 5.5, Sonnet 5.5)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://platform.claude.com/docs/en/models/overview"
+    ]
+   },
+   {
+    "id": "U-02",
+    "question": "OpenAI gpt-6.1-sol and gpt-6-luna: ids and snapshots, context window, max output, tool calling, supported endpoints (Chat Completions or Responses only)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+     "https://developers.openai.com/api/docs/models/gpt-6-luna"
+    ]
+   },
+   {
+    "id": "U-03",
+    "question": "gemini-3.8-flash: model code, input and output token limits, function calling, stable or preview status",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash"
+    ]
+   },
+   {
+    "id": "U-04",
+    "question": "Mistral Medium 3.5 (Mistral's pick for coding): API id, context window, output limit, function calling",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://docs.mistral.ai/models/model-cards/mistral-medium-3-5-26-04"
+    ]
+   },
+   {
+    "id": "U-05",
+    "question": "What the Berkeley Function Calling Leaderboard reports (version, last-update date, scores) for the U-01..U-04 cloud models, DeepSeek and the small open models, and which it omits. Evidence of what the benchmark reports, not proof a model works in Moonzila",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://gorilla.cs.berkeley.edu/leaderboard.html"
+    ]
+   },
+   {
+    "id": "U-06",
+    "question": "Does each shortlisted model make valid tool calls through Moonzila's own request shape and accumulators at the app's context? (a measurement: the moonaliza-coding-v1 lab receipt, whose runner src/models/qualify.ts does not exist)",
+    "status": "KNOWN-UNKNOWN",
+    "plannedSources": [
+     "https://gorilla.cs.berkeley.edu/leaderboard.html (reached-for only; day-one step: 20+ fixed tool-call prompts per model through complete() or the managed Ollama path, count terminal tool-call turns whose arguments parse)"
+    ]
+   },
+   {
+    "id": "U-07",
+    "question": "Gemini API: how Google uses and retains prompts and responses on the unpaid (free) tier versus paid services (training, human review, logging period)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ai.google.dev/gemini-api/terms"
+    ]
+   },
+   {
+    "id": "U-08",
+    "question": "OpenAI API: training use by default, retention, zero data retention, any data-sharing free-token program",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://developers.openai.com/api/docs/guides/your-data"
+    ]
+   },
+   {
+    "id": "U-09",
+    "question": "Anthropic API: training use of commercial inputs and outputs, and retention period",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://www.anthropic.com/legal/commercial-terms",
+     "search: Anthropic API how long are inputs and outputs retained commercial customers data retention (prefer privacy.claude.com, privacy.anthropic.com, support.claude.com)"
+    ]
+   },
+   {
+    "id": "U-10",
+    "question": "DeepSeek API: use of inputs (training), storage location and retention",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html",
+     "https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html"
+    ]
+   },
+   {
+    "id": "U-11",
+    "question": "Mistral API: training use on free and paid plans, and retention",
+    "status": "OPEN",
+    "plannedSources": [
+     "search: Mistral AI API does Mistral use my inputs to train models free plan paid plan data retention (prefer help.mistral.ai, legal.mistral.ai)"
+    ]
+   },
+   {
+    "id": "U-12",
+    "question": "Ollama library small (<= ~4B) tool-capable tags for Qwen3.5, Gemma 4, Granite 4, Phi-4-mini: tag names, download sizes, context, capability tags, any cloud tag, stated minimum Ollama version (Qwen3 sizes reused from handoff E-17)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://ollama.com/library/qwen3.5",
+     "https://ollama.com/library/gemma4",
+     "https://ollama.com/library/granite4",
+     "https://ollama.com/library/phi4-mini"
+    ]
+   },
+   {
+    "id": "U-13",
+    "question": "Latest Ollama release vs the pinned v0.34.4, and release notes since then that a candidate needs (a bump re-qualifies every configuration)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://github.com/ollama/ollama/releases"
+    ]
+   },
+   {
+    "id": "U-14",
+    "question": "Each small candidate's licence from its own licence file or model card, and whether it lets the signed catalogue point to or re-host the weights; resolves whether pinned qwen3:0.6b is Apache 2.0 or the 'Qwen License' a secondary source claims",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://huggingface.co/Qwen/Qwen3-0.6B/blob/main/LICENSE",
+     "https://ai.google.dev/gemma/docs/core/model_card_4",
+     "licence layer on the four U-12 Ollama pages"
+    ]
+   },
+   {
+    "id": "U-15",
+    "question": "Which CPU instruction-set variants pinned Ollama v0.34.4 builds for Windows x64 (x64, SSE4.2, AVX, AVX2+), and whether a CPU without AVX is served (handoff E-11 Windows requirements name none)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/ml/backend/ggml/ggml/src/CMakeLists.txt"
+    ]
+   },
+   {
+    "id": "U-16",
+    "question": "Which instruction-set extensions (SSE4.1/4.2, AVX, AVX2) the user's Intel Pentium 4405U supports",
+    "status": "OPEN",
+    "plannedSources": [
+     "search: Intel Pentium Processor 4405U specifications instruction set extensions (prefer intel.com)"
+    ]
+   },
+   {
+    "id": "U-17",
+    "question": "Peak memory per small candidate on the pinned runtime, CPU only, at the catalogue's num_ctx",
+    "status": "KNOWN-UNKNOWN",
+    "plannedSources": [
+     "https://ollama.com/library/qwen3.5 (reached-for only: download sizes); day-one step: on the target machine, pinned v0.34.4 with num_gpu 0, load each tag at the catalogue num_ctx, one prompt, read GET /api/ps (size, size_vram 0, context_length) and peak working set, record with tag digest"
+    ]
+   },
+   {
+    "id": "U-18",
+    "question": "Speed per small candidate on the Pentium 4405U on the pinned runtime: load time, first token, tokens/s (machine receipt needs load <= 90 s, first token <= 30 s, >= 4 tok/s)",
+    "status": "KNOWN-UNKNOWN",
+    "plannedSources": [
+     "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/ml/backend/ggml/ggml/src/CMakeLists.txt (reached-for only); day-one step: same run as U-17, record load_duration, prompt_eval_duration, eval_count, eval_duration from the final /api/chat chunk for a ~1,000-token prompt and 200-token reply"
+    ]
+   },
+   {
+    "id": "U-19",
+    "question": "Does OpenRouter's public models API publish per-model price, context length, max completion tokens and tool support machine-readably, without a key?",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://openrouter.ai/api/v1/models"
+    ]
+   },
+   {
+    "id": "U-20",
+    "question": "Licence or terms of LiveBench's and BFCL's scores, and whether they permit shipping the scores inside an app as a ranking input (code licence vs score data licence)",
+    "status": "OPEN",
+    "plannedSources": [
+     "https://github.com/LiveBench/LiveBench",
+     "https://raw.githubusercontent.com/ShishirPatil/gorilla/main/LICENSE"
+    ]
+   }
+  ],
+  "mapRows": {
+   "covered": 20,
+   "dismissed": 9,
+   "gap": 0
+  },
+  "dryRun": "$ node \"$HOME/.agents/research-kit/bin/decompose.mjs\" --dry-run --recipe library-selection   (EXIT=0)\ncompound topic: searching each of its 6 parts, not the whole topic (ADR-0085)\n  would search \"current API model ids with context and output limits\" on http-keyless, keeping up to 8 result(s)\n  ... (6 \"would search\" lines in all, on http-keyless)\nwrote research/MAP.md: 13 rows (9 universal + 4 from recipe library-selection), 0 candidate pages.\n\n$ node \"$HOME/.agents/research-kit/bin/research.mjs\" --plan research/plan.json --dry-run   (EXIT=0)\ntransport: firecrawl-cli-anonymous - the CLI is installed but NOT authenticated - anonymous, capped per IP\nsearch:    http-keyless - firecrawl-cli-anonymous cannot search without a key - searching with http-keyless\nfallback:  none - if credits run out the run stops and says what is left (--fallback to switch to browser or http-keyless instead)\n  would search \"Anthropic API how long are inputs and outputs retained commercial customers data retention\" on http-keyless, keeping up to 1 page(s)\n  would search \"Mistral AI API does Mistral use my inputs to train models free plan paid plan data retention\" on http-keyless, keeping up to 1 page(s)\n  would search \"Intel Pentium Processor 4405U specifications instruction set extensions\" on http-keyless, keeping up to 1 page(s)\n  skipped   https://platform.claude.com/docs/en/models/overview - would collect (first capture)\n  skipped   https://developers.openai.com/api/docs/models/gpt-6.1-sol - would collect (first capture)\n  ... (22 \"skipped ... - would collect (first capture)\" lines in all, one per plan URL; none skipped as duplicate)\n  skipped   https://raw.githubusercontent.com/ShishirPatil/gorilla/main/LICENSE - would collect (first capture)\n\nrun\n---\ndepth      deep (budget 25 scrapes)\ncollected  0\ncached     0\nfailed     0\nspent      0 (budget consumed: collected + failed)\nat most    25 page fetch(es) and 3 search(es) on http-keyless - on Firecrawl at least 1 credit a page; a cached page costs nothing\n\nsearches   0 on http-keyless\n\n$ node \"$HOME/.agents/research-kit/bin/research.mjs\" --status   (EXIT=0)\ncaptures on disk 0; evidence rows 0; ledger entries 0 (0 scrape, 0 failed)\ndepth deep - up to 25 scrapes a run; queries / urls 3 / 22; refresh-days 30\nrole collector; transport firecrawl-cli-anonymous (NOT authenticated); search transport http-keyless; searches (this project) 0 in the last hour, 0 this month\n\n$ node \"$HOME/.agents/research-kit/bin/preflight.mjs\"   (EXIT=1)\nFAIL  18 blocking, 3 warning(s), 10 passing  [evidencePolicy=pluralist]\n  17 x fail discovery-contract/status (U-01..U-05, U-07..U-16, U-19, U-20 are OPEN - expected at plan stage)\n  fail provenance/ledger-missing - research/raw/.fetches.jsonl is absent\n  warn collection-attempts/unknown-attempted - U-06, U-17, U-18 (KNOWN-UNKNOWN with no recorded fetch attempt)\n  passing: citations, transport-provenance, gate-integrity, unknown-closure (0 closed, 3 known-unknown), subtopic-coverage (29 subtopics, every universal dimension present), capture-completeness, evidence-supersession, hygiene, corpus-shape, corroboration",
+  "estimatedCredits": 31,
+  "preflightNonOpenIssues": [
+   "fail provenance/ledger-missing: research/raw/.fetches.jsonl is absent. This is expected before the first collection, because the collector writes the ledger. It is not a plan defect.",
+   "warn collection-attempts/unknown-attempted for U-06, U-17 and U-18 (KNOWN-UNKNOWN with no recorded fetch attempt). Each Evidence cell names a planned URL: the BFCL leaderboard for U-06, ollama.com/library/qwen3.5 for U-17, and the v0.34.4 ggml CMakeLists.txt for U-18. The warnings should clear once those pages are in the ledger.",
+   "subtopic-coverage passes: 29 rows, none GAP, no DISMISSED row without a reason, every COVERED row cites an existing U-##.",
+   "Environment, not a preflight line: in this session the dry run and status report transport firecrawl-cli-anonymous (NOT authenticated) and search http-keyless. The real collection must run only with the user's key loaded the way RUN.md describes. Without the key it would collect anonymously, and searches would go through http-keyless instead of Firecrawl (Firecrawl search is about 2 credits each)."
+  ],
+  "reusedFromExistingCorpora": [
+   "docs/research/2026-10-02-model-pricing-and-ranking U-01/U-02 (E-01..E-05): cloud prices and free tiers, and the cost-at-volume formula. Not re-collected (MAP D-7, T-3).",
+   "docs/research/2026-10-02-model-pricing-and-ranking U-03 (E-09 LiveBench, E-18 SWE-bench): coding ranks. Its raw LiveBench capture also holds Sonnet 5.5, Gemini 3.8 Flash and GPT-6 Luna rows at lines 44, 54 and 69 (MAP T-4).",
+   "docs/research/2026-10-02-model-pricing-and-ranking U-06 (E-06): Gemini rate-limit tiers (MAP D-3).",
+   "docs/research/2026-10-02-model-pricing-and-ranking raw/2026-10-02-models-pricing-deepseek-api-docs-deepseek-8eb12065.md lines 24-46: DeepSeek ids (deepseek-flash, deepseek-v4-pro), 1M context, 384K max output, tool calls, retired legacy names. Reused instead of re-collected (MAP T-2). The facts sit in that corpus's raw capture and ledger, not in an E-row, so the brief must cite the path.",
+   "docs/research/2026-10-02-model-pricing-and-ranking raw library capture: the list of tool-tagged small families used to choose the shortlist, and the source line numbers for the families left out (MAP T-14). It also supplied the OpenAI, Gemini, Mistral and Anthropic page URLs the plan copies.",
+   "docs/handoff/work/research E-17 (2026-09-26): Qwen3 0.6b/1.7b/4b download sizes (523MB/1.4GB/2.5GB) (U-12 note).",
+   "docs/handoff/work/research E-11 (2026-09-26): Ollama Windows system requirements, which name no CPU instruction set (U-15 note).",
+   "docs/handoff/work/research E-15/E-16: the pinned v0.34.4 runtime identity and envconfig (context only, not re-collected).",
+   "docs/research/2026-09-29-streaming-tool-calls, 2026-09-29-ollama-v1-stream-chunking, 2026-09-29-context-overflow: the wire-format and overflow facts for the two implemented kinds. Context for U-06's measurement and not re-collected. Native kinds and auth are left to the sibling corpus docs/research/2026-10-05-provider-wire-formats (MAP D-2)."
+  ],
+  "risks": [
+   "Some URLs were not copied from an existing capture but built from the owner's URL pattern, and each costs a credit even if it 404s: https://ai.google.dev/gemma/docs/core/model_card_4, the two cdn.deepseek.com policy pages, raw.githubusercontent.com/ollama/ollama/v0.34.4/ml/backend/ggml/ggml/src/CMakeLists.txt (the path at that tag is not verified), and the gpt-6.1-sol and gpt-6-luna model pages (the pattern comes from a captured /api/docs/models/gpt-live-1 link). The plan holds 9 credits for a search to replace any of these that fails.",
+   "The plan is exactly 25 pages, the full budget of one deep run. Anything added later, such as the Ollama licence blob pages the model pages reveal, needs a second run within the remaining ~9 credits.",
+   "U-14 relies partly on the licence layer shown on ollama.com/library/<model>. Whether the main model page shows that layer, rather than only each tag page, is not verified. If it does not, the Qwen3.5, Granite 4 and Phi-4-mini licences need the second pass (the licence blobs, or the owners' Hugging Face cards).",
+   "Intel ARK may block automated reads, so the U-16 search might keep a non-intel.com page, which would be secondary.",
+   "OpenRouter's /api/v1/models is a large JSON response and may be captured partial. A CLOSED unknown that rests only on a partial capture is flagged.",
+   "BFCL may be stale or may not list today's cloud models (Claude 5.5, GPT-6, Gemini 3.8). That is itself a finding, but it would leave tool-calling evidence for current models to U-06's measurement.",
+   "For U-20, a code LICENSE (LiveBench repo, Gorilla repo) may not cover the published score data. The brief must keep the two apart and not read an Apache code licence as permission for the scores.",
+   "Contradiction to watch in U-14: a secondary source (2026-10-02 bestllmfor capture, line 103) says most Qwen3 sizes use a 'Qwen License' with a 100M-MAU threshold. The Qwen3-0.6B LICENSE file settles it for the pinned model only.",
+   "Local scope: on the user's current PC, free RAM (1,235,644,416 B) is below the 2 GiB reserve, so the local shortlist cannot be offered there whatever the evidence says (select.ts:15, :69). The Pentium 4405U may also lack AVX (U-16), which is unverified until collected.",
+   "Orientation gap: a permission denial stopped me reading the full text of docs/research/2026-10-02-model-pricing-and-ranking/research/BRIEF.md and EVIDENCE.md (the classifier flagged reading the saved tool-output copy under /root/.claude). I read that corpus's DISCOVERY.md, its plan.json, the lead's discovery-1.json summary of its E-rows, and its raw captures by grep. The E-row numbers I cite for reuse come from those sources, not from EVIDENCE.md itself.",
+   "Nothing was collected, committed or pushed. The only files written are in the project folder: the scaffold, plus research/MAP.md, research/DISCOVERY.md and research/plan.json. research/raw holds only .gitkeep. The sibling docs/research/2026-10-05-provider-wire-formats was read for scope only, never modified."
+  ]
+ },
+ {
+  "verdict": "FIX",
+  "fixes": [
+   "Sources for U-14 (Mistral) and U-15 (OpenRouter) are search results only, and the kit types every search hit as S. lib/collect.mjs:191 sets DEFAULT_SOURCE_TYPE='S', and research-run.mjs calls a hit 'context until an agent reads the page and promotes it'. So no planned P source stands behind either row. The OpenRouter preference is the whole host 'openrouter.ai', which also matches openrouter.ai/blog and the model-page '/api' tabs. The only OpenRouter capture Moonzila has is a blog post (2026-10-02 pricing corpus, openrouter.ai/blog/tutorials/free-llm-apis-compared). Fix: (a) in plan.json, change 'openrouter.ai' to 'openrouter.ai/docs' in both the query's prefer and the global prefer list. parsePreference supports host plus path. (b) In U-14 and U-15, state that a hit is promoted to P only if it is the vendor's own API reference or guide, and that the row cannot close on anything else.",
+   "U-15 asks six things: accepted fields, tool-call deltas, stream usage, SSE comment lines, mid-stream errors, and reasoning_details on tool turns. OpenRouter documents these across at least four pages (parameters, streaming, tool calling, reasoning/usage), and perQuery 2 keeps two. Split the query in two: (1) streaming, SSE comments, mid-stream errors and usage; (2) tool calling and reasoning_details. Do not just add the second query: 21 plan URLs plus 6 search pages is 27 against the cap of 25, the last two pages would be skipped, and the search would still be paid. Pick one: (a) run the main run with --only on the first two queries, then a second run with --only on the third. The plan URLs are cached by then, so the second run costs about 1 search plus 2 pages, about 33 credits in all, still under 40. (b) Drop https://platform.claude.com/docs/en/api/overview to free one slot. The x-api-key and anthropic-version headers are header parameters on messages/create, and 413 is covered by api/errors.",
+   "Some sub-questions are unlikely to be stated on any page. They are not routed to U-18, so their rows may never close: U-01, whether an alt=sse stream ends with no [DONE] marker (a fact about something absent); U-02, whether a functionCall part arrives whole or in fragments in streamGenerateContent; U-04, which chunk carries usageMetadata and whether counts are cumulative; U-14, Mistral's constraints on tool-call ids replayed in history; U-16, Gemini's retry delay in the 429 body (troubleshooting does not show RetryInfo). Fix in two parts. (1) Reword each of these rows so it closes on what the owner page says, and name U-18 for the rest. (2) Extend U-18's day-one steps: stream native Gemini with one tool, log every chunk, and record when the functionCall arrives, the usageMetadata on each chunk, and how the stream ends; replay a Mistral history that carries the tool-call id Mistral returned; use a free-tier Gemini key past its RPM limit and record the 429 body. Also make U-18 step 3 (CRLF, ':' comment lines, ping events) name the three native streams explicitly, not only the compatible endpoints.",
+   "The U-17 reuse cites Ollama capture files with no rows or line numbers, and the facts it relies on mostly sit in no E-row anywhere. In docs/handoff/work/research, E-19 is about /api/version and E-22 about chat options. The rows that do state part of it are E-29 (types/model/config.go: remote_host and remote_model) and E-16 (envconfig: OLLAMA_NO_CLOUD). The rest exists only in captures: CloudStatus at types.go:877; remote_host and remote_model at types.go:532-535, 677, 758-759 and 852-853; the 403 when cloud is disabled at routes.go:337-338 and 1404-1405. The same holds for the context-overflow copies on main. The docs.ollama.com/api/tags and /api/ps captures (E-12 and E-13 in docs/handoff/work/research) show no cloud fields, so docs.ollama.com/cloud may be the only page in this corpus, and it may not explain how a client detects a cloud model. Fix: cite E-29, E-16 and those line ranges in 'Reused, not re-collected' and in U-17. Then say what closes the detection half if the cloud page is silent: a corpus-path citation with line numbers, or recapturing raw.githubusercontent.com/ollama/ollama/main/api/types.go here for 1 credit.",
+   "MAP D-4 and T-8 are dismissed, and one listed risk says no corpus collects vendor data-use terms or per-model windows. That is wrong. The sibling docs/research/2026-10-05-coding-model-shortlist plans data use and retention as its U-07..U-11 (Google, OpenAI, Anthropic, DeepSeek, Mistral). It plans ids, context windows and output caps as U-01..U-04 (its MAP T-1). Fix: rewrite both dismissal reasons to name that project and those rows, and delete the risk. Also delete the kitPath risk. lib/core.mjs projectKitPath only spells commands, and '$HOME/.agents/research-kit' is exactly the homeCommand spelling (ADR-0050).",
+   "Twelve planned slugs appear in no Moonzila capture: ai.google.dev/api, ai.google.dev/api/generate-content, ai.google.dev/api/tokens, gemini-api/docs/function-calling, gemini-api/docs/thought-signatures, gemini-api/docs/troubleshooting, gemini-api/docs/openai, platform.claude.com/docs/en/api/overview, platform.claude.com/docs/en/api/errors, platform.claude.com/docs/en/api/openai-sdk, api-docs.deepseek.com/api/create-chat-completion, and docs.ollama.com/cloud. All of them match how these vendors structure their docs, and I expect them to resolve. But the run uses 25 of 25 slots with none spare, so each miss costs a credit and loses a fact. Fix: name a fallback for each in plan.json notes. For DeepSeek, use the confirmed link api-docs.deepseek.com/guides/tool_calls (pricing capture line 32, the owner page for tool calls). Optionally, the lead can check the twelve for status only (no capture kept, nothing used as evidence) before the paid run.",
+   "'Questions for the human: None' does not match the plan. U-18's day-one steps need a vendor API key for each of Gemini, Anthropic, DeepSeek, Mistral and OpenRouter, and the researcher lists this as open. Rule 2 allows a question about accounts. Fix: add 'Which of these vendors' API keys will you provide for the day-one probes?'. In U-18, say that a vendor without a key stays KNOWN-UNKNOWN and is marked unmeasured in the compatibility table. Two more U-18 corrections. Replace 'on the collector machine': these are vendor-API probes run by the builder, not Firecrawl collection. The over-window probe at 1.5 times the window is about 1.5M tokens (about 6 MB) for the 1M-window Gemini and DeepSeek models, close to Moonzila's own 8 MiB request cap (src/main/inference.ts:156). Use the smallest-window model per vendor, and note that a vendor that silently truncates would bill the whole prompt."
+  ]
+ },
+ {
+  "verdict": "FIX",
+  "fixes": [
+   "U-14 has the licence owner's page for only 2 of the 5 small families. Qwen3-0.6B (HF LICENSE) and Gemma 4 (model card) are planned. Qwen3.5 (0.8b/2b/4b), Granite 4 (350m/1b/3b) and Phi-4-mini rest only on the Ollama 'licence layer'. Ollama redistributes the weights and does not own the licence. The main library page shows the layers of the default (:latest) tag, not of the small tags, and the excerpt is truncated, so it cannot carry the redistribution clause. Qwen has shipped different licences for different sizes before. Qwen3 1.7b and 4b are also candidates (U-12 reuses their sizes from handoff E-17), but the secondary claim in bestllmfor line 103 covers 'most Qwen3 sizes', and the 0.6B LICENSE settles 0.6B only. Fix: (1) say in DISCOVERY U-14 that the Ollama layer cannot close it. (2) Add huggingface.co/Qwen/Qwen3-1.7B/blob/main/LICENSE and .../Qwen3-4B/blob/main/LICENSE, or drop those sizes from the shortlist. (3) In the second run, fetch the owner's licence or model card for each small Qwen3.5 size, for Granite 4 and for Phi-4-mini. Copy each link from the Ollama page captures rather than building it. (4) If the Gemma 4 card names the Gemma Terms of Use rather than Apache 2.0, add https://ai.google.dev/gemma/terms, because the card does not hold the redistribution clause.",
+   "U-11 (Mistral) has no named owner page. It rests on one search with perQuery 1, and a page kept from a search is recorded as type S (DEFAULT_SOURCE_TYPE = 'S', research-kit/lib/collect.mjs:191) until someone promotes it. The 'free plan / paid plans' wording is also consumer framing. The 2026-10-02 Mistral capture shows this: its plan table (pricing-mistral capture line 202, 'Model training | Opt-out') covers the Le Chat/Vibe consumer plans, not the API. Fix: reword U-11 and the query to the API, i.e. inputs and outputs sent to Mistral's API or Studio tiers, training use and retention. Promote the kept page only if it is on legal.mistral.ai, help.mistral.ai or docs.mistral.ai. Otherwise spend a reserve credit on the Mistral legal page that the kept page or the mistral.ai footer links to.",
+   "Remove the plan-level 'prefer' list from plan.json, or empty it. research-run.mjs:436 merges it into every query's own prefer list, so in all three searches github.com, huggingface.co, ollama.com, openrouter.ai, deepseek.com and the rest get the same +10 as the owner host. rankCandidate also adds +4 to any URL containing 'docs'. As a result a github.com/.../docs/... page scores 14 and beats an Intel ARK product page (10) in the U-16 search, and with perQuery 1 only that one page is kept. Keep only the per-query prefer lists.",
+   "U-16 (Pentium 4405U instruction sets) is search-only, and Intel ARK may block automated reads, which the researcher also flags. Add a fallback to the DISCOVERY Evidence cell: if no intel.com page is kept, mark U-16 KNOWN-UNKNOWN with a measurement on the target machine. Start the pinned Ollama v0.34.4, load any small tag, and read the CPU feature flags (SSE4.2/AVX/AVX2) that the runner writes to server.log at load. Sysinternals Coreinfo is an alternative. Record the result with the CPU name. Never fall back on a third-party spec site.",
+   "U-15: ml/backend/ggml/ggml/src/CMakeLists.txt only defines the CPU variant list, behind GGML_CPU_ALL_VARIANTS. That file cannot show whether the pinned Windows build turns that option on, or whether it ships the baseline x64/SSE4.2 variants a non-AVX CPU needs. Ollama's top-level build file sets that. Add https://raw.githubusercontent.com/ollama/ollama/v0.34.4/CMakeLists.txt (+1 credit). The tag and the raw URL pattern are already proven by handoff E-16, which fetched envconfig/config.go at v0.34.4; only the ggml subpath is unverified. Also add a day-one cross-check to U-15: list lib/ollama/ggml-cpu-*.dll inside the pinned Windows ZIP, whose SHA-256 handoff E-15 records.",
+   "U-20 is framed so that no planned page can answer it. The LiveBench repo and the raw Gorilla LICENSE are code licences. The 2026-10-02 livebench.ai capture contains no licence, terms or citation text (checked with grep). Fix: reword U-20 to 'what licence or terms, if any, does each publisher attach to its published scores (as distinct from its code or question set)'. Replace github.com/LiveBench/LiveBench with the page that publishes LiveBench's score data, copying the link from a capture rather than guessing it. Read BFCL's terms from its own leaderboard capture (already planned for U-05). Write the fallback into the Evidence cell: if no page attaches terms to the scores, U-20 is KNOWN-UNKNOWN, and the day-one step is to ask the maintainers in writing or to ship links and attribution instead of the numbers.",
+   "Fix the guessed-URL list in the plan notes and the risk list, because it is wrong in both directions. ai.google.dev/gemma/docs/core/model_card_4 is not guessed: the 2026-10-02 Gemini pricing capture links it at line 1268. These URLs are not linked from any capture and are missing from the list: https://www.anthropic.com/legal/commercial-terms, https://gorilla.cs.berkeley.edu/leaderboard.html, raw.githubusercontent.com/ShishirPatil/gorilla/main/LICENSE (the branch name 'main' is assumed), huggingface.co/Qwen/Qwen3-0.6B/blob/main/LICENSE, github.com/LiveBench/LiveBench, and openrouter.ai/api/v1/models (the openrouter capture, line 249, holds only the /api/v1 base). For the pattern-built gpt-6.1-sol and gpt-6-luna pages, the fallback on a 404 should be the copied index https://developers.openai.com/api/docs/models (OpenAI pricing capture line 33), which gives the real slugs, rather than a search.",
+   "Client-side rendering and partial-capture risks need a written resolution in DISCOVERY. (a) The BFCL leaderboard table is loaded by script. If the capture holds only a placeholder (as benchr did in 2026-10-02 E-19), record that as the U-05 finding and leave tool-calling evidence to U-06, rather than searching for a mirror. (b) The OpenRouter /api/v1/models JSON is large and may be graded partial. State that U-19 closes only if the captured records visibly show the fields the question names: price, context length, max completion tokens and supported parameters. Otherwise use a reserve credit for OpenRouter's own API reference page for listing models.",
+   "U-07: the Gemini API terms say only that paid-service prompts are logged 'for a limited period'. The number of days may sit on a separate Google abuse-monitoring or usage-policy page. If the terms capture gives no period, spend a reserve credit on the page that the terms capture links for that topic, copied from the capture rather than guessed, before U-07 can claim a retention period.",
+   "U-12/U-13: if an Ollama model page states no minimum version, nothing in the plan proves the tag runs on v0.34.4. Add a day-one step: `ollama pull <tag>` on the pinned v0.34.4, recording whether the registry refuses it as needing a newer Ollama. This matters for gemma4 in particular. The 2026-10-02 library capture shows gemma4 'Updated 2 days ago' (line 85), which is after v0.35.0 was released on 2026-09-28 (github capture lines 587-589).",
+   "MAP T-14 and T-15 give only a budget reason ('to stay inside the 40-credit cap') while 9 credits are held in reserve. That is not a reason about the candidates. Ground each exclusion in evidence already on disk. Example: gpt-6-astra has the same LiveBench coding score as gpt-6.1-sol (80.4) at about 5x the cost per task ($0.736 vs $0.142; LiveBench capture lines 29-30), and Gemini 3.1 Pro is a preview. Then deal with three cases the evidence argues against. (1) Gemini 3.7 Flash is free on the same tier (E-03) and beats 3.8 Flash on LiveBench coding (78.9 vs 72.5) and overall (78.8 vs 75.8) (capture lines 38 and 54). Add https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash, which is copied from the Gemini pricing capture line 215, or state why 3.8 Flash alone is offered. (2) qwen2.5-coder is the only small code-specific family with a tools tag, and Devstral is Mistral's coding model; give each a substantive reason or include it. (3) granite4.1 (updated 4 months ago) and granite4.2 (updated 1 month ago) are newer than granite4 (11 months ago); say whether granite4 is kept for its sub-1B sizes.",
+   "MAP S-4 (breaking-change history) cites U-01, U-02 and U-03, but the planned model-overview pages do not hold breaking-change or deprecation history, so that coverage is nominal. Cite U-13 alone, and for the cloud side either add a reason (ids are pinned in a dated table; DeepSeek's retired legacy names are already captured) or dismiss it with that reason.",
+   "Correct the reuse citations. 2026-10-02 E-04 does hold the DeepSeek ids (deepseek-flash, deepseek-v4-pro) and the 1M context. Only the 384K maximum output and tool-call support rest solely on the raw capture's lines 24-46. Cite E-04 in DISCOVERY 'Already decided' and MAP T-2, and drop the claim that the facts are 'not in an E-row'. I read 2026-10-02 EVIDENCE.md, and E-01..E-06, E-09 and E-18 say what the plan reuses them for, so the researcher's orientation gap is closed. The brief should note that E-18 (SWE-bench) is type S, a steel.dev mirror.",
+   "U-18: the v0.34.4 CMakeLists.txt is listed as 'reached for' a speed fact it cannot hold, which clears the collection-attempts warning without making a real attempt. Either accept the warning, or point the day-one step at the field definitions it reads. docs.ollama.com/api/chat (load_duration, eval_duration) is already captured in docs/research/2026-09-28-open-gaps (raw generate-a-chat-message-ollama-ollama-03d080ba.md), so cite that capture by path.",
+   "Budget: one deep run collects at most 25 pages (research-run.mjs:370, min(maxScrapes, 25)), and this plan already fills it. Re-total after these fixes: the 31 credits planned now, plus about 1 (top-level CMakeLists), 2 (Qwen3 1.7B/4B licences), 3-5 (Qwen3.5/Granite/Phi owner licences) and 1 (Gemini 3.7 Flash), with the conditional pages on top. That runs to roughly 38-42, so it must be planned as two runs and capped at 40. Fund the U-14 owner licences and the U-15 top-level file first; Gemini 3.7 Flash and the conditional pages come after. Update the plan.json notes and the DISCOVERY 'Budget' line to match."
+  ]
+ }
+]

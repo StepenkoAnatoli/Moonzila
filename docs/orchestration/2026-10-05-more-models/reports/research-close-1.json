@@ -1,0 +1,333 @@
+[
+ {
+  "unknowns": [
+   {
+    "id": "U-01",
+    "status": "CLOSED",
+    "answer": "E-01: claude-fable-5-1, claude-opus-5-5, claude-sonnet-5-5 (alias = id), each 1M context and 128K max output; claude-haiku-4-5-20251001 (alias claude-haiku-4-5) 200K/64K, retirement not sooner than 2026-10-15; tool use stated for all current models. E-15 (OpenRouter) agrees on 1000000/128000 as a second reading only."
+   },
+   {
+    "id": "U-02",
+    "status": "CLOSED",
+    "answer": "E-02: gpt-6.1-sol (only snapshot), 1,050,000 context, 128,000 max output, tool calling only on the Responses API; Chat Completions serves it without tool calling. E-03: gpt-6-luna (only snapshot), same limits, Chat Completions function calling only with reasoning_effort none. Neither has a free tier; E-15 agrees on limits. No page 404'd, so the catalog fallback did not fire."
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED",
+    "answer": "E-04, E-05, E-06: gemini-3.8-flash, gemini-3.7-flash, gemini-3.5-flash-lite, each Stable, input 1,048,576, output 65,536, function calling Supported (thinking levels low/medium/high on 3.8 and 3.7). E-15 agrees."
+   },
+   {
+    "id": "U-04",
+    "status": "CLOSED",
+    "answer": "E-07: mistral-medium-3-5 (raw HTML of the same fetch also lists mistral-medium-3 and mistral-medium-latest), v26.04 GA, 256k context, Function Calling on /v1/chat/completions and /v1/conversations. Max output is not stated on Mistral's card; OpenRouter's 209715 (E-15) is not Mistral's statement, so it stays a day-one probe."
+   },
+   {
+    "id": "U-05",
+    "status": "CLOSED",
+    "answer": "E-08: BFCL V4, last updated 2026-04-12, commit f7cf735, 109 rows. It lists none of the shortlisted cloud models or DeepSeek V4, and none of Qwen3.5, Gemma 4, Granite 4.0 1B or micro, or Phi-4-mini. Only Qwen3-0.6B (FC) 23.93 at rank 92 and Granite-4.0-350m (FC) 18.98 at rank 103 appear. These are what BFCL reports, not proof the models work in Moonzila."
+   },
+   {
+    "id": "U-06",
+    "status": "KNOWN-UNKNOWN",
+    "answer": "Unchanged: a measurement no page owns. E-08 confirms BFCL has no row for any shortlisted cloud model. Day one is a fixed set of 20 or more tool-call prompts through Moonzila's own inference path, per model; for gpt-6-luna, at reasoning_effort none (E-03)."
+   },
+   {
+    "id": "U-07",
+    "status": "CLOSED",
+    "answer": "E-09: the unpaid quota is used to provide, improve and develop Google products and ML, with human review, and Google says not to send sensitive or confidential data. On paid (billing-enabled Cloud project), data is not used to improve products and is logged 'for a limited period of time' for abuse enforcement, with no days stated. Search grounding stores data for 30 days. In the EEA, Switzerland and the UK the paid data terms apply to all tiers. Google's Abuse monitoring page is pending as a refinement."
+   },
+   {
+    "id": "U-08",
+    "status": "CLOSED",
+    "answer": "E-10: API data is not used for training unless the customer opts in. Abuse-monitoring logs are kept up to 30 days. /v1/chat/completions keeps no application state and is ZDR-eligible; /v1/responses keeps it 30 days by default or when store is true. ZDR and MAM need OpenAI's approval. A free-token sharing program is not stated on the page."
+   },
+   {
+    "id": "U-09",
+    "status": "CLOSED",
+    "answer": "E-11: Anthropic may not train models on Customer Content. E-17 (platform.claude.com, promoted to P): prompts and outputs are not retained by default. Exceptions: Covered Models (Fable 5.1, Mythos 5.1, Fable 5, Mythos 5) require 30-day retention, are not available under ZDR unless authorised, and are named on lines 45 and 140. Batch is retained 29 days; flagged content up to 2 years. Standard retention outside ZDR/HIPAA is deferred to an uncollected privacy.claude.com article. The priority-4 trigger did not fire."
+   },
+   {
+    "id": "U-10",
+    "status": "CLOSED",
+    "answer": "E-12: the Open Platform terms do not state whether DeepSeek trains on API inputs; they send personal information to the privacy policy, and PRC law governs. E-13: User Input (prompts, files) is used to train and improve DeepSeek's technology; opt-out is listed only as a right that 'may be available'; data is kept for as long as the account exists and stored in the PRC. Moonzila treats this policy as applying to API traffic."
+   },
+   {
+    "id": "U-11",
+    "status": "OPEN",
+    "answer": "E-14: the planned terms URL returned Mistral's legal-centre index, which says nothing on training, opt-out or retention of API inputs, so the trigger fired. It stays OPEN pending two pages that index links: Commercial Terms of Service (line 25) and Privacy Policy (line 36). If they don't settle it, it becomes KNOWN-UNKNOWN and Mistral is not offered for private code."
+   },
+   {
+    "id": "U-12",
+    "status": "CLOSED",
+    "answer": "E-18..E-21: qwen3.5 0.8b 1.2-1.3GB, 2b 2.7-3.1GB, 4b 3.3-4.0GB, all 256K; gemma4 e2b 4.6-7.5GB and e4b 6.6-9.5GB, both 128K, plus cloud tags gemma4:cloud and gemma4:31b-cloud; granite4 350m 708MB/32K, 1b 3.3GB/128K, 3b 2.1GB/128K; phi4-mini 3.8b 2.5GB/128K. All have tools. The only stated minimum version is 0.5.13 (phi4-mini, E-21); the others are 'not stated'. Day one: run ollama pull on v0.34.4, gemma4 first."
+   },
+   {
+    "id": "U-13",
+    "status": "CLOSED",
+    "answer": "E-22: latest stable is v0.35.1 (29 Sep); pinned v0.34.4 (23 Sep) is two stable releases behind; v0.40.0-rc3 is a pre-release. The notes since the pin name no support or fix a candidate needs on x64. Gemma 4 support predates the pin; phi4-mini needs 0.5.13 (E-21)."
+   },
+   {
+    "id": "U-14",
+    "status": "OPEN",
+    "answer": "Settled from publishers' own text: qwen3:0.6b Apache 2.0 (E-23), not the claimed Qwen License; qwen3.5 0.8b, 2b and 4b Apache 2.0 (E-24..E-26); Gemma 4 Apache 2.0 (E-27); Granite-4.0-1B Apache 2.0 (E-28); Phi-4-mini MIT (E-29). Redistribution is allowed with licence and notices (E-23, E-29). OPEN only for granite4:350m and granite4:3b: the 1B card states its licence for itself only, so the priority-8 trigger fired. Two pages are pending."
+   },
+   {
+    "id": "U-15",
+    "status": "OPEN",
+    "answer": "E-30: at v0.34.4 the root CMakeLists.txt sets no CPU variant option and vendors no ggml. GGML comes from llama-server, built from llama/server/CMakeLists.txt via FetchContent of a pinned llama.cpp. OPEN pending that file at the tag. Fallback is KNOWN-UNKNOWN with a day-one runner-log reading on the Pentium 4405U. The release workflow is linked from no capture, so it was not requested."
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED",
+    "answer": "E-31 (Intel ARK, promoted to P): the Pentium 4405U lists Instruction Set Extensions SSE4.1 and SSE4.2 only; AVX and AVX2 are not listed. Day-one confirmation is the runner's system-info line."
+   },
+   {
+    "id": "U-17",
+    "status": "KNOWN-UNKNOWN",
+    "answer": "Unchanged: peak memory is owned by no page; Ollama's sizes (E-18..E-21) are not peak memory. Day one: on the target, read /api/ps plus peak working set at num_gpu 0 and the catalogue num_ctx."
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN",
+    "answer": "Unchanged: speed on this CPU is on no page. The collection-attempts warning is accepted, as DISCOVERY states. Day one: record load_duration, prompt_eval and eval timings from the final /api/chat chunk."
+   },
+   {
+    "id": "U-19",
+    "status": "CLOSED",
+    "answer": "E-15: the public endpoint, fetched with no OpenRouter credential, returned 466 model objects. Each has per-token pricing, context_length, top_provider.max_completion_tokens and supported_parameters including tools. It is usable as a cross-check only: ids are OpenRouter's, and its tools/output figures can disagree with vendors (E-02, E-07)."
+   },
+   {
+    "id": "U-20",
+    "status": "KNOWN-UNKNOWN",
+    "answer": "Neither the LiveBench dataset card (E-16) nor the BFCL page (E-08) states terms for its scores; BFCL's License column is model licences. Day one: ask both in writing, BFCL via the discord its page names. Until then the app ships only a dated link."
+   }
+  ],
+  "pendingConditional": [
+   {
+    "url": "https://legal.mistral.ai/terms/commercial-terms-of-service",
+    "unknown": "U-11",
+    "copiedFrom": "research/raw/2026-10-05-welcome-to-our-legal-center-mistral-ccfe0364.md line 25",
+    "why": "Priority 5 trigger fired: the planned https://legal.mistral.ai/terms/terms-of-service returned the legal-centre index (E-14), which says nothing on training use, opt-out or retention of API inputs. Mistral's own commercial (API customer) terms should settle training use, opt-out, and free-credit versus pay-as-you-go use. A copied link replaces the planned search (about 3 credits)."
+   },
+   {
+    "url": "https://legal.mistral.ai/terms/privacy-policy",
+    "unknown": "U-11",
+    "copiedFrom": "research/raw/2026-10-05-welcome-to-our-legal-center-mistral-ccfe0364.md line 36",
+    "why": "Same fired trigger (priority 5). Retention of API inputs and outputs is the half of U-11 most likely stated in the privacy policy rather than the commercial terms."
+   },
+   {
+    "url": "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/llama/server/CMakeLists.txt",
+    "unknown": "U-15",
+    "copiedFrom": "research/raw/2026-10-05-cmakelists-txt-githubusercontent-52b730b8.md lines 48 and 73 (the path llama/server/CMakeLists.txt as the capture states it); the prefix is the tag's raw URL from that capture's own url, line 2. The full URL does not appear as a link in any capture: it is built only from the stated path, as instructed.",
+    "why": "Priority 6. The planned ml/backend/ggml/ggml/src/CMakeLists.txt answered 404. E-30 shows ggml is not vendored at v0.34.4 and is fetched by llama-server via this file. This file should show the pinned llama.cpp revision and the GGML CPU options (GGML_CPU_ALL_VARIANTS, GGML_NATIVE, AVX flags), which decide whether a non-AVX build exists for the SSE4.2-only Pentium 4405U (E-31)."
+   },
+   {
+    "url": "https://huggingface.co/ibm-granite/granite-4.0-350m",
+    "unknown": "U-14",
+    "copiedFrom": "research/raw/2026-10-05-berkeley-function-calling-leaderboard-bf-berkeley-c62226da.md line 140",
+    "why": "Priority 8 trigger fired: granite4:350m is on the shortlist (E-20), and IBM's 1B card (E-28) states its Apache 2.0 licence for that model only, not for the Granite 4.0 family. Ollama's 'Apache 2.0' (E-20) is not the publisher's statement."
+   },
+   {
+    "url": "https://github.com/ibm-granite/granite-4.0-language-models",
+    "unknown": "U-14",
+    "copiedFrom": "research/raw/2026-10-05-granite4-ollama-706f044c.md line 229",
+    "why": "Priority 8 trigger fired for granite4:3b (micro). No capture links an HF granite-4.0-micro repository; the Ollama granite4 page names this IBM repository for the Granite 4.0 models, including 3b/micro. Without it, granite4:3b leaves the shortlist."
+   },
+   {
+    "url": "https://ai.google.dev/gemini-api/docs/usage-policies",
+    "unknown": "U-07",
+    "copiedFrom": "research/raw/2026-10-05-gemini-api-additional-terms-of-service-g-google-a56c52f5.source.html line 999 (site-nav link labelled 'Abuse monitoring'; the raw HTML of the E-09 fetch)",
+    "why": "Priority 10 trigger fired: the Gemini terms (E-09) say paid-tier prompts are logged 'for a limited period of time' with no number of days. This replaces the #PLACEHOLDER entry with the abuse-monitoring link the terms capture itself gives. U-07 is already CLOSED without a number; this page only refines it."
+   }
+  ],
+  "failedCapturesHandled": [
+   "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/ml/backend/ggml/ggml/src/CMakeLists.txt (HTTP 404, refused, not in the corpus). E-30 (root CMakeLists at v0.34.4) explains it: ggml is not vendored at the tag but fetched by llama-server via llama/server/CMakeLists.txt. That path, as the capture states it, is reported as the U-15 pendingConditional; U-15 stays OPEN, with the day-one runner-log reading as the fallback.",
+   "https://legal.mistral.ai/terms/terms-of-service returned 200 but was Mistral's legal-centre index, not a terms document (E-14). I recorded it honestly as such. U-11 stays OPEN, and the commercial-terms and privacy-policy links copied from that capture replace the planned search.",
+   "Priority-9 conditional (.github/workflows/release.yaml at v0.34.4): the trigger fired, because the root CMakeLists does not settle the Windows CPU variants, but no capture links that file. It was not requested and not guessed.",
+   "plan-conditional #PLACEHOLDER entries: the U-07 placeholder is replaced by the copied abuse-monitoring link. The U-09 placeholder is not requested, because its trigger did not fire: E-17, an Anthropic-host page, states a retention regime.",
+   "Triggers that did not fire: priority 1 (no OpenAI model page 404'd), 2 (the Gemma 4 card names Apache 2.0, not Gemma Terms), 3 (no licence URL 404'd), 7 (the BFCL table was captured, not a script placeholder).",
+   "E-22 (Ollama releases) holds 40 GitHub render-failure notices from lazy widgets. I checked that every cited passage is present and added a [render-reviewed: ...] note; asset lists are not cited.",
+   "E-17 (platform.claude.com) and E-31 (intel.com) were kept by searches as S. I read both and promoted them to P because they are on the owner's host; SOURCES.md types were updated to match."
+  ],
+  "contradictions": [
+   "Qwen3-0.6B licence: a secondary source (2026-10-02 corpus, bestllmfor line 103) claims a 'Qwen License' with a 100M-MAU threshold. Qwen's own LICENSE is plain Apache 2.0, Copyright 2024 Alibaba Cloud (E-23), and BFCL's licence column agrees (E-08). Trusted: E-23, the owner's file. It covers Qwen3-0.6B only.",
+   "gpt-6.1-sol tools: OpenRouter lists 'tools' for openai/gpt-6.1-sol (E-15), while OpenAI says Chat Completions serves it without tool calling (E-02). These are different APIs. Trusted for OpenAI's endpoint: E-02. OpenRouter flags are never used to decide tool support.",
+   "DeepSeek Flash max output: the reused DeepSeek page gives 384K (per DISCOVERY 'Already decided'; not re-read here). OpenRouter gives 943718 for ~deepseek/deepseek-flash-latest and deepseek/deepseek-v4-flash, and 384000 for v4-pro (E-15). Trusted: DeepSeek's own page. OpenRouter also still lists the retired deepseek-v4-flash name.",
+   "Mistral Medium 3.5 max output: Mistral's card is silent (E-07); OpenRouter says 209715 (E-15). Not adopted as Mistral's limit; it stays a day-one probe.",
+   "Granite tool-calling scores: IBM self-reports BFCL v3 39.32 (350M) and 54.82 (1B) (E-28), while BFCL V4 reports Granite-4.0-350m (FC) at 18.98 overall (E-08). These are different versions and aggregates: not compared, not averaged. Qwen's BFCL-V4 72.9 on the Ollama page (E-18) is a self-report for its 397B model, not a leaderboard row.",
+   "Anthropic retention nuance: E-17 says prompts and outputs are not retained by default, but defers 'standard retention policies outside these arrangements' to an uncollected privacy.claude.com article. No captured page contradicts E-17, so the brief states E-17 and flags the deferral.",
+   "DeepSeek privacy-policy scope: the policy names apps, websites and related services (E-13), while the API terms route a developer's personal information to it (E-12). Resolved conservatively: API prompts are treated as covered, so as usable for training and stored in the PRC.",
+   "Ollama granite4 sizes: 1b is listed at 3.3GB, larger than 3b at 2.1GB (E-20), with no explanation on the page. Unresolved; the day-one pull records each tag's digest and size."
+  ],
+  "designFacts": [
+   "The user's Pentium 4405U lists only SSE4.1 and SSE4.2, with no AVX or AVX2 (E-31). The pinned Ollama v0.34.4 builds ggml through llama-server, and its CPU variant set is unresolved (E-30, U-15 OPEN). With free RAM already under the reserve, no local model can be offered on the current PC; the local catalogue serves other machines.",
+   "gpt-6.1-sol: OpenAI serves it on Chat Completions without tool calling (E-02), so it cannot meet the selector's tools requirement on Moonzila's openai-compatible (/chat/completions) kind. gpt-6-luna does function calling there only with reasoning_effort none (E-03), so its profile must set that, and U-06 must pass.",
+   "Data-use classes for private code in cloud-allowed projects. Offerable: Anthropic API (no training E-11; not retained by default except Covered Models E-17), OpenAI API (no training unless opt-in; 30-day abuse logs E-10), and Gemini on a billing-enabled Cloud project (no product improvement; limited-period abuse logging E-09). Not offered: Gemini unpaid quota (training plus human review, Google says not to send confidential data, E-09) and DeepSeek (training use and PRC storage, E-13). Mistral is held until U-11 closes (E-14).",
+   "claude-fable-5-1 is a Covered Model. It requires 30-day retention and is not available under ZDR unless Anthropic authorises it (E-17); its preset must disclose this.",
+   "Profile limits: Claude 5.x models 1M context / 128K output (E-01); OpenAI 1,050,000 / 128,000, with prompts over 272K input tokens billed at 2x input and 1.5x output (E-02, E-03); Gemini 1,048,576 / 65,536 (E-04..E-06); Mistral Medium 3.5 256k context with output limit unstated (E-07).",
+   "Every licence settled so far is Apache 2.0 or MIT (E-23..E-29), so the signed catalogue may point to or re-host the weights if it ships the licence text and notices. gemma4:cloud and gemma4:31b-cloud run off the machine and must never enter the catalogue (E-19). gemma4:e4b is 4.5B effective and 8B with embeddings, above the about-4B bound (E-27).",
+   "BFCL V4 (last updated 2026-04-12) has no row for any shortlisted cloud model and only two small candidates (E-08), so it cannot rank the shortlist. No third-party scores ship in the app until their terms are known (E-08, E-16; U-20).",
+   "OpenRouter's keyless models endpoint can cross-check the dated table (E-15). Ids, limits and tool support must still come from the vendors' own pages, because OpenRouter disagrees with vendors on tools and output caps (E-02, E-07, E-15).",
+   "Nothing in the Ollama release notes since the pinned v0.34.4 is named as needed by a candidate on x64 (E-22). Whether a recently updated tag (gemma4, E-19) is refused on v0.34.4 is a day-one pull."
+  ],
+  "preflight": "fail  discovery-contract/status              U-11 has status \"OPEN\" - must be CLOSED or KNOWN-UNKNOWN\nfail  discovery-contract/status              U-14 has status \"OPEN\" - must be CLOSED or KNOWN-UNKNOWN\nfail  discovery-contract/status              U-15 has status \"OPEN\" - must be CLOSED or KNOWN-UNKNOWN\nwarn  collection-attempts/unknown-attempted  U-18 is KNOWN-UNKNOWN with no recorded fetch attempt - an unreachable fact should have been reached for\nverdict: FAIL  3 blocking, 1 warning(s), 23 passing  [evidencePolicy=pluralist]\n(Every quote anchor was found in its capture, and the provenance chain verifies. The 3 blocking rows are the unknowns left OPEN for the pendingConditional pages. The U-18 warning is the one DISCOVERY already accepts, because speed on this CPU is on no page.)",
+  "briefWritten": true
+ },
+ {
+  "unknowns": [
+   {
+    "id": "U-01",
+    "status": "CLOSED",
+    "answer": "The routes are POST v1beta/{model=models/*}:generateContent and :streamGenerateContent. SSE is selected with ?alt=sse, and the stream is a series of whole GenerateContentResponse objects (E-02). The x-goog-api-key header appears on countTokens (E-06) and on interactions (E-01, E-03), but E-02's examples only use key= in the query string, so whether the header works on :streamGenerateContent and how the stream ends are left to probe U-18 (4)."
+   },
+   {
+    "id": "U-02",
+    "status": "OPEN",
+    "answer": "E-02 covers functionDeclarations (OpenAPI 3.0.3 subset or parametersJsonSchema), a functionCall with an optional id and object args and no partial-argument field, and a functionResponse matched by id. It contradicts itself on the role of a function response (user/model versus function). E-03 is the Interactions variant, so whether one turn can hold several calls is not stated for generateContent. Waiting for the generateContent function-calling page."
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED",
+    "answer": "Part.thoughtSignature is an opaque field for reuse in later requests, and MISSING_THOUGHT_SIGNATURE is a finish reason (E-02). Signatures are required for continuity across turns (E-04). So the Gemini adapter must replay those parts unchanged through the wire-state store. Not stated: which parts carry a signature, whether a missing one returns 400, and how signatures travel on the compatible endpoint (E-07 is silent; probe U-18 (8))."
+   },
+   {
+    "id": "U-04",
+    "status": "CLOSED",
+    "answer": "E-02 gives the full FinishReason list (STOP, MAX_TOKENS, SAFETY, RECITATION, MALFORMED_FUNCTION_CALL, MISSING_THOUGHT_SIGNATURE and others), the prompt-level promptFeedback.blockReason (with no candidates), and the usageMetadata fields (promptTokenCount, cachedContentTokenCount, candidatesTokenCount, thoughtsTokenCount, totalTokenCount). Which chunk carries usage, and whether its counts are cumulative, is probe U-18 (4)."
+   },
+   {
+    "id": "U-05",
+    "status": "OPEN",
+    "answer": "E-05 says to retry 429/503/408/5xx with exponential backoff and never retry 400/402/403, but no captured page gives the over-window status or body; the troubleshooting page now points to the API errors page. E-06 shows countTokens taking a contents body and returning the input total; whether it accepts tools is not stated (probe U-18 (9)). Waiting for https://ai.google.dev/gemini-api/docs/api-errors."
+   },
+   {
+    "id": "U-06",
+    "status": "CLOSED",
+    "answer": "E-07: base URL v1beta/openai/ with Bearer auth; tools and stream:true are shown; reasoning_effort maps to thinking levels; the layer is labelled beta. Not stated on E-07: max_completion_tokens, stream_options, the streamed tool-call shape, and how thought signatures travel; these go to probes U-18 (1) and (8)."
+   },
+   {
+    "id": "U-07",
+    "status": "CLOSED",
+    "answer": "E-08: POST /v1/messages with anthropic-version (example 2023-06-01) and content-type required. Authorization: Bearer is the primary auth; x-api-key is a legacy fallback. E-09: max_tokens is required. E-10: the event flow, ping and error events, and the deltas text_delta, input_json_delta (partial JSON), thinking_delta and signature_delta. Usage is on message_start and message_delta but absent in the thinking example; whether it is cumulative is probe U-18 (6)."
+   },
+   {
+    "id": "U-08",
+    "status": "CLOSED",
+    "answer": "E-09 gives tool definitions with input_schema, tool_use blocks (id, name, object input) and tool_result blocks with tool_use_id in the next user message. E-11 requires one tool_result per tool_use and nothing else in that message, and lists all seven stop reasons (refusal is an HTTP 200; model_context_window_exceeded counts as truncated; pause_turn applies to server tools only). E-09, E-12 and E-13 require thinking blocks to come back unmodified, or the request gets a 400. An is_error field is not stated."
+   },
+   {
+    "id": "U-09",
+    "status": "CLOSED",
+    "answer": "E-13: an input alone over the window gets 400 invalid_request_error 'prompt is too long'. On Claude 4.5 and later, input plus max_tokens over the window is accepted and stops with model_context_window_exceeded. E-12: 413 request_too_large comes from Cloudflare over 32 MB, 529 is overloaded_error, and errors after a 200 arrive as SSE error events (E-10). The exact body bytes are probe U-18 (2)."
+   },
+   {
+    "id": "U-10",
+    "status": "CLOSED",
+    "answer": "E-15: the layer exists at api.anthropic.com/v1/. max_completion_tokens, stream, stream_options and tools are fully supported, unsupported fields are mostly ignored silently, prompt_tokens_details is always empty, and thinking is never returned. Since thinking is on by default on Claude 5 models (E-15, E-12), multi-turn tool use is probe U-18 (8). No statement about production use."
+   },
+   {
+    "id": "U-11",
+    "status": "OPEN",
+    "answer": "E-16 gives the status enum (completed/failed/in_progress/cancelled/queued/incomplete), incomplete_details reasons, usage with cached and reasoning tokens, function_call items with call_id and string arguments, and a deprecated truncation that 400s over-window by default. E-18 says max_output_tokens can end incomplete before any visible output. Neither E-16 nor E-17 gives the wire event names for incomplete or failed responses. Waiting for the responses-streaming reference."
+   },
+   {
+    "id": "U-12",
+    "status": "CLOSED",
+    "answer": "E-18 'highly recommends' passing reasoning items back with function outputs, via previous_response_id or by replaying them. With store:false, items carry encrypted_content by default; the include value is legacy but accepted. Reasoning is reusable only within one model family. E-16 and E-18: max_output_tokens includes reasoning tokens. A store:false adapter therefore keeps the reasoning items in wire state."
+   },
+   {
+    "id": "U-13",
+    "status": "CLOSED",
+    "answer": "E-19: thinking is on by default, and with tools, reasoning_content from all earlier turns must be sent back on every request (including new questions), or the API returns 400. So the existing kind breaks on DeepSeek's second tool request. E-20: the cap is max_tokens only (max_completion_tokens is not documented), usage comes on the last chunk, streamed tool calls carry index and id, and finish_reason adds insufficient_system_resource and aborted. E-20 disagrees with E-19 on request-side reasoning_content; E-19 is trusted. The rest is probe U-18 (7)."
+   },
+   {
+    "id": "U-14",
+    "status": "CLOSED",
+    "answer": "E-22: Bearer to api.mistral.ai/v1/chat/completions, max_tokens is the only documented cap, stream_options is absent from the schema, and the stream ends with data: [DONE]. The captured source HTML shows stream tool_calls with id and index, finish_reason values (stop, length, model_length, error, tool_calls), and a usage object. E-23: results go back as role tool with tool_call_id. The id format is not stated, and the examples differ (D681PevKs versus a UUID), so whether a minted id is accepted is probe U-18 (5)."
+   },
+   {
+    "id": "U-15",
+    "status": "CLOSED",
+    "answer": "E-24: max_tokens and max_completion_tokens are both accepted, and tools in OpenAI shape are transformed for other providers. E-26: usage is always in the last SSE message, and stream_options is deprecated and has no effect. E-25: ': OPENROUTER PROCESSING' comment lines must be skipped; a usage chunk repeats finish_reason; errors after commit arrive inside the 200 stream with finish_reason 'error' and must be treated as failure. What happens to an unsupported parameter is not stated."
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED",
+    "answer": "Anthropic (E-14, E-12): a 429 carries retry-after in seconds plus anthropic-ratelimit headers; a spend-cap 429 has no retry-after and the code enforced_spend_limit_reached; 529 is transient. Gemini (E-05): 429 RESOURCE_EXHAUSTED and 503 are retried with exponential backoff and jitter (the SDK does about 1 s to 60 s, four retries), and 400/402/403 are never retried. A retry delay in Gemini's 429 body is not stated."
+   },
+   {
+    "id": "U-17",
+    "status": "CLOSED",
+    "answer": "E-29: a signed-in localhost:11434 serves cloud models such as gpt-oss:120b-cloud; E-28 shows names like gemma4:cloud. At v0.34.4, responses and show/list carry remote_host and remote_model, and GET /api/status returns cloud.disabled (E-30). Cloud references are proxied, remote-host models get 403 while cloud is disabled, and /v1/chat/completions has the same passthrough (E-31). So locality must check /api/status or remote_host, not just the host. Not stated: how a reference is classified as cloud, and /api/status before v0.34.4."
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN",
+    "answer": "Wire measurements that no page owns, each needing the vendor's own key: the exact body on each compatible endpoint, over-window bodies, CRLF/comment framing, Gemini native stream termination, fragmentation and usage, Mistral minted ids, and new probes (6)-(9). The new probes cover Anthropic usage cumulativeness (E-10), DeepSeek max_completion_tokens and reasoning (E-19, E-20), two-turn tool round trips on Gemini's and Anthropic's compatible layers (E-07, E-12, E-15), and Gemini countTokens with tools (E-06)."
+   },
+   {
+    "id": "U-19",
+    "status": "OPEN",
+    "answer": "E-24: tools in OpenAI shape are transformed upstream, and parallel_tool_calls defaults to true. E-27: reasoning and reasoning_details can be sent back (reasoning_content is an alias), preserving them is needed during tool use, and the blocks must stay unmodified. Not stated: the streamed tool-call shape, how results go back, and which upstream models require reasoning_details. The planned tool-calling URL returned 404; waiting for the real page, which a capture links."
+   }
+  ],
+  "pendingConditional": [
+   {
+    "url": "https://openrouter.ai/docs/guides/features/tool-calling",
+    "unknown": "U-19",
+    "copiedFrom": "research/raw/2026-10-05-api-parameters-complete-guide-to-request-openrouter-d14bc873.md line 159",
+    "why": "The planned https://openrouter.ai/docs/features/tool-calling returned HTTP 404 and was refused (ledger seq 27). This is the real tool-calling guide, which the captured parameters page links. It is the owner of OpenRouter's streamed tool-call shape and of how tool results go back. This replaces the plan-conditional OpenRouter search, whose trigger (a 404) fired."
+   },
+   {
+    "url": "https://developers.openai.com/api/docs/api-reference/responses-streaming",
+    "unknown": "U-11",
+    "copiedFrom": "research/raw/2026-10-05-streaming-api-responses-openai-api-openai-b16a4864.md lines 245 and 465",
+    "why": "This is a plan-conditional entry and its trigger fired. The captured streaming guide lists response.created, response.output_text.delta, response.completed and error, and its type union names a failed event but no response.incomplete. Neither the guide nor the create reference gives the wire event names for incomplete or failed responses."
+   },
+   {
+    "url": "https://ai.google.dev/gemini-api/docs/generate-content/function-calling",
+    "unknown": "U-02 (also detail for U-03)",
+    "copiedFrom": "research/raw/2026-10-05-function-calling-with-the-gemini-api-int-google-11b2fd5a.md line 81",
+    "why": "The planned function-calling URL served the Interactions API variant, so the generateContent guide was never captured. E-02 contradicts itself on the role of a functionResponse ('user' or 'model' versus 'function'), and it does not say whether one turn can hold several functionCall parts. A wrong guess would 400 every tool turn."
+   },
+   {
+    "url": "https://ai.google.dev/gemini-api/docs/api-errors",
+    "unknown": "U-05 (also detail for U-16)",
+    "copiedFrom": "research/raw/2026-10-05-troubleshooting-guide-gemini-api-google--google-52f80d8d.md line 114",
+    "why": "The captured troubleshooting page no longer holds the error-code table and points here for all HTTP status codes. No captured page states the status or body Gemini returns for an over-window prompt, or a retry delay in the 429 body."
+   }
+  ],
+  "failedCapturesHandled": [
+   "https://openrouter.ai/docs/features/tool-calling returned HTTP 404 and the collector refused it (ledger seq 27, op fail). The real page, https://openrouter.ai/docs/guides/features/tool-calling, is copied from line 159 of the E-24 capture and listed as pending for U-19, which stays OPEN.",
+   "Three planned Gemini URLs (api-key, function-calling, thought-signatures) returned 200 but served the Interactions API variant (the thought-signatures one served the 'Gemini thinking' page). E-01, E-03 and E-04 are labelled Interactions wherever they are used. The generateContent function-calling variant (line 81 of the E-03 capture) is listed as pending for U-02.",
+   "https://ai.google.dev/gemini-api/docs/troubleshooting returned 200 but no longer contains the error-code table. The API errors page it links (line 114) is listed as pending for U-05.",
+   "The plan-conditional entry https://ai.google.dev/api/tokens had its trigger fire (E-06 shows only a contents body), but no capture links that URL, so it was not requested. countTokens-with-tools became probe U-18 (9).",
+   "The other plan-conditional entries did not fire, so nothing was requested for them. https://ai.google.dev/api did not fire: E-02 states v1beta and alt=sse, and E-01/E-06 state x-goog-api-key. https://openrouter.ai/docs/api-reference/errors did not fire: E-25 documents mid-stream errors. The Mistral search did not fire: both Mistral pages were captured with the right subject.",
+   "For E-22, the Mistral markdown capture collapses the response schemas. The stream chunk schema (tool_calls id/index, finish_reason enum, usage) was read from the same page's ledger-recorded source HTML capture and is labelled as such in the row; no quote anchors rest on it."
+  ],
+  "contradictions": [
+   "Gemini, within E-02: Content.role says it must be 'user' or 'model', while Tool says a FunctionResponse uses Content.role 'function'. Unresolved; U-02 stays OPEN until the generateContent function-calling guide is read.",
+   "Gemini key placement: E-02's examples use ?key=, while E-01 and E-06 use the x-goog-api-key header. The header is trusted for Moonzila (no credentials in URLs), and U-18 (4) confirms it on :streamGenerateContent.",
+   "Gemini compatible base URL in E-07: every example uses .../v1beta/openai/ except the extra_body example, which uses .../v1beta/. Trust .../v1beta/openai/: it is repeated throughout and named in the page's own explanation.",
+   "OpenAI: E-16 presents include reasoning.encrypted_content as the way to get encrypted reasoning; E-18 says it is returned by default in stateless mode and include is accepted but not required. The adapter sends include anyway (both pages accept it), and E-18 is trusted for the default.",
+   "OpenAI wording: E-18 'highly recommends' passing reasoning items back, while the contract's reused record (docs/research/2026-09-29-streaming-tool-calls, not re-read) says 'must'. The design treats it as required, which satisfies both.",
+   "DeepSeek: E-20 documents request-side reasoning_content only for the beta Chat Prefix Completion feature, while E-19 requires it on every request with tools and names the 400. E-19 is trusted because it states the consequence; U-18 (7) records the actual body.",
+   "Mistral tool-call id examples differ: D681PevKs in E-23 and a UUID in E-22's source schema. No format is assumed; U-18 (5) tests a minted id.",
+   "Anthropic, within E-09: the page says there is no 'system' role for input messages, but its role enum lists 'system'. Harmless, because Moonzila uses the top-level system field."
+  ],
+  "designFacts": [
+   "The wire-state store becomes mandatory for tool use on four vendors. Anthropic thinking blocks must go back unmodified or the request gets a 400 (E-09, E-12, E-13), and thinking is always on for Fable 5.1, Mythos 5.1, Fable 5, Mythos 5 and Opus 5.5 (E-12). Gemini parts that carry thoughtSignature must be replayed (MISSING_THOUGHT_SIGNATURE, E-02; E-04). OpenAI reasoning items with encrypted_content should be replayed under store:false (E-18). DeepSeek needs reasoning_content back on every request with tools (E-19).",
+   "The existing openai-compatible kind breaks on DeepSeek's second tool request in its default thinking mode (400 without reasoning_content, E-19), unless the body sends a top-level thinking object disabled or reasoning_effort none (E-20). DeepSeek also documents only max_tokens, not max_completion_tokens (E-20).",
+   "Anthropic accepts Authorization: Bearer as the primary auth, with x-api-key as a legacy fallback (E-08). So the Bearer header at inference.ts:145 can stay for Anthropic, which adds only anthropic-version and content-type. Gemini native wants x-goog-api-key (E-06, E-01), and ?alt=sse is a fixed parameter main appends (E-02).",
+   "readSse and the accumulators must widen. OpenRouter sends ': OPENROUTER PROCESSING' comment lines and repeats finish_reason on its final usage chunk (E-25). Anthropic sends event:-named events, ping events and in-stream error events after a 200 (E-10, E-12). OpenRouter's mid-stream error chunk (finish_reason 'error', E-25) must become a failure, not an answer.",
+   "Over-window behaviour differs by vendor. Anthropic returns 400 invalid_request_error 'prompt is too long' for input alone; on Claude 4.5 and later, input plus max_tokens over the window is accepted and ends with stop_reason model_context_window_exceeded, which must map to incomplete (E-13, E-11). OpenAI Responses returns 400 under the default disabled truncation (E-16). Gemini is still unknown (U-05 pending).",
+   "Anthropic refusal is an HTTP 200 stop_reason with stop_details, not an error (E-11). OpenAI Responses can end incomplete with reason max_output_tokens before any visible output, because the cap covers reasoning (E-16, E-18). OpenRouter and DeepSeek caps also cover reasoning (E-24, E-27).",
+   "Anthropic's OpenAI layer documents Moonzila's whole body as accepted (max_completion_tokens, stream_options, tools fully supported). But it never returns thinking and its usage details are always empty (E-15), and thinking is on by default on Claude 5 models (E-15, E-12). Multi-turn tool use there is therefore unproven (probe U-18 (8)).",
+   "A signed-in loopback Ollama forwards cloud models such as gpt-oss:120b-cloud to ollama.com (E-29, E-28). At v0.34.4 a client can observe GET /api/status cloud.disabled and the remote_host on show, list and chat responses (E-30, E-31). Locality must check these, not only that the host is loopback.",
+   "Google's Gemini docs now default to the Interactions API, labelled 'Recommended' (E-01, E-03, E-04): POST v1beta/interactions, event:-named SSE ending in data: [DONE], and server-side state that handles signatures. generateContent remains documented (E-02). Which one to build is a Mandate decision; its reference https://ai.google.dev/api/interactions-api is linked from line 68 of the E-04 capture but is not needed by any current unknown.",
+   "OpenRouter needs no flag for usage. It always arrives on the last chunk, and stream_options is deprecated with no effect (E-26). Moonzila's current body is accepted (E-24), but tool turns wait for U-19, and reasoning_details must be preserved unmodified during tool use (E-27)."
+  ],
+  "preflight": "FAIL  4 blocking, 0 warning(s), 25 passing  [evidencePolicy=pluralist]\nfail discovery-contract/status U-02, U-05, U-11, U-19 have status \"OPEN\" (each waiting for a pendingConditional page)\npass citations: 31 evidence rows, each with a cached page; 161 quotes found in their capture\npass provenance/chain-intact: chain of 32 entries verifies\npass transport-provenance, gate-integrity (no override), capture-completeness, evidence-supersession, collection-attempts, hygiene (no uncited captures, brief not stale), corpus-shape\npass unknown-closure: 14 closed, 1 known-unknown\npass subtopic-coverage: 21 subtopics, every universal dimension present\npass corroboration: single-witness notes on single-vendor closures; U-16 and U-17 cite independent hosts\nhandoff.mjs: OK - 32 ledger entries, 31 evidence rows, every capture on disk, chain verifies. brief.mjs --state: authored (contradictions answered, decision answered).",
+  "briefWritten": true
+ }
+]

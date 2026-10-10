@@ -89,13 +89,13 @@ _Last verified: 2026-10-03, branch `main-axuse` at `e14fc2c` (= `main`); environ
 ### Research-Kit
 | Item | Value |
 |------|-------|
-| Kit path | `~/.agents/research-kit` (0.9.3, deployed from the Research-Kit checkout on 2026-10-03) |
+| Kit path | `~/.agents/research-kit` (0.9.5, fast-forwarded and reinstalled from the Research-Kit checkout on 2026-10-04) |
 | Machine role | collector |
-| Transport / policy | `firecrawl-cli` 1.25.2 with the key from the environment only / `pluralist` |
-| `doctor` result | READY on 2026-10-03, in `docs/research/2026-10-03-coding-knowledge-base` |
+| Transport / policy | `firecrawl-cli` 1.25.3 with the key from the environment only / `pluralist` |
+| `doctor` result | READY on 2026-10-05 with the user's key, in the repository root; without a key it reports one blocker, `firecrawl-auth` (a collector that cannot collect) |
 | Gates | commit gate (machine-wide `core.hooksPath`) and edit gate installed 2026-10-03. With no `research/kit.json`, the code paths are `src`, `lib`, `bin`, `scripts`, `app`, and a commit touching them must stage `docs/ARCHITECTURE.md` |
 | Research folder | `docs/research/<YYYY-MM-DD>-<topic>/`, one nested project per topic, committed with `research/raw/.fetches.jsonl` |
-| Existing research | the ten projects under `docs/research/` |
+| Existing research | the eighteen projects under `docs/research/` (2026-10-05), plus the older corpus at `docs/handoff/work/research` |
 | Remote collector | none configured for Moonzila |
 
 ### Parallel execution
