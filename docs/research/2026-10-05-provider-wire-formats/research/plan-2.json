@@ -1,0 +1,89 @@
+{
+  "topic": "How the Anthropic Messages API, the OpenAI Responses API and the Google Gemini native API authenticate, stream text and tool calls, report usage and refuse over-window requests, and which vendors' OpenAI-compatible Chat Completions endpoints accept Moonzila's current request shape",
+  "notes": "RUN 2 of 2 (DeepSeek, Mistral, OpenRouter, Ollama cloud models): 14 owner URLs typed P, no searches, 14 credits at depth deep. Run 1 is research/plan.json (18 credits). Mistral (U-14) and OpenRouter (U-15, U-19) now have named owner pages typed P instead of searches: a search hit is born S (research-kit lib/collect.mjs DEFAULT_SOURCE_TYPE) and a search can return the wrong page; the two searches moved to plan-conditional.json as the fallback if a named page 404s. SLUG CHECK (2026-10-05, links grepped in every capture under docs/): CONFIRMED by a link inside an existing capture - api-docs.deepseek.com/guides/thinking_mode and /guides/tool_calls (docs/research/2026-10-02-model-pricing-and-ranking raw/2026-10-02-models-pricing-deepseek-api-docs-deepseek-8eb12065.md); docs.ollama.com/api/authentication (docs/research/2026-09-28-open-gaps raw/2026-09-28-openai-compatibility-ollama-ollama-ddcc6cfd.md line 56, '#signing-in'). The two Ollama source files are pages already captured in docs/handoff/work/research (2026-09-27), re-collected here because their rows there (E-19, E-22) state other facts and a row in this corpus closes only on this corpus's own captures. UNCONFIRMED (no capture links them): api-docs.deepseek.com/api/create-chat-completion (no api-docs.deepseek.com/api/* sibling is captured or linked; /guides/ and /quick_start/ are proven, and the confirmed /guides/tool_calls is planned beside it as the cover for streamed tool calls); docs.mistral.ai/api/endpoint/chat and docs.mistral.ai/capabilities/function_calling (the only docs.mistral.ai paths in any capture are /models/model-cards/<id> and /en/studio-api/audio/overview, in the pricing corpus's Mistral pricing capture line 215, so no pattern for the API reference is proven); openrouter.ai/docs/api-reference/parameters, /api-reference/streaming, /use-cases/usage-accounting, /features/tool-calling and /use-cases/reasoning-tokens (only openrouter.ai/docs/sdks is linked, in the pricing corpus's OpenRouter blog capture line 164, which proves the /docs/ prefix and no deeper path); docs.ollama.com/cloud (a top-level page, the pattern proven by the captured docs.ollama.com/windows in docs/handoff/work/research). Note: docs.ollama.com/api/version answered a page-not-found on 2026-09-27 (docs/handoff/work/research raw/2026-09-27-page-not-found-ollama-e88df72c.md), so an unconfirmed Ollama slug can 404. Not re-collected (DISCOVERY.md, Reused): the DeepSeek pricing page (base URLs, tool-call support, window), the Ollama OpenAI-compatibility page (sign-in for cloud models, lines 56 and 373 of its capture).",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "maxScrapes": 25,
+  "prefer": [
+    "api-docs.deepseek.com",
+    "docs.mistral.ai",
+    "openrouter.ai/docs",
+    "docs.ollama.com",
+    "raw.githubusercontent.com/ollama/ollama"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://api-docs.deepseek.com/guides/thinking_mode",
+      "type": "P",
+      "why": "U-13: thinking mode with tool calls - reasoning_content sent back within a question or dropped between questions, reasoning against max_tokens. Slug confirmed: linked from the captured DeepSeek pricing page."
+    },
+    {
+      "url": "https://api-docs.deepseek.com/api/create-chat-completion",
+      "type": "P",
+      "why": "U-13, U-18: accepted request fields (max_tokens or max_completion_tokens, stream_options.include_usage, tools), the streamed chunk with tool_calls (index, id), finish_reason values. Slug unconfirmed."
+    },
+    {
+      "url": "https://api-docs.deepseek.com/guides/tool_calls",
+      "type": "P",
+      "why": "U-13: DeepSeek tool calls - request and response shape, tool-call ids, any streaming or strict-mode notes; the confirmed cover if api/create-chat-completion 404s. Slug confirmed: linked from the captured DeepSeek pricing page."
+    },
+    {
+      "url": "https://docs.mistral.ai/api/endpoint/chat",
+      "type": "P",
+      "why": "U-14, U-18: Mistral chat completions API reference - max_tokens or max_completion_tokens, stream, stream_options or usage in the stream, tools, the ToolCall schema (id, index), finish_reason values. Slug unconfirmed."
+    },
+    {
+      "url": "https://docs.mistral.ai/capabilities/function_calling",
+      "type": "P",
+      "why": "U-14: Mistral function calling - tool_calls in the assistant message, what the guide says about the tool-call id and tool_call_id in the tool message, parallel calls. Slug unconfirmed."
+    },
+    {
+      "url": "https://openrouter.ai/docs/api-reference/parameters",
+      "type": "P",
+      "why": "U-15: which request fields OpenRouter accepts (max_tokens or max_completion_tokens, stream_options, tools) and how unsupported fields are treated. Slug unconfirmed."
+    },
+    {
+      "url": "https://openrouter.ai/docs/api-reference/streaming",
+      "type": "P",
+      "why": "U-15: SSE framing on OpenRouter - comment or keep-alive lines, how an error that occurs mid-stream is reported, stream cancellation. Slug unconfirmed."
+    },
+    {
+      "url": "https://openrouter.ai/docs/use-cases/usage-accounting",
+      "type": "P",
+      "why": "U-15: how usage arrives in a stream (which chunk, which fields, whether a request flag is needed). Slug unconfirmed."
+    },
+    {
+      "url": "https://openrouter.ai/docs/features/tool-calling",
+      "type": "P",
+      "why": "U-19: OpenRouter tool calling - tools passed through to upstream models, streamed tool calls with index and id, finish_reason tool_calls, tool results in history. Slug unconfirmed."
+    },
+    {
+      "url": "https://openrouter.ai/docs/use-cases/reasoning-tokens",
+      "type": "P",
+      "why": "U-19: reasoning and reasoning_details in responses, and whether they must be passed back on tool turns for some upstream models. Slug unconfirmed."
+    },
+    {
+      "url": "https://docs.ollama.com/cloud",
+      "type": "P",
+      "why": "U-17: Ollama cloud models served through a local Ollama - naming, sign-in, prompts forwarded off the machine, how to disable cloud. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://docs.ollama.com/api/authentication",
+      "type": "P",
+      "why": "U-17: signing a local Ollama in to ollama.com, which is what lets a loopback server serve cloud models. Slug confirmed: linked (#signing-in) from the captured OpenAI-compatibility page."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/api/types.go",
+      "type": "P",
+      "why": "U-17: remote_host and remote_model on chat, show and list responses, and CloudStatus (disabled, source) in the /api/status response, at the pinned tag (lines 532-535, 758-759, 852-853, 877-885 of the 2026-09-27 capture in docs/handoff/work/research). Source owner page."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/server/routes.go",
+      "type": "P",
+      "why": "U-17: GET /api/status and StatusHandler, cloud model requests proxied, 403 when cloud is disabled, at the pinned tag (lines 295-299, 336-338, 1939, 2211-2219 of the 2026-09-27 capture in docs/handoff/work/research). Source owner page."
+    }
+  ]
+}

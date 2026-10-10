@@ -1,0 +1,51 @@
+{
+  "topic": "How the Anthropic Messages API, the OpenAI Responses API and the Google Gemini native API authenticate, stream text and tool calls, report usage and refuse over-window requests, and which vendors' OpenAI-compatible Chat Completions endpoints accept Moonzila's current request shape",
+  "notes": "CONDITIONAL - NOT RUN unless the lead decides, after runs 1 and 2 (research/plan.json, research/plan-2.json) are collected and read. Each entry's 'why' names its trigger. Run it with --only for a query, or trim 'urls' to the entries whose trigger fired, so an untriggered page is not paid for. Worst case if every entry runs: 2 searches (about 4 credits) plus up to 2 pages each (4) plus 4 URLs (4), about 12 credits; with runs 1 and 2 (32) that is 44, under the 45-credit cap. If every OpenRouter or every Mistral URL in run 2 404s (a reorganised docs site), two pages per search will not replace them: re-plan from the search results instead of running this file as it stands. Search hits are born S (lib/collect.mjs DEFAULT_SOURCE_TYPE) and are promoted to P only after the page is read and found to be the vendor's own documentation.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "maxScrapes": 12,
+  "prefer": [
+    "docs.mistral.ai",
+    "openrouter.ai/docs"
+  ],
+  "queries": [
+    {
+      "q": "Mistral AI API chat completions reference max_tokens stream tool_calls usage",
+      "why": "U-14. TRIGGER: https://docs.mistral.ai/api/endpoint/chat or https://docs.mistral.ai/capabilities/function_calling (run 2) answered 404, or its capture is not the chat completions reference or the function-calling guide.",
+      "prefer": [
+        "docs.mistral.ai"
+      ]
+    },
+    {
+      "q": "OpenRouter API reference chat completions parameters streaming usage tool calls reasoning",
+      "why": "U-15, U-19. TRIGGER: one of the five openrouter.ai/docs URLs in run 2 answered 404, or its capture does not hold the subject its 'why' names.",
+      "prefer": [
+        "openrouter.ai/docs"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://ai.google.dev/api",
+      "type": "P",
+      "why": "U-01. TRIGGER: neither https://ai.google.dev/api/generate-content nor https://ai.google.dev/gemini-api/docs/api-key (run 1) states how SSE is selected (alt=sse), which API version the routes use, or which header carries the key. Slug unconfirmed."
+    },
+    {
+      "url": "https://ai.google.dev/api/tokens",
+      "type": "P",
+      "why": "U-05. TRIGGER: https://ai.google.dev/gemini-api/docs/tokens (run 1) does not show the countTokens request body (whether it takes tools or a full generateContent request) or its response fields. Slug unconfirmed."
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/api-reference/responses-streaming",
+      "type": "P",
+      "why": "U-11. TRIGGER: https://developers.openai.com/api/docs/guides/streaming-responses (run 1) does not list response.incomplete, response.failed and error among the stream's events. Slug unconfirmed."
+    },
+    {
+      "url": "https://openrouter.ai/docs/api-reference/errors",
+      "type": "P",
+      "why": "U-15. TRIGGER: https://openrouter.ai/docs/api-reference/streaming (run 2) does not say how an error that occurs after the stream has started is reported. Slug unconfirmed."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "topic": "How the Anthropic Messages API, the OpenAI Responses API and the Google Gemini native API authenticate, stream text and tool calls, report usage and refuse over-window requests, and which vendors' OpenAI-compatible Chat Completions endpoints accept Moonzila's current request shape",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "notes": "Run 4 (2026-10-05): the generateContent variants of two pages whose first capture served the Interactions API variant; both URLs are copied from links inside captures of this corpus. Collected by the lead so that U-05 and U-20 rest on their owner pages instead of a collection decision.",
+  "maxScrapes": 2,
+  "urls": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/generate-content/api-errors",
+      "type": "P",
+      "why": "U-05: the generateContent error reference (status and body for an over-window prompt, retryable codes); linked from the E-35 capture (line 69), whose page served the Interactions API variant"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures",
+      "type": "P",
+      "why": "U-20 (and U-03): the generateContent thought-signatures guide, including its OpenAI-compatibility section; linked from the E-34 source HTML (line 802, site nav, Thinking > Thought signatures)"
+    }
+  ],
+  "queries": []
+}
