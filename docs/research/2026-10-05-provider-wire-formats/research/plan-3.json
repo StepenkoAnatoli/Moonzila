@@ -1,0 +1,32 @@
+{
+  "topic": "How the Anthropic Messages API, the OpenAI Responses API and the Google Gemini native API authenticate, stream text and tool calls, report usage and refuse over-window requests, and which vendors' OpenAI-compatible Chat Completions endpoints accept Moonzila's current request shape",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "notes": "Run 3 (conditional pages whose trigger fired, 2026-10-05): every URL is copied from a link inside a capture of this corpus (file and line in \"why\"); no URL is guessed. Requested by the closing researcher, approved and collected by the lead within the task budget.",
+  "maxScrapes": 4,
+  "urls": [
+    {
+      "url": "https://openrouter.ai/docs/guides/features/tool-calling",
+      "type": "P",
+      "why": "U-19: The planned https://openrouter.ai/docs/features/tool-calling returned HTTP 404 and was refused (ledger seq 27). This is the real tool-calling guide, which the captured parameters page links. It is the owner of OpenRouter (copied from research/raw/2026-10-05-api-parameters-complete-guide-to-request-openrouter-d14bc873.md line 159)"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/api-reference/responses-streaming",
+      "type": "P",
+      "why": "U-11: This is a plan-conditional entry and its trigger fired. The captured streaming guide lists response.created, response.output_text.delta, response.completed and error, and its type union names a failed event but no respon (copied from research/raw/2026-10-05-streaming-api-responses-openai-api-openai-b16a4864.md lines 245 and 465)"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/generate-content/function-calling",
+      "type": "P",
+      "why": "U-02 (also detail for U-03): The planned function-calling URL served the Interactions API variant, so the generateContent guide was never captured. E-02 contradicts itself on the role of a functionResponse ('user' or 'model' versus 'function'), and  (copied from research/raw/2026-10-05-function-calling-with-the-gemini-api-int-google-11b2fd5a.md line 81)"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/api-errors",
+      "type": "P",
+      "why": "U-05 (also detail for U-16): The captured troubleshooting page no longer holds the error-code table and points here for all HTTP status codes. No captured page states the status or body Gemini returns for an over-window prompt, or a retry delay in t (copied from research/raw/2026-10-05-troubleshooting-guide-gemini-api-google--google-52f80d8d.md line 114)"
+    }
+  ],
+  "queries": []
+}

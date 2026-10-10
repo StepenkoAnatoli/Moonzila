@@ -1,0 +1,484 @@
+[
+ {
+  "unknowns": [
+   {
+    "id": "U-01",
+    "status": "CLOSED (E-02, E-34, E-06, E-01, E-03, E-04); E-34 now shows x-goog-api-key on :generateContent itself; how the stream ends stays U-18 (4)"
+   },
+   {
+    "id": "U-02",
+    "status": "CLOSED (E-02, E-34): Gemini 3 always returns a functionCall id and functionResponse must carry it; parallel calls are mapped by id; results go in a role user turn. The E-02 'function' role contradiction is resolved to 'user'. Whether a call streams whole or in fragments is U-18 (4)"
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED (E-02, E-34, E-04, E-03, E-07, E-35): in Gemini 3 any Part may carry a signature, and sending signatures back is mandatory for function calling, inside the original Part. Compat-layer half is U-18 (8)"
+   },
+   {
+    "id": "U-04",
+    "status": "CLOSED (E-02), unchanged"
+   },
+   {
+    "id": "U-05",
+    "status": "KNOWN-UNKNOWN. The api-errors URL served the Interactions variant (E-35), which has no over-window code, so no captured page states Gemini's over-window refusal. Day one: U-18 (2) and (9). Until then no Gemini-specific CONTEXT_LIMIT rule"
+   },
+   {
+    "id": "U-06",
+    "status": "CLOSED (E-07), unchanged"
+   },
+   {
+    "id": "U-07",
+    "status": "CLOSED (E-08, E-09, E-10), unchanged"
+   },
+   {
+    "id": "U-08",
+    "status": "CLOSED (E-09, E-11, E-12, E-13), unchanged"
+   },
+   {
+    "id": "U-09",
+    "status": "CLOSED (E-13, E-12, E-10, E-08), unchanged"
+   },
+   {
+    "id": "U-10",
+    "status": "CLOSED (E-15, E-12), unchanged"
+   },
+   {
+    "id": "U-11",
+    "status": "CLOSED (E-33, E-16, E-17, E-18): response.incomplete, response.failed, error, output_item and function_call_arguments delta/done payloads are now defined. Stream end is U-18 (3); over-window bytes are U-18 (2)"
+   },
+   {
+    "id": "U-12",
+    "status": "CLOSED (E-18, E-16, E-33); refined: resend the reasoning item taken from response.output_item.done"
+   },
+   {
+    "id": "U-13",
+    "status": "CLOSED (E-19, E-20, E-21), unchanged"
+   },
+   {
+    "id": "U-14",
+    "status": "CLOSED (E-22, E-23), unchanged"
+   },
+   {
+    "id": "U-15",
+    "status": "CLOSED (E-24, E-25, E-26), unchanged"
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED (E-14, E-12, E-05, E-35); E-35 states no retry-delay field, so Gemini uses exponential backoff"
+   },
+   {
+    "id": "U-17",
+    "status": "CLOSED (E-29, E-28, E-30, E-31), unchanged"
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN (day-one wire probes). Probes (2), (3), (4) and (8) sharpened: Gemini over-window, the end of the Responses stream, E-34 header evidence, and OpenRouter reasoning_details round trips"
+   },
+   {
+    "id": "U-19",
+    "status": "CLOSED (E-32, E-24, E-27): tools must be sent on every request, finish_reason is tool_calls, results go back as role tool with tool_call_id, and reasoning_details are carried verbatim. Stream chunk fields are U-18 (1); per-model refusals are U-18 (8)"
+   }
+  ],
+  "preflight": "PASS. 0 blocking, 0 warnings, 29 passing (evidencePolicy=pluralist). No warning needed DISCOVERY's acceptance: the one warning before this (hygiene/brief-stale) went away once I redrafted the brief with brief.mjs --force and carried the judgements over. The citations check found 197 quotes in their captures. The chain of 36 entries verifies, there are 17 closed and 2 known-unknown rows, and every known-unknown has a recorded fetch attempt. Single-witness notes are accepted on U-01..U-15 and U-19. U-16 and U-17 are independent (2 hosts each). handoff.mjs exited 0: \"handoff OK - 36 ledger entries, 35 evidence rows, every capture they cite on disk, chain verifies. [role=collector]\". brief.mjs --state: \"research/BRIEF.md: authored\", with contradictions and decision both answered. doctor.mjs reports one machine blocker that is not about the corpus: firecrawl-auth (the CLI is not authenticated). I left it alone, as the rules require (no key work).",
+  "handoff": "The corpus at /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats is closed: the gate is PASS with 0 warnings, handoff is OK, and the brief is authored with the line \"Reviewed by: agent\". No unknown is OPEN.\n\nFiles changed (all in research/, nothing under research/raw/):\n- EVIDENCE.md: rewrote the E-32..E-35 Finding cells. Every [quote: ...] was checked with the kit's own matcher.\n- DISCOVERY.md:\n  - U-02, U-11 and U-19 set to CLOSED; U-05 set to KNOWN-UNKNOWN.\n  - U-01, U-03, U-12, U-16 and U-18 refined.\n  - State paragraph rewritten.\n  - A run-3 line added under \"Already decided\": 36 scrapes in all, within the 45-credit cap.\n- MAP.md: D-9 no longer refers to OPEN rows.\n- SOURCES.md: the four run-3 \"Used for\" cells were truncated plan text; they now say what each page was used for.\n- TIMELINE.md: regenerated with timeline.mjs (offline, 71 events).\n- BRIEF.md: redrafted with brief.mjs --force (inputs stamp is current, gate=pass), then authored. It covers the updated contract table, the Gemini, Responses and OpenRouter facts, 12 contradictions with resolutions, U-05 and U-18 as known unknowns, design consequences, and a build order. The order is groundwork, then Anthropic, then the Responses adapter, then existing-kind fixes (DeepSeek, OpenRouter reasoning_details, Ollama locality), then Gemini once the Mandate picks generateContent. The first build step is unchanged.\n\nThings for the lead to know:\n1. brief.mjs --force left a backup at research/BRIEF.md.bak-2026-10-05. Its judgements were carried over. No sibling corpus commits .bak files, so delete it or leave it out of the commit.\n2. Two captures are not the variant their URL suggests:\n   - https://ai.google.dev/gemini-api/docs/api-errors served the Interactions variant. The generateContent variant (https://ai.google.dev/gemini-api/docs/generate-content/api-errors, linked at E-35 capture line 48) was never collected. That is why U-05 is KNOWN-UNKNOWN, not CLOSED.\n   - The responses-streaming URL served the whole Responses reference. It holds every event definition U-11 needed.\n3. Google's generateContent guide now labels that API \"Legacy\" (E-34). The brief records generateContent versus Interactions as a Mandate choice.\n4. U-18 needs per-vendor keys from the user (DISCOVERY question 1). U-05 closes from U-18 probes (2) and (9).\n5. Nothing was committed or pushed. No page was fetched. research.mjs ran only with --status.",
+  "applied": [
+   "EVIDENCE.md E-32 (OpenRouter tool-calling guide): rewrote the Finding into claims with 5 quotes found in the capture",
+   "EVIDENCE.md E-33 (OpenAI Responses reference at the responses-streaming URL): rewrote it with 12 verified quotes covering terminal events, the error event, function-call argument delta/done, text delta, and the reasoning item from output_item.done",
+   "EVIDENCE.md E-34 (Gemini generateContent function calling): rewrote it with 11 verified quotes covering the header on :generateContent, ids, the user role, parallel calls, mandatory thought signatures and part handling; also records the contradicting compositional sample",
+   "EVIDENCE.md E-35 (Gemini api-errors, Interactions variant): rewrote it with 8 verified quotes, stating plainly that there is no over-window code, no retry-delay field and no generateContent format",
+   "DISCOVERY.md U-02 OPEN to CLOSED with single-witness note; the E-02 role contradiction resolved to user",
+   "DISCOVERY.md U-11 OPEN to CLOSED with single-witness note, plus an accumulator and outcome map",
+   "DISCOVERY.md U-19 OPEN to CLOSED with single-witness note; reasoning_details carried in wire state",
+   "DISCOVERY.md U-05 OPEN to KNOWN-UNKNOWN; 'Known so far' plus a 'Day one:' step (U-18 (2), (9)) and an interim rule: no Gemini CONTEXT_LIMIT rule",
+   "DISCOVERY.md: U-01, U-03, U-12 and U-16 refined with E-34, E-33 and E-35; U-18 probes (2), (3), (4) and (8) sharpened",
+   "DISCOVERY.md: state paragraph updated (17 CLOSED, 2 KNOWN-UNKNOWN, collection finished); run-3 line added under Already decided",
+   "MAP.md D-9 COVERED cell updated (no OPEN rows; U-05 and U-18 measured on day one)",
+   "SOURCES.md: Used-for cells of the four run-3 sources rewritten from truncated plan text",
+   "TIMELINE.md regenerated with timeline.mjs (offline)",
+   "BRIEF.md redrafted with brief.mjs --force from the passing corpus, then authored with 'Reviewed by: agent'; every claim cites an E-row and matches DISCOVERY",
+   "Verified: preflight.mjs PASS 0 warnings; handoff.mjs exit 0; brief.mjs --state shows authored with contradictions and decision answered"
+  ],
+  "declined": [
+   {
+    "issue": "Collect https://ai.google.dev/gemini-api/docs/generate-content/api-errors, which might hold Gemini's generateContent error table",
+    "reason": "Collection for this phase is finished and fetching is forbidden by the task rules. U-05 is KNOWN-UNKNOWN with a day-one probe instead, and the page is named as a lead for the collector machine."
+   },
+   {
+    "issue": "doctor.mjs blocker firecrawl-auth (Firecrawl CLI not authenticated on this machine)",
+    "reason": "The task forbids looking for or writing a key. The blocker is machine config and does not affect the corpus gate."
+   },
+   {
+    "issue": "Delete research/BRIEF.md.bak-2026-10-05 created by brief.mjs --force",
+    "reason": "It is the kit's safety copy of the previous authored brief. I left it for the lead to drop or leave out of the commit, rather than delete a kit-written file myself."
+   },
+   {
+    "issue": "Commit or push the corpus",
+    "reason": "The task explicitly says do not commit or push."
+   }
+  ]
+ },
+ {
+  "checked": "Read-only check of rows E-18 to E-35 in research/EVIDENCE.md (the second half of the 35 rows; E-18 is the midpoint, so it was included). Every [quote: ...] in those rows was compared against its capture with whitespace normalised. Each one occurs, apart from curly apostrophes, backticks and markdown links, and preflight passes: PASS, 0 blocking, 0 warnings, 29 passing. handoff.mjs also passes: 36 ledger entries, 35 rows, chain verifies. For every row, the URL and the 2026-10-05 date match its ledger entry (.fetches.jsonl seq 18-36; seq 27 is the recorded 404 for /docs/features/tool-calling). Type P is correct on every row: each source is the vendor's own docs, or for E-30/E-31 the vendor's own repository at tag v0.34.4. Each claim was read against the capture text. For E-22 that included the stored source.html (the Speakeasy/Next.js schema payload). For E-33 it included the event schemas: all 63 Response*Event objects carry type and sequence_number, apart from the client-sent ResponseSteerEvent. For E-34 it covered every functionResponse and role example. Spot checks in DISCOVERY U-14 and U-19 and in the BRIEF vendor table, Ollama section and contradictions #1, #7 and #10 confirmed where these rows are relied on. No unjustified CLOSED was found, and no brief claim in these areas lacks evidence. The one wrong fact (E-22's model_length) is repeated in the U-14 closure.",
+  "issues": [
+   {
+    "severity": "material",
+    "location": "EVIDENCE.md E-22 (repeated in DISCOVERY.md U-14 closure)",
+    "problem": "The row says the captured source HTML shows the stream chunk (CompletionChunk) with 'finish_reason values stop, length, model_length, error and tool_calls'. The streaming schema does not list model_length. That value appears only in the non-streaming application/json ChatCompletionChoice. So the corpus wrongly says a Mistral stream can end with finish_reason model_length. U-14 repeats this ('the page's captured source HTML shows stream chunks with ... finish_reason values stop, length, model_length, error and tool_calls'). The practical harm is small (a superset enum), but the fact is attributed to the wrong schema.",
+    "evidence": "research/raw/2026-10-05-chat-mistral-b5c8b721.source.html line 149 (single-line RSC payload): the heading 'operation-chat_completion_v1_chat_completions_post_responses_200_text-event-stream_completionevent_data_completionchunk_choices_completionresponsestreamchoice_finish_reason' has enum children \"stop\", \"length\", \"error\", \"tool_calls\" only. The string 'model_length' occurs only inside 'choices_ChatCompletionChoice_finish_reason' (headingId '..._responses_200_application-json_choices_chatcompletionchoice_finish_reason'), whose enum is stop, length, model_length, error, tool_calls.",
+    "fix": "Split the claim in both places. Streamed CompletionResponseStreamChoice.finish_reason is stop, length, error or tool_calls. The non-streaming ChatCompletionChoice.finish_reason adds model_length. Correct the same sentence in DISCOVERY U-14."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-22 / E-23; BRIEF.md contradiction 7",
+    "problem": "E-22's example id 019b2bd7-96e7-7219-8c0b-45a73da50088 is set against E-23's D681PevKs as two tool-call id forms that 'differ'. In fact the UUID is a generic schema placeholder that the reference attaches to every id-like string field, including file_id and the chunk id. It says nothing about the form of a tool-call id. The brief assumes neither form, so the harm is low, but presenting it as a competing data point overstates it.",
+    "evidence": "research/raw/2026-10-05-chat-mistral-b5c8b721.source.html line 149: the same example '019b2bd7-96e7-7219-8c0b-45a73da50088' sits under headings ..._toolmessage_tool_call_id, ..._usermessage_content_filechunk_file_id, ..._assistantmessage_content_filechunk_file_id, ..._text-event-stream_completionevent_data_completionchunk_id and ..._deltamessage_tool_calls_toolcall_id (14 occurrences in all).",
+    "fix": "In E-22, E-23 and BRIEF contradiction 7, say the UUID is the reference's placeholder example for every id field (file_id, chunk id, tool_call_id), not a sample of a minted tool-call id. Leave the open question with U-18 (5)."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-34",
+    "problem": "The row says 'every example, in Python, JavaScript, Go and REST, appends the model's whole content and then sends the result as a user turn'. Two examples do not show the first part. The compositional JavaScript example rebuilds the model turn from the functionCall alone, as the row itself admits later. The REST example elides the prior history with '...'. The 'user turn' half is accurate; the 'appends the whole content' half is overstated. A related scope cut: the 'don't assume the functionCall will always be the last item' quote applies, per the page, when custom functions are combined with built-in tools.",
+    "evidence": "research/raw/2026-10-05-function-calling-with-the-gemini-api-gen-google-f962c5a5.md lines 1902-1909: 'contents.push({ role: \"model\", parts: [ { functionCall: functionCall, }, ], });'. Lines 2849-2852 (REST): '\"contents\": [ ..., { \"role\": \"user\", \"parts\": [ { \"functionResponse\": ...'. Lines 3161-3166: 'When using custom function declarations alongside built-in tools ... the model may return a mix of functionCall, toolCall, and toolResponse parts ... don't assume the functionCall will always be the last item'.",
+    "fix": "Reword to: every example sends the functionResponse in a user turn; the Python, Go and step-by-step JavaScript examples append the model's whole content, the compositional JavaScript example rebuilds it from the functionCall alone, and the REST example elides the history. Add the built-in-tools condition to the parts-position quote."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-30, E-31",
+    "problem": "Two citation problems. First, both rows cite the raw.githubusercontent.com file at tag v0.34.4 but give capture line numbers. The capture adds 8 lines of front matter, so every number is 8 too high in the real file (E-31 'line 1939' is source line 1931; E-30 '758-759' is source 750-751). Second, E-31's proof lines 295-299 and 336-338 are in GenerateHandler (/api/generate), not ChatHandler, which serves /api/chat and the /v1/chat/completions route Moonzila uses. ChatHandler has the same checks at capture lines 2551-2558 and 2607-2609. E-31 then calls the /v1/chat/completions middleware 'the same cloud middleware', but the lines it cited were in-handler code, not middleware.",
+    "evidence": "research/raw/2026-10-05-routes-go-githubusercontent-6669b9b0.md lines 1-8 are front matter ('---', url, retrieved, command, statusCode, transport, completeness, '---'); line 9 is 'package server'. The proxy at line 299 and the 403 at line 338 sit inside the handler that parses req.Think/req.Template (GenerateHandler). 'func (s *Server) ChatHandler' starts at line 2517, with 'proxyCloudJSONRequest(c, req, cloudErrRemoteInferenceUnavailable)' at 2558 and 'c.JSON(http.StatusForbidden, ...DisabledError(cloudErrRemoteInferenceUnavailable)})' at 2609.",
+    "fix": "Label the numbers as 'capture line N' or give the source line numbers, and cite ChatHandler's lines (2551-2558, 2607-2609 capture) for the chat path. Say plainly that /v1/chat/completions adds cloudPassthroughMiddleware in front of ChatHandler."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-27, E-32; BRIEF.md vendor table (OpenRouter row)",
+    "problem": "E-27 quotes 'This necessitates preserving reasoning blocks during tool use' but leaves out its scope. The page frames it for 'models like Claude' and gives continuity and context as the reasons, after 'you can pass it back'. E-32 then paraphrases this as 'E-27 says it must be preserved during tool use', and the brief table says 'reasoning_details must be preserved during tool use (E-27)'. Neither is a statement the page makes about all models. The design resends the details anyway, so nothing breaks, but the requirement is stated more broadly than the capture supports.",
+    "evidence": "research/raw/2026-10-05-reasoning-tokens-improve-ai-model-decisi-openrouter-ed86aee1.md line 457: 'To preserve reasoning context across multiple turns, you can pass it back to the API in one of two ways'. Line 461: 'Preserving reasoning blocks is useful specifically for tool calling. When models like Claude invoke tools, it is pausing its construction of a response ... This necessitates preserving reasoning blocks during tool use, for a couple of reasons:**Reasoning continuity** ... **Context maintenance**'.",
+    "fix": "In E-27, keep the quote but add 'stated for models like Claude, for reasoning continuity'. In E-32 and the brief table, write 'recommended and, for Claude-like models, described as necessary (E-27)'. Leave which upstream models refuse the request to U-18 (8), as now."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-35",
+    "problem": "The cited line number is wrong. The row says the generateContent variant 'is linked at https://ai.google.dev/gemini-api/docs/generate-content/api-errors (capture line 48)'. The link is on line 69; line 48 is a table-of-contents entry.",
+    "evidence": "research/raw/2026-10-05-api-errors-interactions-api-google-ai-fo-google-eacc9797.md line 69: '- [generateContent API](https://ai.google.dev/gemini-api/docs/generate-content/api-errors)'. Line 48: '- [Error response format](https://ai.google.dev/gemini-api/docs/api-errors#error-schema)'.",
+    "fix": "Change '(capture line 48)' to '(capture line 69)'."
+   }
+  ]
+ },
+ {
+  "checked": "EVIDENCE.md rows E-01 to E-18, the first half of 35 rows. For each row I opened the Raw capture, checked every [quote: ...] against it (all 99 match once Markdown is stripped, and they match case-sensitively too), read the capture text behind each paraphrased claim, and checked the source type, URL and retrieval date against research/raw/.fetches.jsonl (ledger seq 1-18). The ledger URLs, frontmatter URLs, 2026-10-05 dates and P types all match, and every source is the vendor's own docs. I used DISCOVERY.md and BRIEF.md only to see whether a row's defect carries into the contract or brief. preflight.mjs: PASS (0 blocking, 0 warnings, 29 passing). handoff.mjs: OK (36 ledger entries, 35 rows, chain verifies). I edited nothing and fetched nothing.",
+  "issues": [
+   {
+    "severity": "material",
+    "location": "EVIDENCE.md E-07, carried into DISCOVERY.md U-03, U-06 and U-18 (8), and BRIEF.md line 205",
+    "problem": "The E-07 page says Gemini 3 supports thought signatures on the OpenAI-compatible chat-completions endpoint, and it points to a documented example. The row leaves this out and lists only 'Not stated: how thought signatures travel on this endpoint'. DISCOVERY then goes further and says 'E-07 is silent on thought signatures' (U-03, U-18 (8)). As a result, how signatures travel on the compatible endpoint is treated as a wire measurement, when it is a documented fact the corpus never collected. The page the pointer names (thought-signatures#openai) is not in the corpus: E-04's fetch of that URL was redirected to the Interactions 'Gemini thinking' page, which has no OpenAI section, and no capture mentions extra_content or OpenAI signature carriage.",
+    "evidence": "research/raw/2026-10-05-openai-compatibility-gemini-api-google-a-google-746b888a.md lines 351-352: \"Gemini 3 supports OpenAI compatibility for thought signatures in chat completion APIs. You can find the full example on the [thought signatures](https://ai.google.dev/gemini-api/docs/thought-signatures#openai) page.\" research/raw/2026-10-05-gemini-thinking-gemini-api-google-ai-for-google-cc50e394.md line 10: the skip link points at /gemini-api/docs/thinking (a redirect), and 'openai' does not occur anywhere in that capture. DISCOVERY.md U-18 (8) says: \"(E-07 is silent on thought signatures)\".",
+    "fix": "Add the lines 351-352 sentence to E-07 as a quote, and record that its target was not captured. Change 'E-07 is silent' in U-03, U-06 and U-18 (8), and the 'thought-signature carriage not stated' cell at BRIEF line 205, to say the docs claim support and the mechanism is uncollected. Then, on the collector machine, collect the generateContent or OpenAI section of the thought-signatures or thinking guide, so the compatible-endpoint half of U-03 rests on the vendor's own page and not only on a probe."
+   },
+   {
+    "severity": "material",
+    "location": "EVIDENCE.md E-11, carried into DISCOVERY.md U-08 and BRIEF.md lines 139-141",
+    "problem": "The row turns a rule the page states for one case into a general rule for every Anthropic tool continuation. The page's rule ('nothing except the tool_result blocks') applies to one case: a tool_use response that also holds a deferred server_tool_use. For ordinary client tools, the same page shows that text after tool_result is accepted. It is discouraged because it can produce an empty end_turn response, not because it causes an error. The row contradicts itself on this: its last sentence says empty end_turn responses 'can follow text added after tool results'. DISCOVERY U-08 repeats the rule as general ('the user message must hold nothing but the tool_result blocks'), and the brief quotes it as a rule. The design impact is small, because sending only tool_result blocks is also what the page recommends, but the fact as stated is too broad.",
+    "evidence": "research/raw/2026-10-05-stop-reasons-and-fallback-claude-platfor-claude-849de77a.md line 290: \"A `tool_use` response can also contain a `server_tool_use` block whose `id` has no matching result block...\". Line 316: \"The continuation is a user message of `tool_result` blocks, one for every `tool_use` block in the response ..., with two extra rules: that message must contain nothing except the `tool_result` blocks, and the request must keep the same `tools` array.\" Line 335: \"Adding anything after the `tool_result` blocks in that user message, such as text, ends the assistant turn; for a server tool Claude called directly, the request then fails with a 400\". Lines 84-100: \"Sometimes Claude returns an empty response ... Adding text blocks immediately after tool results\" (marked '# INCORRECT', but described as an empty response, not an error).",
+    "fix": "Limit the quote in E-11 to its case: 'when the response also holds an unfinished server_tool_use, the continuation must contain nothing except the tool_result blocks and keep the same tools array'. Add the general rule the page does state: tool_result blocks come first, and text after them is accepted but can cause empty end_turn responses. Apply the same wording to DISCOVERY U-08 and BRIEF lines 139-141. Moonzila sends no server tools, so the general rule is the one that applies to it."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-09 (against E-12 and E-15)",
+    "problem": "E-09 states the thinking budget rule ('Requires a minimum budget of 1,024 tokens') with no qualification. Two other captures in the corpus show this applies only to legacy extended thinking ({type: enabled, budget_tokens}), and that Claude 4.7 and later reject that form with a 400. The contradiction is not flagged, which Rule 4 requires. Nothing downstream uses the 1,024 figure, but a builder who configures thinking from E-09 would send a request that current models refuse.",
+    "evidence": "research/raw/2026-10-05-create-a-message-claude-api-reference-claude-e77afe85.md line 830: \"Requires a minimum budget of 1,024 tokens and counts towards your `max_tokens` limit.\" research/raw/2026-10-05-claude-api-errors-claude-platform-docs-claude-854b88aa.md line 179: \"Claude 4.7 and later models have removed extended thinking. Sending `thinking: {\"type\": \"enabled\"}` to any of these models returns a 400 `invalid_request_error`\". research/raw/2026-10-05-openai-sdk-compatibility-claude-platform-claude-24877821.md line 76: \"manually configured extended thinking is a legacy mode\".",
+    "fix": "Qualify the E-09 claim: the budget minimum applies to extended thinking (type enabled with budget_tokens) on Claude 4.5 and earlier models and on Mythos Preview. Add a contradiction note citing E-12 line 179 (adaptive thinking on 4.7 and later; enabled is refused)."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-02",
+    "problem": "The row says 'every curl example selects SSE and passes the key as a query parameter'. That holds only for the seven :streamGenerateContent examples. The :generateContent curl examples on the same page pass ?key= without alt=sse, so the sentence is literally false as written.",
+    "evidence": "research/raw/2026-10-05-generating-content-gemini-api-google-ai--google-bdc7e2af.md line 215: curl \"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY\" (no alt=sse). Lines 2238, 2359, 2482, 2653, 2761 and 2887 are the streamGenerateContent?alt=sse&key=... examples.",
+    "fix": "Reword to: 'every streamGenerateContent curl example selects SSE (alt=sse) and every curl example passes the key as the key= query parameter'."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-03, E-05, E-17",
+    "problem": "Three rows say a linked page was 'not captured', but later rows in the same corpus did capture each page. A reader is pointed away from evidence the corpus actually holds.",
+    "evidence": "E-03: generateContent variant at https://ai.google.dev/gemini-api/docs/generate-content/function-calling \"was not captured\"; it is captured as E-34 (ledger entry for that URL, research/raw/2026-10-05-function-calling-with-the-gemini-api-gen-google-f962c5a5.md). E-05: https://ai.google.dev/gemini-api/docs/api-errors \"(... line 114, not captured)\"; it is captured as E-35 (2026-10-05-api-errors-interactions-api-google-ai-fo-google-eacc9797.md). E-17: https://developers.openai.com/api/docs/api-reference/responses-streaming \"(... lines 245 and 465, not captured)\"; it is captured as E-33 (2026-10-05-responses-openai-api-reference-openai-79e404fb.md).",
+    "fix": "In each of the three rows, replace 'not captured' with 'captured as E-34', 'captured as E-35' (noting it is the Interactions variant) and 'captured as E-33'."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-15, carried into BRIEF.md line 206",
+    "problem": "In the cited Markdown capture, the request-side messages tables for the assistant and tool roles are collapsed: only the developer-role table is shown. Support for tool_call_id and assistant tool_calls in replayed history is therefore not visible in the Raw file. The fact exists only in the .source.html, where tool_call_id is marked 'Fully supported'. E-15 does not say this, yet BRIEF line 206 says the layer 'works unchanged per docs' for a body that replays tool messages.",
+    "evidence": "research/raw/2026-10-05-openai-sdk-compatibility-claude-platform-claude-24877821.md line 147: \"Developer roleSystem roleUser roleAssistant roleTool roleFunction role\", and line 149 shows only \"Fields for `messages[n].role == \"developer\"`\". The .source.html for the same capture holds the tool-role table with \"tool_call_id\" ... \"Fully supported\" in its RSC payload.",
+    "fix": "Add a note to E-15 that the assistant-role and tool-role message tables are collapsed in the Markdown and present only in the source HTML (tool_call_id Fully supported). Alternatively, scope BRIEF line 206's 'works unchanged per docs' to the fields the Markdown actually shows."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-10, carried into BRIEF.md lines 142-143",
+    "problem": "The row describes every content block as content_block_start, then content_block_delta events, then content_block_stop. It leaves out the page's stated exception: during server-side fallback, a 'fallback' content block arrives as a start/stop pair with no deltas. An accumulator built from the row could assume every block has at least one delta.",
+    "evidence": "research/raw/2026-10-05-streaming-messages-claude-platform-docs-claude-0712ffc4.md line 68: \"One exception: during server-side fallback responses, a `fallback` content block arrives at each model boundary as a `content_block_start` and `content_block_stop` pair with no deltas in between.\"",
+    "fix": "Add the exception to E-10 (a fallback block arrives with no deltas), and have the brief's stream description say a block may have zero deltas."
+   }
+  ]
+ },
+ {
+  "checked": "Ran preflight.mjs (PASS, 0 blocking, 0 warnings, 29 passing, evidencePolicy=pluralist) and handoff.mjs (OK: 36 ledger entries, 35 evidence rows, every capture on disk, chain verifies, role=collector). Both exited 0. I read DISCOVERY.md in full (U-01..U-19, Reused, Already decided), EVIDENCE.md E-01..E-35, BRIEF.md in full, and MAP.md. I checked each closure against its cited captures (.md, plus the ledgered .source.html where a row relies on it). I also extracted every <aside> callout from the 26 source.html files and compared it with the markdown captures; 4 of the findings below came from that pass. I did not fetch anything and did not edit any file.",
+  "issues": [
+   {
+    "severity": "material",
+    "location": "EVIDENCE.md E-10; DISCOVERY.md U-07 and U-18 (6); BRIEF.md lines 299, 309, 360",
+    "problem": "The corpus says no captured page states whether Anthropic's message_delta usage is cumulative. It sends this to a day-one wire probe (U-18 (6)), and the brief tells the builder the design must not depend on it. The E-10 capture does state it, in a warning callout that the markdown conversion dropped. The brief also overreads an abbreviated example when it says 'Anthropic may send no usage at all (E-10)'.",
+    "evidence": "research/raw/2026-10-05-streaming-messages-claude-platform-docs-claude-0712ffc4.source.html line 39 (the ledgered source of E-10): \"The token counts shown in the usage field of the message_delta event are cumulative.\" Compare E-10 'Not stated: whether message_delta usage is cumulative' and BRIEF line 309 'Whether Anthropic's message_delta usage is cumulative (E-10)' under 'Not stated on any captured page'.",
+    "fix": "Add a [quote:] for the cumulative rule to E-10 and close that part of U-07 with it. Drop U-18 (6), or keep it only as a cross-check. In the brief, take Anthropic usage as the last message_delta value (cumulative), move the item out of 'Not stated', and soften 'may send no usage at all'."
+   },
+   {
+    "severity": "material",
+    "location": "EVIDENCE.md E-15; DISCOVERY.md U-10; BRIEF.md lines 206, 316-317",
+    "problem": "U-10 explicitly asks what Anthropic says about production use of its OpenAI layer. The corpus says no captured page states it, but the E-15 capture does. This bears directly on the compatibility-table verdict ('works unchanged per docs') and on whether the existing kind can replace the native adapter, which is the scope decision the build intent says facts should settle.",
+    "evidence": "research/raw/2026-10-05-openai-sdk-compatibility-claude-platform-claude-24877821.source.html line 75: \"This compatibility layer is primarily intended to test and compare model capabilities, and is not considered a long-term or production-ready solution for most use cases.\" The same file also says \"For the best experience and access to Claude API full feature set (PDF processing, citations, thinking, and prompt caching), use the native Claude API.\" Compare E-15 'Not stated: ... any production-use caveat' and BRIEF line 316-317.",
+    "fix": "Quote the caveat in E-15, answer that part of U-10 from it, remove it from the brief's 'Not stated' list, and add 'not production-ready per Anthropic' to the Anthropic-layer verdict in the compatibility table."
+   },
+   {
+    "severity": "material",
+    "location": "EVIDENCE.md E-07; DISCOVERY.md U-03, U-06, U-18 (8); BRIEF.md line 205",
+    "problem": "The corpus says E-07 is silent on how thought signatures travel on Gemini's OpenAI-compatible endpoint, and sends the question to a wire probe. E-07 actually states that Gemini 3 supports thought signatures on that endpoint and links to the page that documents the mechanism. That page was not captured: the thought-signatures URL served the Interactions variant (E-04), which has no OpenAI section. So this is an uncollected owner page, not a fact no page owns. The 'Already decided' rule sends only behaviour no page owns to U-18.",
+    "evidence": "research/raw/2026-10-05-openai-compatibility-gemini-api-google-a-google-746b888a.md lines 351-352: \"Gemini 3 supports OpenAI compatibility for thought signatures in chat completion APIs. You can find the full example on the [thought signatures](https://ai.google.dev/gemini-api/docs/thought-signatures#openai) page.\" Compare E-07 'Not stated on this page: ... how thought signatures travel on this endpoint', U-03 'E-07 is silent', U-18 (8) '(E-07 is silent on thought signatures)', and BRIEF line 205 'thought-signature carriage not stated (E-07)'.",
+    "fix": "Correct E-07, U-03, U-06, U-18 (8) and the brief's Gemini row to say Google documents signature support on the compatible endpoint, in a section that was not collected. Mark the mechanism KNOWN-UNKNOWN pending that page, and note that the existing kind, which carries no provider state, very likely needs a field to round-trip it on Gemini 3 tool turns."
+   },
+   {
+    "severity": "material",
+    "location": "EVIDENCE.md E-12; BRIEF.md design point 1 (lines 323-331) and Anthropic 'Thinking' bullet (lines 154-158)",
+    "problem": "The design says to keep Anthropic thinking blocks in the wire-state store and replay them. It leaves out a rule stated in the E-12 capture: on Fable 5.1, Opus 5.5 and Sonnet 5.5, a replayed thinking block is accepted only while the system prompt, the tools and every earlier message are unchanged. For accounts created on or after 2026-08-31, a changed prefix gets a 400. DISCOVERY itself notes that Moonzila's history assembly drops earlier runs' tool messages (src/engine/application.ts:347), so replaying blocks over that edited history would fail. Separately, the brief's always-on-thinking list omits Sonnet 5.5, where thinking cannot be disabled and between_tools still returns thinking blocks.",
+    "evidence": "research/raw/2026-10-05-claude-api-errors-claude-platform-docs-claude-854b88aa.md lines 281-291: \"On Claude Fable 5.1, Claude Opus 5.5, and Claude Sonnet 5.5, the API accepts a replayed thinking block only while the `system` prompt, `tools`, and messages that preceded it are unchanged. For new accounts created on or after August 31, 2026 ... a replayed block whose earlier history changed is rejected with a 400 invalid_request_error\" and \"Keep the conversation history append-only, or send the beta header with prefix_mismatch_behavior: \\\"drop_block\\\"\". Line 219: Sonnet 5.5 \"thinking can't be set to disabled\". None of DISCOVERY, EVIDENCE or BRIEF mentions block_binding or append-only.",
+    "fix": "Add the prefix-binding rule to E-12 and to U-08 or U-03, and put it in brief design point 1. The rule is that thinking replay requires an unchanged prefix: either keep the history append-only (which conflicts with application.ts:347 and with any context trimming), or send the thinking-binding-controls beta header with drop_block. Add Sonnet 5.5 and between_tools to the 'Thinking' bullet."
+   },
+   {
+    "severity": "material",
+    "location": "BRIEF.md design point 2 (lines 332-333) and compatibility table, Anthropic row (line 206)",
+    "problem": "The brief says Anthropic's native API 'only adds anthropic-version' and that its OpenAI layer 'works unchanged per docs'. Both captures say a multi-workspace key also needs an anthropic-workspace-id header, which the existing kind cannot send. E-08 records the header, but the brief contradicts it.",
+    "evidence": "research/raw/2026-10-05-api-overview-claude-platform-docs-claude-0882f00e.md line 52: anthropic-workspace-id \"Required with a multi-workspace API key.\" (also in EVIDENCE E-08). research/raw/2026-10-05-openai-sdk-compatibility-claude-platform-claude-24877821.md line 22: \"If your key is a personal or service account key with access to multiple workspaces, also send the `anthropic-workspace-id` header on every request\".",
+    "fix": "State in design point 2 and in the Anthropic-layer verdict that a multi-workspace key requires anthropic-workspace-id on every request, so the profile needs a workspace setting. Until that exists, the verdict is 'works unchanged only for single-workspace keys'."
+   },
+   {
+    "severity": "material",
+    "location": "DISCOVERY.md U-04 (proposed outcome map); BRIEF.md design point 4 (lines 346-348)",
+    "problem": "The Gemini outcome map has no rule that yields tool_calls. It maps STOP to complete, and Gemini has no tool-call FinishReason. No captured page states which finishReason a functionCall turn ends with, and no U-18 probe records it. Read literally, a tool turn would close as 'complete' with its calls unexecuted. The map also leaves LANGUAGE, SPII, OTHER, ESCALATION, PUP_LIMITED_DISABLED, NO_IMAGE and IMAGE_OTHER unmapped. And DISCOVERY and BRIEF disagree on RECITATION: the brief maps it to blocked, while U-04 does not list it.",
+    "evidence": "research/raw/2026-10-05-generating-content-gemini-api-google-ai--google-bdc7e2af.md lines 3200-3223: the FinishReason enum has no tool-call value. Neither that capture nor E-34 (\u2026gen-google-f962c5a5.md) shows a finishReason on any functionCall response. U-04 says \"STOP to complete ... the safety, blocklist and prohibited values and blockReason to blocked\". BRIEF line 346-347 says \"safety, recitation, blocklist and prohibited-content values ... to blocked\".",
+    "fix": "Add an explicit rule that any functionCall part in the final candidate gives tool_calls, whatever the finishReason. Add 'record finishReason on the functionCall chunk' to U-18 (4). Map every FinishReason value, or give a default for unknown ones (blocked or failure, never complete), and make DISCOVERY and BRIEF agree on RECITATION."
+   },
+   {
+    "severity": "material",
+    "location": "BRIEF.md design point 1 (line 331) and compatibility table, DeepSeek row (line 207)",
+    "problem": "The brief limits wire-state retention to 'the turns that carry tool calls' and says DeepSeek 'breaks on the second tool request'. E-19 requires reasoning_content back for all previous turns on every request that carries tools, including turns with no tool call. A builder following the brief would drop reasoning_content from plain assistant turns and get the documented 400. U-13 in DISCOVERY states this correctly, so the brief contradicts the contract.",
+    "evidence": "research/raw/2026-10-05-thinking-mode-deepseek-api-docs-deepseek-510bbf16.md line 148: \"for requests carrying the tools parameter, the reasoning_content must be fully passed back to the API in all subsequent requests \u2014 even for turns where the model did not perform a tool call. If your code does not correctly pass back reasoning_content, the API will return a 400 error.\" Line 60: \"the reasoning_content of all previous turns should be passed back\".",
+    "fix": "Change design point 1 to keep provider state on every assistant turn for DeepSeek (and wherever a vendor requires it), not only tool-call turns. Reword the DeepSeek verdict to 'breaks on any request with tools that follows an assistant turn whose reasoning_content was not carried'."
+   },
+   {
+    "severity": "material",
+    "location": "DISCOVERY.md U-05; BRIEF.md 'KNOWN-UNKNOWN - U-05' (lines 272-282)",
+    "problem": "U-05 is marked KNOWN-UNKNOWN, but the fact is not unreachable. The owner page that likely holds the generateContent error table is public, is linked from E-35, and fits the stated budget: the cap is 45 credits, 36 were spent, so 9 remain. Rule 3 reserves KNOWN-UNKNOWN for genuinely unreachable facts (login-walled, private or paywalled). 'Collection for this corpus is finished' is a choice. The earlier draft (BRIEF.md.bak) kept U-05 OPEN, waiting on exactly this kind of page.",
+    "evidence": "research/raw/2026-10-05-api-errors-interactions-api-google-ai-fo-google-eacc9797.md line 69: \"- [generateContent API](https://ai.google.dev/gemini-api/docs/generate-content/api-errors)\". DISCOVERY 'Already decided': \"Worst case 44 credits, under this project's 45-credit cap\" and \"36 scrapes in all, within the cap\". research/raw/.usage.jsonl: spent 18+14+4.",
+    "fix": "Collect https://ai.google.dev/gemini-api/docs/generate-content/api-errors on the collector machine (1 credit; the generateContent thought-signatures page could go in the same run). Close or narrow U-05 from it, and keep U-18 (2) only for the exact body bytes. Alternatively, record U-05 as KNOWN-UNKNOWN by budget decision rather than by unreachability, with the lead's sign-off."
+   },
+   {
+    "severity": "material",
+    "location": "DISCOVERY.md U-17; BRIEF.md design point 8 (lines 363-366) vs 'Not stated' list (lines 315-316)",
+    "problem": "The locality rule treats a model as local when it has no remote_host and no cloud name suffix. That depends on how Ollama classes a reference as cloud-sourced, which the brief's own 'Not stated ... (the design must not depend on these)' list names. U-17 is CLOSED, yet its residue ('a day-one check against the user's own Ollama') has no step in U-18 or anywhere else. Two further gaps: the brief does not say which suffix forms count, and refusing 'a response that carries remote_host' happens after the prompt has already left the machine. That check also never fires on the /v1/chat/completions passthrough, whose OpenAI-shaped response the captures do not show carrying remote_host. /api/status is also backed by a method named CloudStatusExperimental.",
+    "evidence": "routes.go capture (research/raw/2026-10-05-routes-go-githubusercontent-6669b9b0.md) lines 289-299: `modelRef, err := parseAndValidateModelRef(req.Model)` then `if modelRef.Source == modelSourceCloud { ... proxyCloudJSONRequest(...)`. parseAndValidateModelRef is not defined in the capture. Line 1975: \"apply Modelfile overlay deltas for local models with cloud parents\". E-30 quotes \"StatusResponse is the response from [Client.CloudStatusExperimental].\" BRIEF line 315 lists \"how Ollama classes a reference as cloud-sourced\" among the facts the design must not depend on.",
+    "fix": "Rely only on the documented branch (cloud disabled, per E-28 'To use only local models, disable cloud features') for 'local'. Otherwise require /api/show remote_host to be empty before sending, and treat the suffix rule as provisional. Add a numbered U-18 probe for the Ollama classification (named suffix forms, a local model with a cloud parent, /v1 passthrough while disabled, and /api/status on older versions). Remove or justify the post-send remote_host refusal."
+   },
+   {
+    "severity": "material",
+    "location": "BRIEF.md design point 3 (lines 337-342) and compatibility table, Mistral and DeepSeek rows (lines 207-208)",
+    "problem": "The brief's list of in-stream signals that must end a run as failure covers Anthropic, OpenRouter and Responses only. It leaves out Mistral's finish_reason 'error' and 'model_length' (context exhausted) and DeepSeek's 'insufficient_system_resource' and 'aborted'. Both are documented in E-22 and E-20 and noted in U-13 and U-14. A builder reading only the brief would let OpenAIAccumulator treat these as unknown, or as success, which is the failure the intent forbids.",
+    "evidence": "research/raw/2026-10-05-chat-completions-api-deepseek-api-docs-deepseek-3c16da97.md line 503: \"Possible values: [stop, length, content_filter, tool_calls, insufficient_system_resource, aborted]\". The E-22 row (source HTML of the Mistral chat page) lists \"finish_reason values stop, length, model_length, error and tool_calls\". grep finds none of model_length, insufficient_system_resource or aborted in BRIEF.md.",
+    "fix": "In design point 3 and the two table rows, map Mistral 'error' and DeepSeek 'insufficient_system_resource' and 'aborted' to failure, Mistral 'model_length' to incomplete, and any unknown finish_reason to failure rather than complete."
+   },
+   {
+    "severity": "minor",
+    "location": "DISCOVERY.md U-05; BRIEF.md lines 281-282",
+    "problem": "The capture line given for the generateContent api-errors link is wrong.",
+    "evidence": "Both files cite \"E-35 capture line 48\". In research/raw/2026-10-05-api-errors-interactions-api-google-ai-fo-google-eacc9797.md, line 48 is '- [Error response format](...#error-schema)'. The generate-content/api-errors link is at line 69.",
+    "fix": "Change 'line 48' to 'line 69' in U-05 and in the brief."
+   },
+   {
+    "severity": "minor",
+    "location": "DISCOVERY.md U-02; BRIEF.md 'Results' bullet (lines 98-100)",
+    "problem": "Both files say every E-34 example, the REST one included, appends the model's whole content unchanged. The REST example elides the history with '...', and the compositional JS example rebuilds the model turn from the functionCall alone, as the brief's own Contradiction 10 notes.",
+    "evidence": "E-34 capture lines 2853-2858: REST `\"contents\": [ ..., { \"role\": \"user\", ... \"functionResponse\"`. Lines 1903-1910: `contents.push({ role: \"model\", parts: [ { functionCall: functionCall } ] })`.",
+    "fix": "Say 'the role is user in every example; the Python and Go examples append the whole content; the REST example elides it and one JS sample rebuilds it (Contradiction 10)'."
+   },
+   {
+    "severity": "minor",
+    "location": "EVIDENCE.md E-04",
+    "problem": "E-04 says it does not state which generateContent parts carry thoughtSignature. Its captured source HTML does state it, in a dropped callout. E-34 states the same thing, so the design is unaffected.",
+    "evidence": "research/raw/2026-10-05-gemini-thinking-gemini-api-google-ai-for-google-cc50e394.source.html line 1471: \"In the generateContent API, there are no dedicated thought blocks. Because of this, signatures are metadata that can be attached to any part, such as living inside functionCall parts or the final part of a response.\"",
+    "fix": "Quote the note in E-04 and remove that item from its 'Not stated' clause."
+   },
+   {
+    "severity": "minor",
+    "location": "DISCOVERY.md U-16",
+    "problem": "U-16 is CLOSED although it asks for 'any retry delay in the body' for Gemini, and no captured page answers that for generateContent. There is also no day-one step for it. The design (exponential backoff) does not depend on the answer, but the closure is partial.",
+    "evidence": "U-16: \"the generateContent 429 body was not captured, so the adapter reads no delay field\". E-05 and E-35 (Interactions only) state no delay field.",
+    "fix": "Mark the Gemini 429-delay sub-question explicitly out of scope or measured (record a 429 body if one occurs during U-18), rather than leaving it inside a CLOSED row."
+   },
+   {
+    "severity": "minor",
+    "location": "BRIEF.md lines 74-76",
+    "problem": "'U-16 and U-17 rest on two hosts each, and the gate counts them as independent documents' implies corroboration. U-16's two hosts belong to two different vendors (platform.claude.com for Anthropic facts, ai.google.dev for Gemini facts), so each vendor's throttling claim still rests on one witness.",
+    "evidence": "U-16 cites E-14 and E-12 (Anthropic) for Anthropic claims and E-05 and E-35 (Google) for Gemini claims, and carries no single-witness note.",
+    "fix": "Say that each vendor half of U-16 is single-witness, like the other rows."
+   },
+   {
+    "severity": "minor",
+    "location": "DISCOVERY.md U-19; BRIEF.md lines 209, 328",
+    "problem": "The brief says OpenRouter reasoning_details 'must be preserved' during tool use. E-27 frames preservation as useful, for reasoning continuity; the only hard rule it states is about order and integrity when the blocks are sent back. Which models refuse without them is untested (U-18 (8)).",
+    "evidence": "research/raw/2026-10-05-reasoning-tokens-improve-ai-model-decisi-openrouter-ed86aee1.md line 461: \"Preserving reasoning blocks is useful specifically for tool calling ... This necessitates preserving reasoning blocks during tool use, for a couple of reasons: Reasoning continuity...\"",
+    "fix": "Say 'recommended for continuity; required only where an upstream model refuses without it (U-18 (8))'."
+   },
+   {
+    "severity": "minor",
+    "location": "BRIEF.md compatibility table, Mistral row (line 208); design point 1",
+    "problem": "E-22 records ThinkChunk content parts carrying a signature 'to replay some reasoning blocks across turns'. The brief's Mistral row and wire-state list leave it out, so a builder is not told that Mistral reasoning models may stream structured content parts or need a replayed signature.",
+    "evidence": "EVIDENCE E-22: \"ThinkChunk content parts carrying a signature described as \\\"Signature to replay some reasoning blocks across turns.\\\"\" grep finds no 'ThinkChunk' in BRIEF.md.",
+    "fix": "Add the ThinkChunk signature to the Mistral row as untested state carriage, and add a probe with a Mistral reasoning model to U-18 (1) or (8)."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md.bak-2026-10-05",
+    "problem": "A superseded brief sits inside research/. It is untracked and not ignored, so it would be committed with the corpus. It says 'Gate: FAIL' and lists U-02, U-05, U-11 and U-19 as OPEN, which contradicts the handoff file.",
+    "evidence": "diff against BRIEF.md: \"**Gate: FAIL (4 blocking findings).** U-02, U-05, U-11 and U-19 are OPEN\". `git check-ignore` exits 1 (not ignored).",
+    "fix": "Delete the backup, or move it out of research/, before the corpus is committed."
+   }
+  ]
+ },
+ {
+  "unknowns": [
+   {
+    "id": "U-01",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-02",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED (native API only; the compatible-endpoint half moved to U-20)"
+   },
+   {
+    "id": "U-04",
+    "status": "CLOSED (full outcome map; the finishReason of a functionCall turn is measured in U-18 (4))"
+   },
+   {
+    "id": "U-05",
+    "status": "KNOWN-UNKNOWN (because collection was closed, not because the page is unreachable; the owner page is public, about 1 credit; lead to sign off or collect)"
+   },
+   {
+    "id": "U-06",
+    "status": "CLOSED (signature mechanism moved to U-20)"
+   },
+   {
+    "id": "U-07",
+    "status": "CLOSED (cumulative usage now closed from E-10's source HTML; U-18 (6) kept as a cross-check)"
+   },
+   {
+    "id": "U-08",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-09",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-10",
+    "status": "CLOSED (production caveat and workspace header now answered)"
+   },
+   {
+    "id": "U-11",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-12",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-13",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-14",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-15",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED (the Gemini 429-delay sub-question is explicitly measured in U-18 (11))"
+   },
+   {
+    "id": "U-17",
+    "status": "CLOSED (locality rule is now fail-closed; reference classification measured in U-18 (10))"
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN (day-one probes (1)-(11))"
+   },
+   {
+    "id": "U-19",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-20",
+    "status": "KNOWN-UNKNOWN (new: how thought signatures travel on Gemini's OpenAI-compatible endpoint; documented by Google on a page that was not collected)"
+   }
+  ],
+  "preflight": "PASS: 0 blocking, 0 warnings, 29 passing (evidencePolicy=pluralist). 20 unknowns: 17 closed, 3 known-unknown. 215 quotes found in their captures. The 36-entry ledger chain verifies. handoff.mjs: OK, exit 0 (36 ledger entries, 35 evidence rows, every cited capture on disk). brief.mjs --state: research/BRIEF.md is authored, with contradictions and decision both answered.",
+  "handoff": "All 31 verifier findings were checked against the captures. Every one was right in substance. The fixes are in research/EVIDENCE.md, DISCOVERY.md, MAP.md and BRIEF.md under /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats/research/.\n\nNothing under research/raw/ was touched: no file there is newer than the run-3 captures (13:34), and the ledger chain verifies. Nothing was fetched or committed. research.mjs ran only with --status.\n\nSeveral facts come from ledgered .source.html files. The gate checks [quote:] markers only against the markdown capture, so those facts carry plain quotation marks and a cited source-HTML line, as E-22 already did:\n- E-10 line 39: message_delta usage is cumulative.\n- E-15 lines 1-2 and 75: the compatibility layer is not production-ready, plus the collapsed assistant and tool role tables.\n- E-04 line 1471: in generateContent, signatures can sit on any part.\n- Mistral line 149: the stream finish_reason enum lacks model_length, and the UUID is a placeholder.\n\nStructural changes:\n- New KNOWN-UNKNOWN row U-20: how a thought signature travels on Gemini's OpenAI-compatible endpoint. It was split out of U-03 and U-06, and MAP T-2, T-6 and D-9 now cite it.\n- U-18 gains probe (10), the Ollama reference classification, and probe (11), recording any 429 body.\n- U-18 (6) is now only a cross-check.\n- The Ollama locality rule is now fail-closed: a loopback Ollama counts as local only when /api/status reports cloud.disabled true.\n- The Gemini outcome map now places every finishReason. A tool turn never closes as complete.\n\nThe brief was re-stamped through the kit: I ran brief.mjs --force, then put the authored text back with the new stamp. Two backups are now in the scratchpad (/tmp/claude-0/-home-user-Research-Kit/5649504a-fc26-5a4a-85c4-62cf875be3b1/scratchpad/vfix/), not in research/:\n- BRIEF.md.bak-2026-10-05.superseded: the old \"Gate: FAIL\" backup from issue 31.\n- BRIEF.md.bak-2026-10-05.authored-pre-restamp: the backup the --force run made.\n\nThe originals of all four edited files are in vfix/orig/. I also overwrote four earlier scratch copies at the scratchpad root (EVIDENCE.md, DISCOVERY.md, BRIEF.md, MAP.md). Those were not project files.\n\nDecision for the lead: U-05 and U-20 are KNOWN-UNKNOWN only because collection for this phase was closed. Both owner pages are public, about 1 credit each, and 36 of the 45-credit cap are spent. Either sign that off, or collect both pages in one run on the collector machine:\n- https://ai.google.dev/gemini-api/docs/generate-content/api-errors\n- the generateContent variant of the thought-signatures guide, with its OpenAI section. Its URL is not linked from any capture; reach it through the variant switch on https://ai.google.dev/gemini-api/docs/thought-signatures.\n\nSOURCES.md and TIMELINE.md were left unchanged. TIMELINE is derived and does not list U-rows.",
+  "applied": [
+   "1/16 [material] E-07 now quotes capture lines 351-352: Gemini 3 supports thought signatures on the compatible endpoint, and the linked thought-signatures#openai section was not collected (E-04 served the Interactions page, which has no OpenAI section). 'E-07 is silent' is gone from U-03, U-06, U-18 (8) and the brief's Gemini row. The mechanism is the new KNOWN-UNKNOWN U-20, whose day-one step is to collect that page on the collector machine, cross-checked by U-18 (8). The brief notes that the existing kind needs a provider-state field for Gemini 3 tool turns.",
+   "2 [material] E-11, U-08 and the brief's Tools bullet now state the general rule: tool_result blocks go first, and text after them is accepted but can cause an empty end_turn. The 'nothing except the tool_result blocks, same tools array' rule is scoped to responses that hold an unfinished server_tool_use, and Moonzila sends no server tools. Brief Contradiction 14 was added.",
+   "3 E-09 now says the 1,024-token minimum belongs to legacy extended thinking only, with a flagged contradiction against E-12 (Claude 4.7 and later refuse type enabled with a 400) and E-15 (legacy mode). Brief Contradiction 13 was added.",
+   "4 E-02 now says every streamGenerateContent curl example uses alt=sse, and every generateContent and streamGenerateContent curl example passes key=, with quotes from capture lines 2238 and 215.",
+   "5 E-03, E-05 and E-17 now say the linked page was captured as E-34, E-35 (Interactions variant) and E-33. The same fix was applied to E-24 (captured as E-32).",
+   "6 E-15 now records that the markdown collapses the per-role tables, and that the source HTML at line 75 lists assistant tool_calls and tool tool_call_id as Fully supported. The brief's Anthropic-layer row now carries this.",
+   "7 E-10, U-07 and the brief now state the fallback-block exception: a content block may have zero deltas. The first build step asserts it.",
+   "8 [material] E-22 and U-14 now split the enums: a streamed finish_reason is stop, length, error or tool_calls, and model_length appears only in the non-streaming ChatCompletionChoice.",
+   "9 E-22, E-23, U-14 and brief Contradiction 7 now say the UUID is the reference's generic placeholder (14 occurrences across unrelated fields), not a sample tool-call id.",
+   "10/25 E-34, U-02 and the brief's Results bullet now say the role is user in every example. Python, Go and step-by-step JavaScript append the whole content; REST elides history as '...'; the compositional JavaScript example rebuilds the model turn from the functionCall. The 'not always last' quote is now limited to functions combined with built-in tools.",
+   "11 E-30 and E-31 now label numbers as capture lines (source = capture - 8). The chat path cites ChatHandler (capture 2552-2558, 2607-2609, and 2588-2590 for the local-source 404). /v1/chat/completions is described as cloudPassthroughMiddleware in front of ChatHandler. ShowHandler proxying a cloud-sourced reference is recorded.",
+   "12/29 E-27 now frames preservation as optional in general, useful for tool calling, and described as necessary for models like Claude. The one hard rule is integrity of sent-back blocks. E-32, U-19, the U-18 (8) wording, the brief table and design point 1 were rephrased to match.",
+   "13/24 The E-35 link is now cited at capture line 69 (was 48) in E-35, U-05 and the brief.",
+   "14 [material] E-10 now records the cumulative rule from source HTML line 39. U-07 closes that part. U-18 (6) is kept only as a cross-check. The item was removed from the brief's 'Not stated' list. Design point 7 now says Anthropic output usage is the last message_delta value, and 'may send no usage at all' is softened to call the thinking example abbreviated.",
+   "15 [material] E-15 now records the production caveat from source HTML lines 1-2 and 75. It answers that part of U-10, was removed from 'Not stated', and was added to the Anthropic-layer verdict.",
+   "17 [material] E-12, U-08, the brief's Thinking bullet and design point 1 now carry the prefix-binding rule: Fable 5.1, Opus 5.5 and Sonnet 5.5 return a 400 for new accounts when the prefix changed. The remedy is an append-only history or the thinking-binding-controls-2026-08-01 beta header with drop_block, and it conflicts with application.ts:347 and with trimming. The choice is flagged for the Mandate. Sonnet 5.5 (cannot be disabled; between_tools still returns thinking blocks) was added.",
+   "18 [material] Design point 2, the Anthropic Request bullet and the Anthropic-layer row now require anthropic-workspace-id for multi-workspace keys, so the profile needs a workspace setting. The verdict is now 'works unchanged per docs for single-workspace keys only'.",
+   "19 [material] U-04 and design point 4 now place every FinishReason. A functionCall part with STOP or no finishReason gives tool_calls; otherwise the finishReason mapping applies, so a tool turn is never complete. Unknown values, UNSPECIFIED and a stream with no finishReason map to failure. RECITATION maps to blocked in both files. U-18 (4) records the finishReason on the functionCall chunk.",
+   "20 [material] Design point 1, the DeepSeek row and U-13 now say reasoning_content is required on every earlier assistant turn, plain answers included, whenever the request carries tools.",
+   "21 [material] (alternative fix) U-05, its brief section and the gate paragraph now say the page is public and reachable (about 1 credit, 36 of 45 spent). The row is KNOWN-UNKNOWN because collection was closed, not because the page is unreachable, and it needs the lead's sign-off; the collector run is named as the cheapest closure.",
+   "22 [material] U-17 and design point 8 now use a fail-closed locality rule: local only when cloud.disabled is true (the behaviour documented in E-28 and enforced in E-31). The remote_host and name-suffix rule stays provisional and off until the new U-18 (10) probe. The post-send remote_host refusal was removed as a control, with the reason. The CloudStatusExperimental name is noted. MAP T-7 cites U-18 (10).",
+   "23 [material] Design point 3, the Mistral and DeepSeek rows, U-13 and U-14 now map Mistral error to failure, model_length to incomplete, DeepSeek insufficient_system_resource and aborted to failure, and any unknown finish_reason to failure. Decision step 4 was updated.",
+   "26 E-04 now quotes the generateContent note from source HTML line 1471, and that item was removed from its 'Not stated'. U-03 and the brief's Thought signatures bullet now cite it.",
+   "27 The Gemini 429-delay sub-question in U-16 is now explicitly measured (new U-18 (11)), not closed. Design point 6 was updated.",
+   "28 The brief's witness paragraph and U-16 now say each vendor half of U-16 is single-witness. This is in prose with no [single-witness:] marker, because a marker on a two-site row raises the single-witness-stale warning.",
+   "30 The Mistral ThinkChunk signature was added to the Mistral row, design point 1, U-14 and a Mistral reasoning-model probe in U-18 (8).",
+   "31 research/BRIEF.md.bak-2026-10-05 ('Gate: FAIL') was moved out of research/ to the scratchpad. Moving keeps it recoverable; it is no longer in the corpus."
+  ],
+  "declined": [
+   {
+    "issue": "1/16 and 21: collect the generateContent thought-signatures (OpenAI section) page and the generateContent api-errors page on the collector machine",
+    "reason": "The task rules for this phase forbid fetching any page and running research.mjs except with --dry-run or --status. I applied the verifiers' named alternative instead. U-20 and U-05 are recorded as KNOWN-UNKNOWN because collection was closed, not because the pages are unreachable, with the cost (about 1 credit each, 9 of 45 left) and the exact day-one collector step. Whether to collect is left to the lead."
+   },
+   {
+    "issue": "14: drop U-18 (6)",
+    "reason": "The verifier allowed keeping it as a cross-check, so I kept it. The fixture now fails if the last message_delta is not the total, which catches it if the documented cumulative rule ever changes on the wire."
+   }
+  ]
+ },
+ {
+  "unresolved": [
+   "NEW minor defect, introduced by the fix for issues 1 and 6 (does not block the gate): DISCOVERY.md U-20 (line 79) says of the generateContent thought-signatures guide that 'its own URL is not linked from any capture', and BRIEF.md (the KNOWN-UNKNOWN U-20 section) says it 'is linked from no capture'. Both are wrong. E-34's ledgered source HTML (research/raw/2026-10-05-function-calling-with-the-gemini-api-gen-google-f962c5a5.source.html line 802, ledger seq 35, which carries a sourceSha256) links https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures in the site nav, under Thinking > Thought signatures. The fix: name that URL as the day-one collection target in U-20, in the BRIEF U-20 section and in Next steps 3. Whether that page has an OpenAI section is still not captured.",
+   "Minor residue on issue 3 (the enum split itself is fixed): U-14 and BRIEF design point 3 (line 427) describe Mistral's model_length as 'the model's context length reached'. No capture defines model_length. The string occurs only as a bare enum label in ChatCompletionChoice.finish_reason in the chat-mistral source HTML at line 149. The fix: label the description as an inference from the name, or drop it. Mapping it to incomplete can stay as a design choice."
+  ],
+  "preflight": "PASS  0 blocking, 0 warning(s), 29 passing  [evidencePolicy=pluralist] (exit 0). handoff.mjs: handoff OK - 36 ledger entries, 35 evidence rows, every capture they cite on disk, chain verifies.  [role=collector] (exit 0). Both were run with the working directory set to /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats, and Node is v24.21.0.",
+  "handoff": "This check was read-only: I edited no file, fetched no page, and did not run research.mjs or decompose.mjs. Corpus: /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats/research. Verdicts on the 13 issues:\n\n1 and 6 (E-07 thought signatures): RESOLVED on the points raised. E-07 now quotes capture lines 351-352, which I checked word for word, and states that the #openai target was not collected. E-04 has no OpenAI section: 'openai' does not occur in its capture, and its skip link points to /docs/thinking. 'E-07 is silent' is gone from U-03, U-06, U-18 (8), the BRIEF and MAP. U-20 is now a KNOWN-UNKNOWN with a day-one step. The fix added one false claim, that the guide's URL 'is linked from no capture' (see unresolved).\n\n2 (E-11 tool_result rule): RESOLVED. E-11, U-08, the BRIEF Tools bullet and Contradiction 14 now scope 'nothing except the tool_result blocks / same tools array' to responses holding an unfinished server_tool_use (capture lines 290, 316, 335). Text after the results is described as accepted but able to cause an empty end_turn (lines 84-100, 178). The tool_result-first rule rests on line 343.\n\n3 (Mistral model_length): RESOLVED. I verified the source HTML line 149 payload: the streamed CompletionResponseStreamChoice enum is stop, length, error and tool_calls, and only ChatCompletionChoice adds model_length. The UUID does occur 14 times. One minor gloss remains (see unresolved).\n\n4 (Anthropic cumulative usage): RESOLVED. Source HTML line 39 says 'The token counts shown in the usage field of the message_delta event are cumulative', repeated in the payload at line 412. E-10, U-07, BRIEF Usage, design point 7 and the 'Not stated' list are updated, and 'may send no usage' is softened. U-18 (6) is kept as a cross-check, which the verifier allowed (declined, sound).\n\n5 (Anthropic production caveat): RESOLVED. Source HTML lines 1-2 and 75 carry the quoted sentence exactly. U-10, the BRIEF Anthropic-layer verdict and the 'Not stated' list are updated. I also confirmed the assistant tool_calls, function_call and tool tool_call_id 'Fully supported' cells in the line 75 payload.\n\n7 (E-12 prefix binding and Sonnet 5.5): RESOLVED. The capture text (around lines 210-225 and 275-291) matches E-12, U-08, the BRIEF Thinking bullet and design point 1, and the Mandate choice is flagged. Optional nit: the BRIEF names 'two' remedies. The capture also gives a third one for Sonnet 5.5 between_tools (strip the thinking blocks from the edited turn on) and also applies the 400 to any request that sets prefix_mismatch_behavior 'error'. E-12 records both.\n\n8 (anthropic-workspace-id): RESOLVED. E-08 capture line 52 and E-15 capture line 22 are verified. The BRIEF Request bullet, the Anthropic-layer row ('single-workspace keys only'), design point 2 and Decision step 2 all agree.\n\n9 (Gemini outcome map): RESOLVED. All 22 FinishReason values from E-02 capture lines 3200-3223 are placed: 2 to complete or incomplete, 11 to blocked, 9 to failure. Unknown values and a stream with no finishReason go to failure. RECITATION maps to blocked in both files. A functionCall part with STOP or no finishReason gives tool_calls, and the 'otherwise' wording gives that rule precedence. U-18 (4) records the real value.\n\n10 (DeepSeek reasoning_content on every turn): RESOLVED. Capture lines 60 and 148 are verified, and U-13, design point 1, the DeepSeek row and Decision step 4 all say 'every earlier assistant turn, plain answers included'.\n\n11 (U-05 KNOWN-UNKNOWN): DECLINED, for a sound reason. The phase rules forbid fetching. The row, the gate paragraph and the BRIEF now state honestly that the page is public, linked at E-35 capture line 69 (verified) and about one credit, and that 36 of the 45-credit cap are spent (.usage.jsonl: 18+14+4). The row is KNOWN-UNKNOWN by a collection decision that the lead must sign off. Under the letter of Rule 3, U-05 and U-20 stay off-label until the lead signs off or the two pages are collected (about 2 credits). That is a lead decision, not a corpus defect.\n\n12 (Ollama locality): RESOLVED. The rule is now fail-closed on cloud.disabled true. The finer remote_host and suffix rule is off until U-18 (10). remote_host on a response is no longer used as a control. CloudStatusExperimental is noted, and MAP T-7 cites U-18 (10). It is scoped honestly: the source enforces the 403 only for remote-host models (routes.go capture lines 336-338 and 2607-2609). Whether proxyCloudJSONRequest checks the disabled flag is in an uncaptured file, and U-18 (10) probes exactly that.\n\n13 (Mistral and DeepSeek in-stream failures): RESOLVED. Design point 3, the Mistral and DeepSeek rows and Decision step 4 now map Mistral error to failure, length and model_length to incomplete, DeepSeek insufficient_system_resource and aborted to failure (DeepSeek capture line 503), and any unknown finish_reason to failure.\n\nAlso checked: BRIEF.md.bak is no longer in research/. Gate: preflight PASS (0 blocking, 0 warnings, 29 passing) and handoff OK (36 ledger entries, chain verifies).\n\nNote for the lead: in /home/user/moonaliza, git status shows the whole corpus directory as untracked ('?? docs/research/2026-10-05-provider-wire-formats/'). Handoff OK therefore holds only locally. The corpus, including research/raw/.fetches.jsonl (add it by name with git add -f), still has to be committed before a builder can receive it."
+ }
+]

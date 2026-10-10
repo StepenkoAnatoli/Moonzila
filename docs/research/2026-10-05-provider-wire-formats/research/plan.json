@@ -1,0 +1,107 @@
+{
+  "topic": "How the Anthropic Messages API, the OpenAI Responses API and the Google Gemini native API authenticate, stream text and tool calls, report usage and refuse over-window requests, and which vendors' OpenAI-compatible Chat Completions endpoints accept Moonzila's current request shape",
+  "notes": "RUN 1 of 2 (Gemini native and compatible, Anthropic native and compatible, OpenAI Responses): 18 owner URLs typed P, no searches, 18 credits at depth deep. Run 2 is research/plan-2.json (14 URLs, 14 credits); research/plan-conditional.json runs only if the lead decides, on the triggers it names (at most about 12 credits). Both runs: 32 credits; worst case with the conditional plan about 44, under this project's 45-credit cap. SLUG CHECK (2026-10-05, links grepped in every capture under docs/): CONFIRMED by a link inside an existing capture - platform.claude.com/docs/en/api/messages/create, build-with-claude/streaming and build-with-claude/handling-stop-reasons (docs/handoff/work/research raw/2026-09-24-thinking-claude-platform-docs-claude-03550646.md); build-with-claude/context-windows and api/rate-limits (docs/research/2026-09-28-open-gaps raw/2026-09-28-token-counting-claude-platform-docs-claude-29ea82f0.md); ai.google.dev/gemini-api/docs/api-key (docs/research/2026-10-02-model-pricing-and-ranking raw/2026-10-02-rate-limits-gemini-api-google-ai-for-dev-google-10e39629.md); developers.openai.com/api/docs/api-reference/responses/create and guides/reasoning (docs/research/2026-09-29-streaming-tool-calls raw/2026-09-29-function-calling-openai-api-openai-ec4f8c98.md); developers.openai.com/api/docs/guides/streaming-responses (same corpus, raw/2026-09-29-chat-openai-api-reference-openai-e5a436f3.md). UNCONFIRMED (no capture links them; each kept because it is the owner page, and placed on a path pattern a captured sibling on the same host proves where one exists): ai.google.dev/api/generate-content (no ai.google.dev/api/* page is captured or linked; kept because no /gemini-api/docs/ page owns the response schema and its enums); ai.google.dev/gemini-api/docs/function-calling, /thought-signatures, /troubleshooting, /tokens and /openai (pattern proven by the captured /gemini-api/docs/rate-limits and /pricing and the linked /billing, /batch-api, /api-key); platform.claude.com/docs/en/api/overview, /api/errors and /api/openai-sdk (pattern proven by the linked /docs/en/api/rate-limits, /api/beta-headers, /api/messages/create, /api/messages/count_tokens). Changed from the first draft: ai.google.dev/api (an unconfirmed overview) replaced by the confirmed /gemini-api/docs/api-key; ai.google.dev/api/tokens replaced by /gemini-api/docs/tokens on the proven pattern (both originals are in plan-conditional.json with triggers); platform.openai.com/docs/api-reference/responses replaced by the exact linked developers.openai.com/api/docs/api-reference/responses/create. Not re-collected, because an existing corpus already holds them within 30 days (DISCOVERY.md, Reused): the Anthropic thinking page, Anthropic token counting, the OpenAI function-calling guide and Chat Completions streaming reference, the OpenAI error-codes guide, the Gemini rate-limits page. U-18 is a wire measurement and has no page of its own.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "maxScrapes": 25,
+  "prefer": [
+    "ai.google.dev",
+    "platform.claude.com",
+    "developers.openai.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/api-key",
+      "type": "P",
+      "why": "U-01: which header carries the Gemini API key (x-goog-api-key), or whether only a key= query parameter is shown. Slug confirmed: linked from the captured rate-limits page."
+    },
+    {
+      "url": "https://ai.google.dev/api/generate-content",
+      "type": "P",
+      "why": "U-01, U-02, U-04, U-18: generateContent and streamGenerateContent routes and API version, alt=sse, GenerateContentResponse, FunctionCall fields (and any partial-argument field), FinishReason, PromptFeedback.blockReason, UsageMetadata fields. Slug unconfirmed."
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/function-calling",
+      "type": "P",
+      "why": "U-02, U-03: functionDeclarations, functionCall ids and args, parallel calls, functionResponse role and matching, signatures in function-calling turns. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/thought-signatures",
+      "type": "P",
+      "why": "U-03, U-06: which parts carry thoughtSignature, whether it must be returned unchanged, what happens if it is missing, how it travels on the OpenAI-compatible endpoint. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/troubleshooting",
+      "type": "P",
+      "why": "U-05, U-16: Gemini error codes and statuses (INVALID_ARGUMENT, RESOURCE_EXHAUSTED, INTERNAL, UNAVAILABLE), over-window refusal, retry advice. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/tokens",
+      "type": "P",
+      "why": "U-05: countTokens - what it accepts (contents, or a full generateContent request with tools) and what it returns. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/openai",
+      "type": "P",
+      "why": "U-06, U-18: Gemini OpenAI-compatibility base URL, auth, streamed tool calls, max_completion_tokens and stream_options support, documented limitations. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/api/overview",
+      "type": "P",
+      "why": "U-07: required headers x-api-key, anthropic-version, content-type. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/api/messages/create",
+      "type": "P",
+      "why": "U-07, U-08: Messages request body, tool definitions, tool_use and tool_result blocks, stop_reason values, usage fields. Slug confirmed: linked from the captured thinking page."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/build-with-claude/streaming",
+      "type": "P",
+      "why": "U-07, U-08, U-09: SSE event types, text_delta, input_json_delta, thinking and signature deltas, usage on message_start and message_delta, error events mid-stream. Slug confirmed: linked from the captured thinking page."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons",
+      "type": "P",
+      "why": "U-08, U-09: what each stop_reason means, including pause_turn, refusal and model_context_window_exceeded. Slug confirmed: linked from the captured thinking page."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/api/errors",
+      "type": "P",
+      "why": "U-09, U-16: HTTP error types (invalid_request_error, request_too_large 413, rate_limit_error 429, overloaded_error 529), errors inside a stream. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/build-with-claude/context-windows",
+      "type": "P",
+      "why": "U-09: what happens when input plus max_tokens exceeds the context window. Slug confirmed: linked from the captured token-counting page."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/api/rate-limits",
+      "type": "P",
+      "why": "U-16: 429 response, retry-after header, anthropic-ratelimit headers. Slug confirmed: linked from the captured token-counting page."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/api/openai-sdk",
+      "type": "P",
+      "why": "U-10, U-18: Anthropic OpenAI SDK compatibility - base URL, streamed tool calls, usage, ignored or unsupported fields, production caveats. Slug unconfirmed, proven pattern."
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/api-reference/responses/create",
+      "type": "P",
+      "why": "U-11, U-12: Responses create parameters (truncation, store, previous_response_id, include, max_output_tokens) and the returned response object (status, incomplete_details, usage). Slug confirmed: linked from the captured function-calling guide."
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/guides/streaming-responses",
+      "type": "P",
+      "why": "U-11: Responses streaming event types and how a stream ends. Slug confirmed: linked from the captured Chat Completions streaming reference."
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/guides/reasoning",
+      "type": "P",
+      "why": "U-12: reasoning items passed back with function call outputs, encrypted reasoning with store false, reasoning tokens against max_output_tokens. Slug confirmed: linked from the captured function-calling guide and pricing page."
+    }
+  ]
+}

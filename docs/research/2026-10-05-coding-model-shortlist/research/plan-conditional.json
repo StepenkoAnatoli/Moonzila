@@ -1,0 +1,57 @@
+{
+  "topic": "Which cloud and local coding models are worth offering in Moonzila as of 2026-10-05: current API model ids with context and output limits, tool-calling reliability, how vendors use and retain API inputs, and for small local models their licences, Ollama availability and sizes, runtime version and CPU requirements",
+  "notes": "CONDITIONAL - not run unless the lead decides, and then only the entries whose trigger fired; each entry's why starts with its PRIORITY (the order in research/DISCOVERY.md under Capture risks, 'Conditional pages and the 45-credit cap') and its TRIGGER. research.mjs runs every url in a plan file and --only filters queries only, so copy the fired entries into a plan of their own (same format) or delete the others first, replace each placeholder URL as its why says, and add the copied-from-capture pages DISCOVERY names (a U-02 model page at the slug the catalog gives, a U-14 repository link, the BFCL score file, the relocated ggml file). Set that plan's maxScrapes to what fits under 45 credits after the spend runs 1 and 2 actually made, taking fired entries in priority order; the rest give way as DISCOVERY says. This file: 7 named pages plus 1 search keeping 1 page = 8 pages (maxScrapes 8), about 10 credits; the copied-from-capture pages add up to 10 more. Runs 1 and 2 plan about 35, so the worst case if every trigger fired is about 55 credits - over the cap, which is why the priority order exists. The two PLACEHOLDER entries (U-07, U-09) carry a fragment on a page run 1 captures, so either one run without its URL replaced is a cache hit and costs nothing. A search query whose unknowns are all CLOSED in research/DISCOVERY.md is skipped by the kit. No plan-level prefer.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 1,
+  "maxScrapes": 8,
+  "queries": [
+    {
+      "q": "Mistral AI API terms does Mistral use API inputs and outputs to train models opt out data retention",
+      "why": "PRIORITY 5. U-11. TRIGGER: the run-1 capture of https://legal.mistral.ai/terms/terms-of-service is a 404 or says nothing about training use or retention of API inputs. A page kept on Mistral's own host is type S until read and promoted.",
+      "prefer": [
+        "legal.mistral.ai",
+        "help.mistral.ai",
+        "docs.mistral.ai"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://developers.openai.com/api/docs/models",
+      "type": "P",
+      "why": "PRIORITY 1. U-02. TRIGGER: a U-02 model page (gpt-6.1-sol or gpt-6-luna) 404s in run 1. The OpenAI model catalog, copied from the 2026-10-02 OpenAI pricing capture (line 33); it shows the real slugs. A model page it links under another slug is then one more conditional page per 404'd model, its URL copied from this capture, counted under the same priority."
+    },
+    {
+      "url": "https://ai.google.dev/gemma/terms",
+      "type": "P",
+      "why": "PRIORITY 2. U-14. TRIGGER: the run-2 Gemma 4 model card names Gemma's own Terms of Use (not a standard licence such as Apache 2.0) without its redistribution clause. Replace the URL with the terms link the model card gives."
+    },
+    {
+      "url": "https://www.anthropic.com/legal/commercial-terms#PLACEHOLDER-replace-with-the-privacy-centre-privacy-policy-or-DPA-link-this-capture-gives",
+      "type": "P",
+      "why": "PRIORITY 4. U-09. TRIGGER: the U-09 search keeps no page on an Anthropic host, or the page it keeps states no retention period for commercial API inputs and outputs, and the run-1 commercial-terms capture states none either. PLACEHOLDER: before running, replace this URL with the link to Anthropic's privacy centre, privacy policy or data processing addendum that the commercial-terms capture itself gives; if it gives none, do not run this entry (run unreplaced, the URL is the already-captured commercial terms and costs nothing). A page on an Anthropic host is P."
+    },
+    {
+      "url": "https://huggingface.co/ibm-granite/granite-4.0-350m",
+      "type": "P",
+      "why": "PRIORITY 8. U-14. TRIGGER: granite4:350m stays on the shortlist and the run-2 granite-4.0-1b card does not state that its licence covers the whole Granite 4.0 family. Replace the URL with the repository the granite4 Ollama page or the 1b card names for the 350m tag."
+    },
+    {
+      "url": "https://huggingface.co/ibm-granite/granite-4.0-micro",
+      "type": "P",
+      "why": "PRIORITY 8. U-14. TRIGGER: granite4:3b stays on the shortlist and the run-2 granite-4.0-1b card does not state that its licence covers the whole Granite 4.0 family. Replace the URL with the repository the granite4 Ollama page or the 1b card names for the 3b tag."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/.github/workflows/release.yaml",
+      "type": "P",
+      "why": "PRIORITY 9. U-15. TRIGGER: the run-2 root CMakeLists.txt at v0.34.4 does not settle whether the Windows x64 release builds every CPU variant (for example GGML_CPU_ALL_VARIANTS is set by a preset or a build flag it does not show). Pattern-derived path (main has .github/, file name not on disk); if it 404s, U-15 falls to the day-one log reading in DISCOVERY."
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/terms#PLACEHOLDER-replace-with-the-abuse-monitoring-or-usage-policies-link-this-capture-gives",
+      "type": "P",
+      "why": "PRIORITY 10. U-07. TRIGGER: the run-1 Gemini API terms capture states no logging period in days. PLACEHOLDER: before running, replace this URL with the abuse-monitoring or usage-policies link the terms capture itself gives; if the terms capture links no such page, do not run this entry (run unreplaced, the URL is the already-captured Gemini API terms and costs nothing)."
+    }
+  ]
+}

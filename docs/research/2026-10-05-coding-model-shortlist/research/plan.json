@@ -1,0 +1,104 @@
+{
+  "topic": "Which cloud and local coding models are worth offering in Moonzila as of 2026-10-05: current API model ids with context and output limits, tool-calling reliability, how vendors use and retain API inputs, and for small local models their licences, Ollama availability and sizes, runtime version and CPU requirements",
+  "notes": "Run 1 of 2, the cloud side: 15 owner pages named directly plus 1 search keeping 1 page = 16 pages (maxScrapes 16), about 18 credits. Run 2 is research/plan-2.json (local side, 15 pages, about 17 credits) - about 35 planned. research/plan-conditional.json holds pages run only when a named trigger fires (8 pages, about 10 credits), and research/DISCOVERY.md under Capture risks allows up to 10 more pages whose URLs can only be copied from a capture these runs make. Worst case if every trigger fired: about 55 credits, over the project's 45 cap; the order in which conditional pages are collected, and which give way at 45, is in research/DISCOVERY.md under Capture risks (review round 2, fix 3). No plan-level prefer (review round 1, fix 3): research-run.mjs merges it into every query's own list, so each query names only its own owner hosts. Where each URL comes from (grep of every raw capture under docs/, 2026-10-05; the full table is in research/DISCOVERY.md under Collection plan): linked from an existing capture - the Claude models overview, the gemini-3.8-flash and gemini-3.7-flash model pages, the Mistral Medium 3.5 card, the Gemini API terms, the OpenAI your-data guide; linked from no capture - the two OpenAI model pages (only the family pattern is linked; fallback: the model catalog in plan-conditional.json), the BFCL leaderboard, Anthropic's commercial terms, both DeepSeek policy pages, legal.mistral.ai terms-of-service, the OpenRouter models endpoint and the LiveBench model_judgment dataset card. Risks, each resolved in research/DISCOVERY.md under Capture risks: a pattern-only URL may 404 (one credit, not refetched within 30 days); the BFCL table is loaded by script (a placeholder capture is the U-05 finding, no mirror is searched for); the OpenRouter JSON may be graded partial; the U-09 search may keep no Anthropic page. Not collected again, by decision: prices, coding ranks, Gemini rate limits and the DeepSeek models (docs/research/2026-10-02-model-pricing-and-ranking: its E-01..E-06, E-09, and its DeepSeek capture lines 24-46).",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 1,
+  "maxScrapes": 17,
+  "queries": [
+    {
+      "q": "Anthropic API how long are inputs and outputs retained commercial customers data retention",
+      "why": "U-09: Anthropic's own page on how long commercial API inputs and outputs are kept (the commercial terms say whether they train, not how long they keep). A kept page is type S, promoted to P only if it is on an Anthropic host (privacy.claude.com, support.claude.com, platform.claude.com, or anthropic.com and its subdomains); if the search keeps no Anthropic page, U-09 claims no retention period unless the commercial-terms capture states one, and the retention half is KNOWN-UNKNOWN with the day-one step in research/DISCOVERY.md",
+      "prefer": [
+        "privacy.claude.com",
+        "privacy.anthropic.com",
+        "support.claude.com",
+        "platform.claude.com",
+        "anthropic.com"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://platform.claude.com/docs/en/models/overview",
+      "type": "P",
+      "why": "U-01: Claude API ids, aliases, context windows and maximum output tokens (linked from two existing captures)"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+      "type": "P",
+      "why": "U-02: gpt-6.1-sol id, snapshots, context window, maximum output, tool calling, endpoints (pattern-derived, may 404; on a 404 the fallback is the model catalog in plan-conditional.json, linked from the 2026-10-02 OpenAI pricing capture, line 33)"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+      "type": "P",
+      "why": "U-02: gpt-6-luna id, snapshots, context window, maximum output, tool calling, endpoints (pattern-derived, may 404; on a 404 the fallback is the model catalog in plan-conditional.json, linked from the 2026-10-02 OpenAI pricing capture, line 33)"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash",
+      "type": "P",
+      "why": "U-03: gemini-3.8-flash model code, input and output token limits, function calling, status (linked from the 2026-10-02 Gemini pricing capture, line 173)"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash",
+      "type": "P",
+      "why": "U-03: gemini-3.7-flash model code, input and output token limits, function calling, status (linked from the 2026-10-02 Gemini pricing capture, line 215; review round 2, fix 1: it outranks 3.8 Flash on LiveBench coding at half the cost per successful task, with the same price and free tier)"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite",
+      "type": "P",
+      "why": "U-03: gemini-3.5-flash-lite model code, input and output token limits, function calling, status (linked from the 2026-10-02 Gemini pricing capture, line 444; added by the lead after plan review round 3: LiveBench coding 76.1 against 3.8 Flash's 72.5 at $0.069 against $0.307 per successful task, but agentic coding 45.3 against 54.2, LiveBench capture lines 82 and 54)"
+    },
+    {
+      "url": "https://docs.mistral.ai/models/model-cards/mistral-medium-3-5-26-04",
+      "type": "P",
+      "why": "U-04: Mistral Medium 3.5 API id, context window, output limit, function calling (linked from the 2026-10-02 Mistral pricing capture)"
+    },
+    {
+      "url": "https://gorilla.cs.berkeley.edu/leaderboard.html",
+      "type": "P",
+      "why": "U-05, U-06, U-20: what the Berkeley Function Calling Leaderboard reports, its version and last update, and any terms it attaches to its scores; a script-only placeholder is itself the U-05 finding"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/terms",
+      "type": "P",
+      "why": "U-07: how Google uses and retains Gemini API data on unpaid versus paid services, and any logging period; note the link it gives for abuse monitoring or usage policies (linked from the 2026-10-02 Gemini pricing capture)"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/guides/your-data",
+      "type": "P",
+      "why": "U-08: OpenAI API training use, retention, zero data retention and data sharing (linked from the 2026-10-02 OpenAI pricing capture)"
+    },
+    {
+      "url": "https://www.anthropic.com/legal/commercial-terms",
+      "type": "P",
+      "why": "U-09: whether Anthropic may train on commercial API inputs and outputs (the owner's address, linked from no capture, may 404)"
+    },
+    {
+      "url": "https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html",
+      "type": "P",
+      "why": "U-10: DeepSeek Open Platform (API) terms on the use of inputs and outputs (linked from no capture, may 404)"
+    },
+    {
+      "url": "https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html",
+      "type": "P",
+      "why": "U-10: where DeepSeek stores inputs, for how long, and for what use (linked from no capture, may 404)"
+    },
+    {
+      "url": "https://legal.mistral.ai/terms/terms-of-service",
+      "type": "P",
+      "why": "U-11: Mistral's own terms on training use, opt-out and retention of inputs and outputs sent to the API, free API credits versus paid (pattern-derived, may 404; fallback search in plan-conditional.json)"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models",
+      "type": "P",
+      "why": "U-19: machine-readable price, context length, maximum completion tokens and supported parameters per model, without a key (large; may be graded partial)"
+    },
+    {
+      "url": "https://huggingface.co/datasets/livebench/model_judgment",
+      "type": "P",
+      "why": "U-20: the licence or terms LiveBench attaches to its published model judgments (scores), as distinct from its code and question set (pattern-derived, may 404)"
+    }
+  ]
+}

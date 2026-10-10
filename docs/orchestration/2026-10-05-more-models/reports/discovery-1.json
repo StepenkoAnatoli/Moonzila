@@ -1,0 +1,1397 @@
+{
+ "maps": [
+  {
+   "area": "Managed local catalogue and runtime (src/models/*: catalogue, download, archive, artifact-files, model-store, hardware, select, runtime/ActivationStore, local-runtime, managed-ollama, managed-provider, owned-transport) on main-axuse @ b490e50",
+   "summary": "The managed local stack is a set of tested backend pieces with no production caller. Main dispatches only 'hardware.read' and 'runtime.inspect' (src/main/index.ts:221-222). ActivationStore, ManagedOllamaProvider and selectLocal are imported only by tests and the scripts/check-*.ts verifiers. The model.* IPC methods are declared (src/shared/params.ts:121-126), but the engine has no case for them and its default branch throws NOT_IMPLEMENTED (src/engine/application.ts:265). The catalogue is an Ed25519-signed JSON envelope. Its signature covers the domain prefix 'MoonAliza activation set v1\\0' plus the payload bytes, and it is checked against an app-supplied trustedKeys map before the payload is parsed (catalogue.ts:24-32). There is no production key, no shipped catalogue, no catalogue producer script and no fetch or update channel in the repository; the docs list 'production trust inputs' as open work (HANDOFF.md:46; docs/superpowers/plans/2026-09-27-managed-artifacts.md:20). A catalogue entry carries only identities and links: artifacts {id, role, sha256, sizeBytes, https url, redirectHosts} plus runtimes and configurations that point to a model manifest, model blobs, a lab receipt and an evidence blob (catalogue.ts:10-16). Context size, backend, quantisation, quality and toolsPassed come from the referenced lab-receipt blob (contracts.ts:70-72). Quantisation also comes from the GGUF config blob's file_type (model-store.ts:50,56). No field holds a display name, licence, parameter count or minimum RAM. Activation downloads every artifact in the set (runtime.ts:112-115) and checks each lab receipt: suite moonaliza-coding-v1, quality >= 0.85, tools passed, zero unauthorized effects (runtime.ts:43). It then extracts the Ollama runtime ZIP, copies all model blobs into a private Ollama store named moonaliza/<manifest-sha>:verified (model-store.ts:56), and swaps a single current.json pointer that keeps the previous set (runtime.ts:117-130). Serving is a private Ollama 0.34.4 process started per request. It runs on CPU only (num_gpu 0, zero VRAM is checked), with cloud disabled, on an owned loopback port with socket ownership proof. The scheduler stops the runtime after every inference (scheduler.ts:171-172; managed-provider.ts:11,23-29; managed-ollama.ts:77,99-100). Selection reserves max(2 GiB, 15% of total RAM) (select.ts:15). The user's PC was measured at 8,515,145,728 B total and 1,235,644,416 B available (docs/evidence/model-store-runtime.json), so the reserve is 2 GiB, selectLocal returns 'host-reserve' (select.ts:69) and the probe list is empty (select.ts:56) whatever the model size. Its only GPU, an Intel HD 510, reports availableBytes null because native/hardware.cpp:168 always writes null, so no GPU candidate can ever be eligible (select.ts:32). By the code's design, a newer signed catalogue (higher sequence, in the app version range, not expired, signed by a trusted keyId) can be activated without an app release (runtime.ts:99-105). Today no code obtains or applies one. Key rotation is specified to need an app update (docs/specification/source-plan.md:797).",
+   "files": [
+    {
+     "path": "src/models/catalogue.ts",
+     "role": "Signed catalogue (activation set) schema and verifyCatalogue. Ed25519 envelope {schemaVersion 1, keyId, algorithm, payload b64 <= 2 MiB chars, 64-byte signature} (:8); artifact roles runtime|runtime-manifest|model-manifest|model-blob|lab-receipt|evidence (:10); payload {id, sequence, app.min/maxExclusive, issuedAt, expiresAt, artifacts<=4096, runtimes<=32 (backends cpu|cuda|vulkan|rocm), configurations<=256} is .strict() (:11-17); signature checked before parsing (:24-32); cross-reference checks (:36-40); rollback (:42), expiry (:43-44), app version (:45); result deep-frozen with digest = sha256(payload bytes) (:46)"
+    },
+    {
+     "path": "src/models/download.ts",
+     "role": "ArtifactSpecSchema {sha256, sizeBytes <= 1e12, https:443 url with no credentials or fragment, redirectHosts <= 8 exact hostnames} (:10-11). downloadArtifact streams into a content-addressed cache <sha>.blob, rehashes cached copies, resumes only with a strong ETag and exact Content-Range, retries a bounded number of times, rejects off-list redirects (:27) and Retry-After over 30 s (:35), and checks free space (:68,79)"
+    },
+    {
+     "path": "src/models/archive.ts",
+     "role": "extractRuntimeArchive: bounded, streamed yauzl ZIP extraction with path, link, encryption, duplicate and case checks, CRC and sha256, and an absent destination. Used for the Ollama runtime ZIP (:10-71)"
+    },
+    {
+     "path": "src/models/artifact-files.ts",
+     "role": "Shared guards: regularFile (no symlink, nlink 1) (:6-10), safeArtifactPath (Windows-safe names) (:12-14), privateDirectory (lstat from the filesystem root) (:16-25), requireSpace with a 256 MiB reserve (:26-30), hashFile, boundedJson, atomicJson, serialized lock"
+    },
+    {
+     "path": "src/models/model-store.ts",
+     "role": "materializeModels and verifyModelStore. Accepts only Ollama manifest v2 with allowed layer media types (model, adapter, projector, prompt, template, system, params, license, messages) (:13-14,44). The config blob must be model_format 'gguf' with an empty remote_host/remote_model (:50). Writes manifests/registry.ollama.ai/moonaliza/<sha>/verified and blobs/sha256-<sha> (:16-17), names the model moonaliza/<manifest-sha>:verified with quantization = config file_type (:56), and verifies the full directory inventory (:83-104). clearModelMetadata removes Ollama's derived metadata/ (:76-81)"
+    },
+    {
+     "path": "src/models/runtime.ts",
+     "role": "ActivationStore. activate() takes an envelope (unknown), runs under withRuntimeStopped, rejects rollback and same-sequence replacement (:99-105), downloads ALL artifacts (:112-115), checks lab receipts and model manifests (proofs :36-51), extracts runtimes and checks them against the signed runtime manifest (:52-78,119-123), materializes ALL configurations (:124), then swaps the current.json pointer {sequence, current, previous} (:130). readActive/readSet re-verify the catalogue at the current time, rehash every cached artifact and the model store, and require receipt quantization == installed quantization (:79-92)"
+    },
+    {
+     "path": "src/models/hardware.ts",
+     "role": "probeHardware runs MoonAlizaHost.exe --hardware (default path .build/native/MoonAlizaHost.exe) (:20-25). normalizeHardware drops software adapters and fingerprints the hardware without free memory (:12-19)"
+    },
+    {
+     "path": "native/hardware.cpp",
+     "role": "Native probe: GlobalMemoryStatusEx for RAM (:124); DXGI adapter enumeration with dedicatedBytes, where availableBytes is always written as null (:164-168); NVML only detected and returns NVML_ADAPTER_IDENTITY_UNAVAILABLE because there is no LUID mapping (:80-96)"
+    },
+    {
+     "path": "src/models/select.ts",
+     "role": "Pure local policy: reserve = max(2 GiB, ceil(15% total RAM)) (:15). labEligible requires runtimeDigest == hardware.runtimeIdentity, a supported backend, enough context, and lab quality >= .85 with tools, zero effects and zero writes after cancellation; GPU requires a known adapter availableBytes > 0 (:26-33). Machine receipt limits: <= 30 days old, load <= 90 s, first token <= 30 s, >= 4 tok/s, requiredRam <= available - reserve, VRAM per adapter with no summing (:37-48). Probe order: installed, then smaller modelBytes, then lab quality; CPU modelBytes must be <= headroom (:55-60). selectLocal returns host-reserve (:69) or ranks within a 0.02 quality band (:81-84). There is no cloud fallback"
+    },
+    {
+     "path": "src/models/local-runtime.ts",
+     "role": "inspectLocalRuntime: read-only discovery of an EXTERNAL Ollama at fixed http://127.0.0.1:11434 (/api/version, /api/tags). Every model is marked qualified:false (:5,27)"
+    },
+    {
+     "path": "src/models/managed-ollama.ts",
+     "role": "ManagedOllamaRuntime: InstallationSchema {directory, executable, version, homeDirectory, modelsDirectory, files[]} (:14-17). Rehashes runtime files before launch (:21-40). Spawns 'ollama serve' through the native owned-process helper with OLLAMA_HOST on an ephemeral loopback port, OLLAMA_MODELS, OLLAMA_NO_CLOUD=1, NUM_PARALLEL=1, MAX_LOADED_MODELS=1, MAX_QUEUE=1, KEEP_ALIVE=0 and a 300 s process timeout (:77-82). Requires /api/version == installation.version (:92) and /api/status cloud.disabled (:99-100)"
+    },
+    {
+     "path": "src/models/managed-provider.ts",
+     "role": "ManagedConfiguration {model, digest, contextTokens, outputTokens, quantization, placement:'cpu'} (:8-12). completeManagedOllama checks tag digest, preloads with num_gpu 0, keep_alive -1, then verifies /api/ps (one model, exact context, size_vram 0, quantization) before and after the request (:18-35). ManagedOllamaProvider needs an external resolveConfiguration(lease) that does not exist in src (:38-54); lease 300 s, heartbeat 150 s (:50)"
+    },
+    {
+     "path": "src/models/owned-transport.ts",
+     "role": "ownedLoopbackFetcher: proves socket ownership before any HTTP byte. Allows only GET /api/version|tags|ps|status and POST /api/chat (so no /api/pull or /api/create) (:13-18); 120 s per exchange (:19); request <= 8 MiB; buffers the whole response, <= 4 MiB (:47-57)"
+    },
+    {
+     "path": "src/engine/scheduler.ts",
+     "role": "InferenceScheduler: one holder at a time; after EVERY inference lease it calls stopRuntime (:171-172), so the managed Ollama process is cold-started per request; withRuntimeStopped is used by activation"
+    },
+    {
+     "path": "src/main/inference.ts",
+     "role": "complete(): the canonical Ollama adapter used by the managed path; kind 'ollama' must use a loopback endpoint (:19); managedOllama option {numGpu 0, keepAlive -1} (:137,148); sends num_ctx/num_predict, truncate:false, shift:false and tools (:153-155)"
+    },
+    {
+     "path": "src/shared/contracts.ts",
+     "role": "BackendSchema (:63); HardwareSchema (:66-69); ConfigurationIdentitySchema {modelDigest, runtimeDigest, backend, quantization, contextTokens, parallelism 1} (:70); LabReceiptSchema (:72); MachineReceiptSchema (:74); ProfileKindSchema openai-compatible|openai-responses|anthropic|ollama (:24)"
+    },
+    {
+     "path": "src/shared/params.ts",
+     "role": "IPC: ModelSchema with status available|downloading|probing|enabled|unavailable|failed and qualified (:31); model.list/enable/cancel/import/remove/storage.change declared (:121-126) but not implemented; hardware.read and runtime.inspect (:146-147)"
+    },
+    {
+     "path": "src/main/index.ts",
+     "role": "Only wiring: hardware.read probes with runtimeIdentity 'unmanaged;moonaliza-<appVersion>' (:221); runtime.inspect against the external Ollama (:222). No ActivationStore, trusted key, catalogue URL or ManagedOllamaProvider"
+    },
+    {
+     "path": "src/renderer/LocalModelPanel.tsx",
+     "role": "UI shows total and available RAM and the reserve, computed the same way as select.ts (:24), plus a below-reserve notice (:35). It says 'Managed installation and automatic model qualification are still in development' (:48)"
+    },
+    {
+     "path": "scripts/check-model-store.ts",
+     "role": "Opt-in, Windows-x64-only real verifier and the closest thing to a catalogue producer. It pins qwen3:0.6b: manifest 858 B sha 7df6b6e0... and 5 blobs (:19-27), the Ollama 0.34.4 windows-amd64 ZIP (:28), the registry tag route (:29,46) and the R2 redirect host (:30). It materializes the model and checks the runtime inventory (gguf, Q4_K_M). No inference, receipt or activation (:18,36)"
+    },
+    {
+     "path": "scripts/check-runtime-artifacts.ts",
+     "role": "Opt-in real runtime verifier: download, extraction, Authenticode 'O=Ollama Inc.', owned start and stop of Ollama 0.34.4 (:15-17)"
+    },
+    {
+     "path": "tests/catalogue.test.ts",
+     "role": "Signature, domain separation, rollback, expiry, app range, strict payload and dangerous executable path cases using a generated fixture key (:1-48)"
+    },
+    {
+     "path": "tests/activation.test.ts",
+     "role": "ActivationStore: atomic activation and retention of the previous set, invalid proofs (quality 0.5, wrong runtime, missing blob, wrong file), rollback and same-sequence refusal, cancellation, interrupted staging, scheduler lock order, materialized model tamper detection (:35-126)"
+    },
+    {
+     "path": "tests/download.test.ts, tests/archive.test.ts, tests/model-store.test.ts, tests/selection.test.ts, tests/hardware.test.ts, tests/local-runtime.test.ts, tests/managed-ollama.test.ts, tests/owned-transport.test.ts, tests/owned-connection.test.ts, tests/scheduler.test.ts, tests/local-model-panel.test.tsx",
+     "role": "Unit and integration tests for each module (managed-ollama, owned-* and hardware use the native Windows helper)"
+    },
+    {
+     "path": "docs/specification/managed-artifacts.md",
+     "role": "Trust and activation spec: trusted keys are application configuration (:7); the activation lifecycle (:11-13); download rules (:17); the real 0.34.4 archive evidence (:25-35)"
+    },
+    {
+     "path": "docs/specification/model-store-selection.md",
+     "role": "Store and selection spec: reserve rule (:29); probe ordering (:33); tag-route and 404-on-digest observation (:41); real check 2026-09-28 with 1,235,644,416 B available, below the reserve (:49)"
+    },
+    {
+     "path": "docs/specification/managed-provider.md",
+     "role": "Owned-runtime and provider boundary; CPU-only because Ollama does not attest the GPU backend (:31); per-request owned cleanup (:29)"
+    },
+    {
+     "path": "docs/specification/source-plan.md",
+     "role": "Original design: signed activation sets, bundled key, key rotation and revocation only through an app update (:777-797); D2 and D3 tasks naming the absent scripts/fetch-catalogue-locks.mts, src/models/qualify.ts and scripts/qualify-model.mts (:2512-2515,2592-2594); qualification suite targets (:2680-2692)"
+    },
+    {
+     "path": "docs/evidence/model-store-runtime.json",
+     "role": "Retained real measurement of the user's PC: totalRamBytes 8,515,145,728, availableRamBytes 1,235,644,416, a single adapter Intel HD Graphics 510 with dedicatedBytes 134,217,728 and availableBytes null; qwen3 0.6B materialized at 522,653,767 B, Q4_K_M"
+    },
+    {
+     "path": "docs/superpowers/plans/2026-10-02-research-jobs.md",
+     "role": "'More models' section (:399-408): three directions and the 1.15 GiB constraint"
+    }
+   ],
+   "extensionPoints": [
+    "Add one local model, catalogue side: append artifacts with role model-manifest, model-blob (one per distinct config and layer digest), lab-receipt and evidence (src/models/catalogue.ts:10, ArtifactSpec at src/models/download.ts:11), and one configurations entry {runtimeId, modelManifestId, modelBlobIds, labReceiptId, evidenceId} (catalogue.ts:16). Raise sequence, keep app.min <= app version < app.maxExclusive, set expiresAt, and sign with the 'MoonAliza activation set v1\\0' prefix (catalogue.ts:31). Cross-reference validation is at catalogue.ts:36-40 and receipt and manifest proofs at runtime.ts:40-49.",
+    "Pinning a model's identities: follow the pattern in scripts/check-model-store.ts:19-30,46-47 (manifest fetched by tag route with its sha256 and size pinned, blobs by digest route, explicit redirectHosts). The planned producer scripts/fetch-catalogue-locks.mts (source-plan.md:2515) does not exist.",
+    "Qualification input (blocks every new model): a LabReceipt JSON (src/shared/contracts.ts:72) bound to the model manifest sha, runtime archive sha, backend, quantization, contextTokens and evidence sha, accepted only if it meets runtime.ts:43. A machine receipt (contracts.ts:74) is needed for selectLocal (select.ts:66-89). The planned runner src/models/qualify.ts and scripts/qualify-model.mts (source-plan.md:2592-2594) are absent.",
+    "New per-model metadata (display name, licence, tool-calling flag, minimum RAM): PayloadSchema is .strict() with schemaVersion z.literal(1) (catalogue.ts:11-17), and the artifact and configuration objects are strict. A new field therefore needs a schema change [inferred: older apps would reject a payload carrying it, so this path needs an app release]. A licence can already travel as an Ollama 'application/vnd.ollama.image.license' layer (model-store.ts:14), but nothing reads it.",
+    "Trust root: CatalogueTrust.trustedKeys (catalogue.ts:19) reaches ActivationStore through options.trust (runtime.ts:17,24). There is no production construction; it would be added where main builds the store [inferred: near src/main/index.ts, which today wires only hardware.read and runtime.inspect at :221-222].",
+    "Catalogue delivery and update: ActivationStore.activate(input: unknown, signal) (runtime.ts:99) is the only ingestion point. No code fetches an envelope (no URL, no IPC). The model.* IPC contracts exist (src/shared/params.ts:121-126) but need engine or main handlers (src/engine/application.ts:265 default NOT_IMPLEMENTED).",
+    "Serving: ManagedOllamaProvider takes resolveConfiguration(lease) returning {installation: RuntimeInstallation, configuration: ManagedConfiguration} (managed-provider.ts:41). Its RuntimeInstallation.version (managed-ollama.ts:15) and ManagedConfiguration.outputTokens (managed-provider.ts:10) appear in neither the catalogue runtime entry (catalogue.ts:15) nor the lab receipt (contracts.ts:72), so the resolver must source them elsewhere [inferred gap].",
+    "Hardware and ranking input for direction 3: reserve at select.ts:15, probe admission and order at select.ts:55-60, machine-receipt ranking at select.ts:80-86. Main currently probes with runtimeIdentity 'unmanaged;moonaliza-<ver>' (index.ts:221), but labEligible requires runtimeDigest == hardware.runtimeIdentity (select.ts:28), so a resolver must re-probe with the runtime archive sha (model-store-selection.md:25).",
+    "GPU placement (none possible today): managed-provider.ts:11 fixes placement to the literal 'cpu' and num_gpu 0 (:23). A GPU candidate needs a non-null adapter availableBytes (select.ts:32), which native/hardware.cpp:168 never produces; the NVML-to-DXGI mapping is unimplemented (hardware.cpp:80-96).",
+    "A new runtime version or backend: add a runtimes entry plus runtime and runtime-manifest artifacts (catalogue.ts:15). This requires new lab receipts for every configuration on it (runtime.ts:43 binds receipt.runtimeDigest; source-plan.md:793 'Do not activate a new runtime with stale lab receipts')."
+   ],
+   "invariants": [
+    "The signature is verified before any payload field is read; tampered bytes, an unknown keyId and a signature without the domain prefix all fail with CATALOGUE_SIGNATURE (src/models/catalogue.ts:25-32; tests/catalogue.test.ts:19-24).",
+    "The trust root is application configuration; a document cannot supply its own keys (catalogue.ts:28; tests/catalogue.test.ts:40; docs/specification/managed-artifacts.md:7).",
+    "Sequence is monotonic: lower is CATALOGUE_ROLLBACK and same-sequence replacement is refused (catalogue.ts:42; runtime.ts:103-105). Expired, future-dated or out-of-app-range catalogues are refused (catalogue.ts:43-45).",
+    "Activation is atomic: a complete set is staged and the single current.json pointer is replaced; failure or cancellation keeps the previous set (runtime.ts:117-134; managed-artifacts.md:11). Activation must hold the runtime-stopped maintenance lease (runtime.ts:100-101).",
+    "Model identity is never delegated to mutable 'ollama pull' tags (source-plan.md:2527). The owned transport forbids every management route except version, tags, ps, status and chat (owned-transport.ts:13-14).",
+    "No lab receipt means no activation. The receipt must be suite moonaliza-coding-v1, quality >= 0.85, toolsPassed, unauthorizedEffects 0, writesAfterCancellation 0, with matching model, runtime and evidence digests and a supported backend (runtime.ts:43). Receipt quantization must equal the installed file_type (runtime.ts:90).",
+    "Only local GGUF is allowed; remote or cloud model configuration is rejected (model-store.ts:44,50). The runtime must report cloud disabled (managed-ollama.ts:77,99-100).",
+    "The host-memory reserve max(2 GiB, ceil(15% of total RAM)) must remain free (select.ts:15,41,56,69; source-plan.md:2672). Disk bytes are only a CPU admission filter, never a RAM estimate (select.ts:57; model-store-selection.md:33).",
+    "Unknown VRAM stays unknown and multi-GPU free memory is never summed (select.ts:43-46; source-plan.md:772-773). Managed placement is CPU-only until GPU attestation exists (managed-provider.ts:17; managed-provider.md:31).",
+    "A local failure never triggers a cloud fallback (select.ts:65; source-plan.md:2610). Cloud models stay behind the project inference policy (plan 2026-10-02-research-jobs.md:408).",
+    "Private signing keys never ship and are never committed; rotation and revocation travel only through a trusted app update (source-plan.md:797; HANDOFF.md:146; docs/superpowers/plans/2026-09-27-managed-artifacts.md:20). Tests use generated keys and cannot mint real qualification claims.",
+    "Downloads use HTTPS on 443 only, with no URL credentials, no cookies, an explicit redirect-host allowlist and exact size plus sha256 before publication (download.ts:10,23,27,96-97). A 256 MiB free-space reserve is kept (artifact-files.ts:26).",
+    "The managed runtime is started only from verified installation metadata, never from renderer or model input (managed-ollama.ts:54; managed-provider.md:17)."
+   ],
+   "risks": [
+    "On the user's PC no managed local model can be offered today, at any size. The retained measurement is total 8,515,145,728 B and available 1,235,644,416 B (docs/evidence/model-store-runtime.json). 15% of total is about 1.19 GiB, so the reserve is 2 GiB and headroom is negative: selectLocal returns 'host-reserve' (select.ts:69) and planProbeCandidates returns [] (select.ts:56). [inferred arithmetic] Even the already-pinned Qwen3 0.6B (522,653,767 B) needs at least about 2.49 GiB available just to be probe-eligible.",
+    "The GPU path is closed: the only adapter is an Intel HD 510 with 128 MiB dedicated memory and availableBytes null, which the native probe always reports (native/hardware.cpp:168). Managed placement is the literal 'cpu' (managed-provider.ts:11).",
+    "Activation is whole-catalogue, not per-model: activate() downloads every artifact and materializes every configuration in the set (runtime.ts:112-115,124). [inferred] Adding models to one signed set makes every install fetch all of them; 'one-click per model' needs either one set per model (but there is a single current pointer, runtime.ts:130) or an ActivationStore change.",
+    "[inferred from code] Expiry and app version can disable an installed set. readSet re-runs verifyCatalogue at the current time (runtime.ts:82 \u2192 catalogue.ts:43-45), so after expiresAt, or after an app upgrade past app.maxExclusive, readActive throws CATALOGUE_EXPIRED or CATALOGUE_INCOMPATIBLE. A refresh channel is therefore required, and none exists.",
+    "[inferred cost] Every readActive rehashes every cached artifact and the materialized model store (runtime.ts:84-89; model-store.ts:98). Disk use is doubled (the download cache plus a copied store, no hardlinks, conservative retention: model-store-selection.md:7,13; managed-artifacts.md:21). Both grow with each added model.",
+    "Nothing produces the inputs a new model needs: no lab-qualification runner, no machine-probe runner, no catalogue producer and no production signing key. qualify.ts, qualify-model.mts and fetch-catalogue-locks.mts are absent, and the docs record 'production trust inputs' as open (HANDOFF.md:46).",
+    "Nothing is wired end to end: ActivationStore, ManagedOllamaProvider and selectLocal have no src caller, and model.* IPC falls through to NOT_IMPLEMENTED (src/engine/application.ts:265). The setup UI says managed installation is 'still in development' (LocalModelPanel.tsx:48).",
+    "The catalogue runtime entry has no version, yet the runtime start requires /api/version == installation.version (catalogue.ts:15 vs managed-ollama.ts:15,92). outputTokens is in neither the catalogue nor the receipt (managed-provider.ts:10). Main's hardware probe identity 'unmanaged;...' (index.ts:221) can never satisfy select.ts:28.",
+    "[inferred] Latency limits for CPU inference. The runtime is cold-started for every request because the scheduler stops it after each inference (scheduler.ts:171-172). Limits are a 300 s lease and process lifetime (managed-provider.ts:50; managed-ollama.ts:82), 120 s per HTTP exchange and a 4 MiB buffered response (owned-transport.ts:19,50), and machine receipts require load <= 90 s, first token <= 30 s and >= 4 tok/s (select.ts:40). Larger models on a weak CPU may never qualify.",
+    "Upstream fragility, fail-closed. The registry served the manifest only by tag (a 404 on the digest route), and blobs redirect to one specific R2 hostname (check-model-store.ts:29-30,46; model-store-selection.md:41). A tag republish or CDN host change breaks the catalogue: digest mismatch, or ARTIFACT_REDIRECT (download.ts:27).",
+    "Format lock-in: only Ollama manifest v2 with the listed media types and GGUF config are accepted (model-store.ts:13-14,44,50), and the runtime is pinned to the Ollama 0.34.4 windows-amd64 ZIP (check-runtime-artifacts.ts:17-18). Models needing a newer runtime require a runtime update and re-qualification of every model.",
+    "Test environment: the baseline Linux gate has 74 known failing tests (docs/orchestration/2026-10-05-more-models/RUN.md:35). The managed-ollama, owned-transport and hardware tests and the real verifiers need the Windows native helper, and check-*.ts throw unless win32/x64 (check-model-store.ts:32)."
+   ],
+   "externalUnknowns": [
+    {
+     "question": "Which coding models with reliable native tool calling are published as Ollama GGUF manifests, at what exact sizes and quantisations, and do any fit a CPU-only budget well under 1 GiB of RAM at a useful context?",
+     "whyItBlocksDesign": "Each catalogue entry pins exact manifest and blob sha256 and size, and the CPU admission filter compares disk bytes with headroom (select.ts:58). The shortlist decides whether direction 1 can ever offer anything on the user's PC.",
+     "ownerPage": "Ollama library model pages and model manifests (registry.ollama.ai/v2/library/<model>/manifests/<tag>), plus each model's card"
+    },
+    {
+     "question": "What is each candidate model's licence, and does it permit redistribution or mirroring of the weights and the use made here (desktop coding agent)?",
+     "whyItBlocksDesign": "The catalogue carries no licence field (catalogue.ts:10-16). If weights must be mirrored to a project-controlled host for stable URLs or digests, redistribution rights decide where artifacts can live.",
+     "ownerPage": "Licence file in the model's official repository or Hugging Face model card (e.g. LICENSE)"
+    },
+    {
+     "question": "Does the Ollama registry now serve manifests by digest, and are blob redirect hostnames stable or rotating?",
+     "whyItBlocksDesign": "redirectHosts is an exact-hostname allowlist (download.ts:11,27). The current pin relies on a tag route and one R2 hostname (check-model-store.ts:29-30), which decides whether the catalogue can point at the registry or must mirror.",
+     "ownerPage": "Ollama registry API reference / ollama source (server/images.go, registry client) at the pinned tag"
+    },
+    {
+     "question": "What is the current Ollama release, and do its manifest media types, the /api/status cloud field, OLLAMA_NO_CLOUD and /api/ps fields (size_vram, context_length) still match what 0.34.4 provided?",
+     "whyItBlocksDesign": "The runtime is pinned to 0.34.4 (check-runtime-artifacts.ts:17), and managed-provider and managed-ollama hard-check these fields (managed-provider.ts:15,29; managed-ollama.ts:99-100). New models may require a newer runtime and therefore re-qualification of every model.",
+     "ownerPage": "Ollama GitHub releases page and api/types.go plus server/routes.go at the release tag"
+    },
+    {
+     "question": "What RAM does Ollama (llama.cpp CPU backend) need for a given GGUF at a given num_ctx, including KV cache, and what are its CPU instruction-set requirements on Windows x64?",
+     "whyItBlocksDesign": "MachineReceipt.requiredRamBytes must be measured (select.ts:41), and disk bytes are not a peak-memory estimate (model-store-selection.md:33). Without a documented estimate, a shortlist cannot be pre-filtered for the 1.15 GiB situation, and an unsupported CPU would make the runtime unusable.",
+     "ownerPage": "Ollama docs (FAQ / GPU and hardware support, Windows) and llama.cpp documentation; Intel ARK for the user's CPU model"
+    },
+    {
+     "question": "Where would a signed catalogue be hosted (e.g. a GitHub release asset), and does that host return strong ETags and correct Content-Range through its redirect hosts?",
+     "whyItBlocksDesign": "download.ts resumes only with a strong ETag and an exact Content-Range and follows only allowlisted redirect hosts (download.ts:11,27,75). The hosting choice decides the update path that is missing today.",
+     "ownerPage": "GitHub REST API docs for release assets and the download redirect behaviour (cf. existing docs/research/2026-10-02-artifact-download-rest)"
+    }
+   ],
+   "openQuestionsForUser": [
+    "On this PC the managed path cannot offer any local model: 1.15 GiB is free against a 2 GiB reserve, and no GPU memory is reported. Should more one-click local models still be built now, for other machines or for after you free memory, or should cloud and native profile kinds come first? And does pointing an ollama profile at your own Ollama (unqualified, shown as qualified:false) count as 'more local models' for you?",
+    "Who should hold the production Ed25519 catalogue signing key, and where should the signed catalogue be published? Is it acceptable for model updates to arrive between app releases, which the design allows but nothing implements yet, given that key rotation still needs an app update?",
+    "Should 'one-click' install one model at a time? Today one signed activation set installs every model it lists. Or is one curated set that installs everything acceptable?"
+   ]
+  },
+  {
+   "area": "Cloud and remote model PROFILES and provider adapters (ProfileKindSchema -> inference.ts / provider-stream.ts -> vault -> policy -> renderer profile UI -> tests), moonaliza @ b490e50 (branch main-axuse)",
+   "summary": "ProfileKindSchema declares four kinds (src/shared/contracts.ts:24), but only two run. complete() throws NOT_IMPLEMENTED for every kind except 'openai-compatible' and 'ollama' (src/main/inference.ts:142-143). The renderer's Provider select offers only \"Ollama (local)\" and \"OpenAI-compatible API\" (src/renderer/App.tsx:266), and docs/specification/implementation-sources.md:12 says \"Responses and Anthropic adapters remain separate implementation work\". So the plan's line that Moonzila \"already reaches many models through profiles (ollama, openai-compatible, openai-responses, anthropic)\" (docs/superpowers/plans/2026-10-02-research-jobs.md:401) overstates what works: 'openai-responses' and 'anthropic' are names in the enum with no adapter behind them, no UI and no tests of their own. The 'anthropic' string appears in tests only as a wire-state mismatch value (tests/contracts.test.ts:130), and 'openai-responses' appears in no test.\n\nThe one adapter is a single function, complete(), that switches on a boolean `local = kind === 'ollama'` (inference.ts:147). That flag picks the message encoding (:47-73), the tool-call parser (:75-85), the stream reader and accumulator (:129-134), the route (/api/chat or /chat/completions, :157), the request body (:153-155), the usage mapping (:163-164) and the terminal mapping (:167-181).\n\nStreaming happens only at the transport: SSE and NDJSON are folded back into one body (provider-stream.ts:42-60, 71-175). The renderer gets no deltas: the 'message.delta' and 'thinking.delta' events are declared (src/shared/events.ts:17-18) but nothing emits them, and the ModelProvider/ModelChunk streaming interface and the ProviderWireState/provider_wire_state store are declared but unused (contracts.ts:38-57; store.ts:227-238; grep finds no callers).\n\nThe context limit is whatever the user types into the profile (contextTokens/outputTokens, contracts.ts:26). The engine checks it with a UTF-8/2 heuristic (engine/context.ts:30-32, 34-50; application.ts:358-360). A provider overflow is recognised from HTTP 400/413/422 bodies by three error codes and one regex (inference.ts:99-122), and it reaches the engine as CONTEXT_LIMIT. Every other failure becomes PROVIDER_ERROR (inference.ts:95-97; main/engine.ts:86).\n\nKeys live only in Electron main. A Vault encrypts them with safeStorage (main/index.ts:49; vault.ts) and hands out short, bound, revocable capabilities. The engine stores only a secretRef, and the renderer sees only hasCredential (application.ts:130-135).\n\nLocality is worked out from the endpoint host alone: loopback means 'local', anything else 'external' (inference.ts:18-20). The cloud policy (local-only or cloud-allowed, for the project and the session, which intersect) is enforced in the renderer, at engine run.start, before every model step and tool, in main before every inference call, and at research-review begin (policy.ts:28-31, 67-79).\n\nAdding a native kind such as Gemini needs a third wire format inside complete(), or a refactor onto the unused ModelProvider interface. It also needs a new accumulator, a kind-aware auth header (Bearer is hard-coded at inference.ts:145), overflow classification for that vendor, three duplicated kind unions, a UI option, and tests. It needs no database migration, because profile_revisions.kind has no CHECK constraint (engine/migrations.ts:19).",
+   "files": [
+    {
+     "path": "/home/user/moonaliza/src/shared/contracts.ts",
+     "role": "ProfileKindSchema enum (line 24); ProfileSchema public DTO with contextTokens 512..2,000,000, outputTokens 1..200,000, locality local|external, hasCredential (line 26); ProfileIdentitySchema / ProviderWireStateSchema / wireStateMatches for adapter-owned state (34-44); ModelChunkSchema and ModelProvider streaming interface (45-57), declared but not used by any src caller; ProjectPolicySchema / SessionPolicySchema inference local-only|cloud-allowed (17, 21)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/inference.ts",
+     "role": "The only provider adapter. ProviderKind union duplicated (8); validateEndpoint: https, or http on loopback only, no userinfo/query/fragment, ollama loopback-only, locality from hostname (14-21); encodeMessages with tool-group validation (47-73); parseCalls for OpenAI string args vs Ollama object args, offered-name and unique-id checks (75-85); inferenceErrorCode, CONTEXT_LIMIT or PROVIDER_ERROR (95-97); refusalCode overflow classification (99-122); readStreamed (129-134); complete(): NOT_IMPLEMENTED gate for openai-responses and anthropic (142-143), Bearer auth (145), 120 s timeout (146), request body with max_completion_tokens + stream_options.include_usage for compatible, num_predict/num_ctx/truncate:false/shift:false for Ollama, stream:true (153-155), 8 MiB request cap (156), redirect:'error' (158), outcome mapping complete/incomplete/blocked/tool_calls (167-181)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/provider-stream.ts",
+     "role": "lines() bounded UTF-8 line reader that cancels the body on early exit (12-35); readNdjson (42-44); readSse with [DONE] (47-60); OllamaAccumulator: whole calls per chunk, thinking parsed but discarded (62-98); OpenAIAccumulator: index-keyed fragments, identity may not change mid-stream, Ollama /v1 reused-index handling (100-175); caps: 2,000,000 text, 131072 args, 128 calls, 4 MiB stream"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/index.ts",
+     "role": "Main wiring. Vault on safeStorage (49-50); separate network partitions: 'moonaliza-local' set to direct proxy, 'moonaliza-providers' (62-64); infer(): run.context, assertConversationPolicy, locality re-derived from the endpoint and compared to the stored value, fetcher by locality, vault grant (125 s, purpose 'inference', bound to the run) and withSecret, redaction of output and refusal of tool calls containing a secret (85-107); profile.save in main: validateEndpoint, credential reuse refused when endpoint or kind changes, saveStaged, then engine profile.save, then commit, then tombstone and remove the old ref, aborting runs on that profile (248-270); profile.test: 32-token 'Reply with OK.' call, 25 s timeout, 30 s 'provider-test' grant (271-283); no case for 'profile.delete', so it reaches default NOT_IMPLEMENTED (298)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/vault.ts",
+     "role": "Main-only credential store. SecretCryptor interface (5-9); CredentialBinding with purpose inference|provider-test|research|provision and profileRevisionId (11-17); saveStaged, writing an encrypted .bin with mode 0o600 under a random UUID ref (81-94); commit/reconcile/tombstone/remove lifecycle (96-121, 164-181); grant bound to epoch/purpose/context/ref/revision, with provider-test and research capped at 30 s (129-141); withSecret, which decrypts only inside the callback and re-checks the grant after the read (156-162); redact, which decrypts all live secrets to scrub text (183-195)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/policy.ts",
+     "role": "assertInferencePolicy: external plus not cloud-allowed gives CLOUD_NOT_ALLOWED (28-31); assertConversationPolicy, where session and project policy intersect and the run's revisions are rechecked (67-79); canonicalHash (44-65)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/policy-route.ts",
+     "role": "project.policy.update and run.start under a per-project FIFO lock; a policy change aborts the project's active runs and revokes their vault contexts before forwarding (46-66, 61); run.start refuses RUN_ACTIVE while commands execute (68-82)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/application.ts",
+     "role": "publicProfile strips secretRef and sets hasCredential (130-135); default session policy: folder-free local-only, project session cloud-allowed (181, 198-199); run.start policy check (228-230); run binds profileRevisionId (235); run loop: assertRunPolicy each step, after inference and before each tool (352, 362, 375); CONTEXT_LIMIT when the assembled context does not fit (358-360); a non-complete outcome saves a partial message and fails with PROVIDER_ERROR (363-366); at most 8 offered, unique tool calls per step (370); failure-code mapping (393-396); history drops prior runs' tool messages (347)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/control.ts",
+     "role": "StoredProfileSchema = ProfileSchema minus hasCredential plus optional secretRef (10-11); inference IPC schemas: InferenceToolsSchema with name max 64 [a-zA-Z0-9_-] (77), InferenceMessagesSchema max 1000 (86), CompletionSchema (87), inference request and result messages between engine and main (95, 110)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/control-dispatch.ts",
+     "role": "profile.save persisted via acceptRequest (21-23); new projects default to policy inference 'local-only', research 'off' (18)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/store.ts",
+     "role": "StoreProfile kind union duplicated (11-13); putProfile, where revisions are immutable and the revision cannot move backwards (155-166); listSecretRefs for vault reconcile (170); putWireState/getWireState, unused (227-238); accepted_requests stores canonical_input_hash (377)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/migrations.ts",
+     "role": "profile_revisions table: kind TEXT with no CHECK, locality CHECK local|external, secret_ref (17-24); profiles head table (25-28); provider_wire_state table (49-53)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/context.ts",
+     "role": "estimateInput: UTF-8 bytes / 2 + 256 + 8 per message, over an OpenAI-shaped tools wrapper (30-32); assembleContext: reserves output, evicts old turns, compacts tool results (34-50)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/engine.ts",
+     "role": "Engine runs as an Electron utilityProcess (3, 26); inference errors cross back as inferenceErrorCode only (86)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/bridge.ts",
+     "role": "Only mapped error codes cross IPC (10-57): CLOUD_NOT_ALLOWED, CREDENTIAL_UNAVAILABLE, INVALID_ENDPOINT, NOT_IMPLEMENTED and ENCRYPTION_UNAVAILABLE are mapped; no PROVIDER_* code is, so a failed profile.test shows the generic INTERNAL_ERROR message"
+    },
+    {
+     "path": "/home/user/moonaliza/src/shared/params.ts",
+     "role": "ProfileSaveParams: kind is the full ProfileKindSchema, secret 1..16384 chars, clearCredential (23-27); profile.list owned by engine, profile.save/test/delete owned by main, authorization 'profile-owner' (117-120)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/renderer/App.tsx",
+     "role": "ProfileDialog: default kind 'ollama' at http://127.0.0.1:11434 (255); save sends the secret only when entered (259); edit() copies profile.kind into a select that lists only ollama and openai-compatible (261-263, 266); 'Keys are encrypted by Windows' copy (266); cloudBlocked gate before send (62, 120, 234); privacy review modals (243, 247)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/renderer/ResearchPanel.tsx",
+     "role": "Review-model select disables external profiles when the project is local-only (181-196, 264-268)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/preload/index.ts",
+     "role": "The only renderer API: invoke(method, params) through parseRequest, plus onEvent and onResearch; no credential retrieval surface (4-26)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/managed-provider.ts",
+     "role": "Managed local path that reuses complete() with kind 'ollama' and managedOllama {numGpu:0, keepAlive:-1} (32); ManagedOllamaProvider has no reference outside this file in src (grep)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/provider-transport.test.ts",
+     "role": "Endpoint rules (7-26), size bounds, overflow becomes CONTEXT_LIMIT (39, 233-247), redirect refusal (62), terminal outcomes (76, 182, 191), error text not leaked (83), tool-call id/name fidelity for OpenAI and Ollama (112-198); no case for openai-responses or anthropic"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/provider-stream.test.ts",
+     "role": "Streaming accumulators: research cases E-04 and E-07, interleaved calls, cut streams, size bound, cancellation, Ollama /v1 reused index, usage (26-141)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/vault.test.ts",
+     "role": "Grant lifetime, encryption-unavailable refusal, tombstone, epoch revocation, redaction (37-107)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/policy.test.ts",
+     "role": "CLOUD_NOT_ALLOWED unit test (32); also tests/folder-free-chat.test.ts:42,68, tests/application.test.ts:79, tests/research-review-engine.test.ts:144"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/contracts.test.ts",
+     "role": "Wire-state identity mismatch, including kind 'anthropic' (125-131); ModelChunk terminal schema (135-140)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/workbench.test.tsx",
+     "role": "Renderer profile flows, e.g. editing without a key sends neither secret nor clearCredential (95); cloud profile fixture (9)"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/implementation-sources.md",
+     "role": "Line 12: Responses and Anthropic adapters remain separate implementation work"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/superpowers/plans/2026-10-02-research-jobs.md",
+     "role": "'More models' section (399-408); line 401 states the four kinds already reach models, which the code contradicts"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/raw",
+     "role": "Existing corpus with Gemini pricing and rate-limit captures and Anthropic/OpenAI/DeepSeek/Mistral pricing captures. File names were seen, contents not read; it has no Gemini API-reference capture for generateContent, streaming or function calling"
+    }
+   ],
+   "extensionPoints": [
+    "New kind name: add it to ProfileKindSchema at src/shared/contracts.ts:24. ProfileSaveParams (src/shared/params.ts:24) and ProfileIdentitySchema (contracts.ts:34) pick it up automatically. Two hand-written unions must change in step: ProviderKind at src/main/inference.ts:8 and StoreProfile.kind at src/engine/store.ts:12.",
+    "Endpoint rules and locality for the new kind: validateEndpoint at src/main/inference.ts:14-21. Locality comes from the hostname only, so an https vendor is 'external' automatically. Query strings are refused (line 17), so a vendor that wants its key or its stream mode in the query string cannot get it from the profile endpoint; main would have to add it when building the route.",
+    "Admission gate: the NOT_IMPLEMENTED line at src/main/inference.ts:143 must admit the kind.",
+    "Auth header: src/main/inference.ts:144-145 always sends 'Authorization: Bearer <secret>'. A native kind needs a per-kind header builder here, inside the withSecret callback (main/index.ts:95, 100), so the key never leaves main.",
+    "Message and tool encoding: encodeMessages at src/main/inference.ts:47-73 and parseCalls at 75-85 branch on a boolean `local`. A third format means turning that into per-kind encode and parse functions. Tool declarations are wrapped as {type:'function', function: tool} at line 154.",
+    "Request body and route: src/main/inference.ts:153-157 (body fields, max_completion_tokens vs num_predict, the stream flag, and the route suffix /chat/completions or /api/chat).",
+    "Stream decoding: readStreamed at src/main/inference.ts:129-134 picks the reader and accumulator by `local`. Add a new Accumulator class in src/main/provider-stream.ts next to OllamaAccumulator (71-98) and OpenAIAccumulator (128-175). readSse (47-60) and readNdjson (42-44) can be reused if the vendor's framing matches.",
+    "Terminal and outcome mapping: src/main/inference.ts:167-181 maps vendor stop and finish reasons to complete/incomplete/blocked/tool_calls; usage extraction is at 163-165.",
+    "Overflow classification: the known codes at src/main/inference.ts:119 and the OVERFLOW regex at line 101 must learn the new vendor's context-overflow signal, or overflows will surface as PROVIDER_ERROR.",
+    "Opaque provider state such as reasoning signatures: ProviderWireStateSchema (contracts.ts:38-44), the provider_wire_state table (engine/migrations.ts:49-53) and store.putWireState/getWireState (engine/store.ts:227-238) exist but are not wired. InferenceMessage (inference.ts:10) carries no wire state, and history assembly drops earlier runs' tool messages (engine/application.ts:347).",
+    "Alternative seam: the ModelProvider.stream interface with ModelChunk (contracts.ts:45-57) is declared but unused, and would be the place for real incremental streaming to the UI through the declared but unemitted 'message.delta' and 'thinking.delta' events (src/shared/events.ts:17-18).",
+    "UI: provider options and default endpoint per kind at src/renderer/App.tsx:266 (select onChange) and 255 (defaults); the edit path at 261-263.",
+    "Public errors: if a new user-facing code is introduced, add it to publicMessages in src/main/bridge.ts:11-51; otherwise it is shown as INTERNAL_ERROR.",
+    "Ranking input (direction 3): ProfileSchema (contracts.ts:26) has no cost or quality fields, and run.start takes an explicit profileId (engine/application.ts:228-235). Ranking would need new profile metadata or a separate catalogue, plus a selection step before run.start. The only selector today, src/models/select.ts, ranks local lab and machine receipts and is referenced only by tests/selection.test.ts.",
+    "Tests to extend: tests/provider-transport.test.ts (mirror the OpenAI and Ollama cases at 112-198 and 233-247 for the new kind), tests/provider-stream.test.ts (a new accumulator), tests/contracts.test.ts (enum), tests/workbench.test.tsx (provider select). No DB migration is needed, because profile_revisions.kind has no CHECK constraint (src/engine/migrations.ts:19)."
+   ],
+   "invariants": [
+    "Keys never leave main. The renderer sends the secret only on profile.save, which main owns (params.ts:118). Main stores it with vault.saveStaged and passes only secretRef to the engine (main/index.ts:259-262). The public Profile carries hasCredential, never secretRef (engine/application.ts:130-135). The preload exposes no retrieval API (src/preload/index.ts:4-26).",
+    "Secrets are used only through bound, expiring capabilities. vault.grant binds epoch, purpose, contextId, secretRef and profileRevisionId (vault.ts:129-141, 147-154). Inference grants last 125 s and are revoked in finally (main/index.ts:98-100). provider-test and research grants are capped at 30 s (vault.ts:135). An epoch change clears all grants (vault.ts:55-58).",
+    "Model output is redacted against every stored secret, and a tool call that contains a secret is refused as PROVIDER_PROTOCOL_ERROR (main/index.ts:102-106; vault.ts:183-195).",
+    "A saved key is not reused at a different endpoint or kind: CREDENTIAL_UNAVAILABLE (main/index.ts:257).",
+    "Endpoints must be https, or http only on 127.0.0.1, [::1] or localhost, with no userinfo, query or fragment. Ollama is loopback-only (inference.ts:14-21). Redirects are refused (inference.ts:158). Local and provider traffic use separate session partitions, and the local one has a direct proxy (main/index.ts:62-64, 94).",
+    "Locality is derived from the endpoint, not from the kind, and is re-derived and compared before every inference call (main/index.ts:92-93).",
+    "Inference policy is checked at engine run.start (application.ts:230), before every model step, after inference and before every tool (application.ts:352, 362, 375), in main before each call (main/index.ts:90), and at review begin (engine/research-review.ts:206). Session and project policy intersect (policy.ts:67-79). New projects default to local-only (control-dispatch.ts:18). Folder-free sessions default to local-only (application.ts:181).",
+    "A policy change aborts the project's active runs and revokes their credential contexts before the update is applied, and a refused change has no side effect (policy-route.ts:46-66).",
+    "Truncated, blocked, refused or unterminated answers never count as success (inference.ts:171, 179-181; provider-stream.ts:94-97; application.ts:365-366). Executable tool calls need the stop or tool_calls terminal, offered names, unique and unused ids, and bounded JSON-object arguments (inference.ts:75-85; application.ts:370).",
+    "Provider error text never appears in exceptions. Refusal bodies are read only up to 64 KiB and only for classification (inference.ts:103-122). Only mapped codes cross IPC (bridge.ts:10-57).",
+    "Size bounds: response stream 4 MiB (provider-stream.ts:42, 47; inference.ts:23), request 8 MiB (inference.ts:156), text 2,000,000 characters, arguments 131072, calls 128 (provider-stream.ts:9-10, 85, 152).",
+    "Profile revisions are immutable and runs bind profileRevisionId (store.ts:155-164; application.ts:235). Wire state must match the full identity: profile, revision, kind, endpoint, model (contracts.ts:41-43).",
+    "Ollama requests always refuse silent truncation and context shift (truncate:false, shift:false at inference.ts:155; test at tests/provider-transport.test.ts:224)."
+   ],
+   "risks": [
+    "The plan overstates the starting point. docs/superpowers/plans/2026-10-02-research-jobs.md:401 says four kinds reach models, but 'openai-responses' and 'anthropic' throw NOT_IMPLEMENTED (inference.ts:142-143), are absent from the UI (App.tsx:266) and have no adapter tests. A research contract built on the plan's sentence would aim at the wrong gap.",
+    "A crafted profile.save can still store an 'anthropic' or 'openai-responses' profile, because ProfileSaveParams accepts the whole enum (params.ts:24). Every run on it then fails with a generic PROVIDER_ERROR (inferenceErrorCode, inference.ts:95-97). [inferred] Editing such a profile in the UI sets the select to a value it has no option for (App.tsx:262, 266).",
+    "complete() is built around a two-way boolean. Adding a third wire format touches encodeMessages, parseCalls, readStreamed, the body, the route, usage and the outcome mapping in one function (inference.ts:47-181), so a regression in the tested Ollama and OpenAI paths is likely unless the function is split per kind first. [inferred]",
+    "Bearer is hard-coded (inference.ts:145) and query strings are refused (inference.ts:17). A vendor that uses another header or a key-in-query scheme cannot be reached by configuration alone. Putting a key in a URL would also break the 'no credentials in URLs' rule.",
+    "Overflow detection is tuned to OpenAI and Ollama codes and phrases (inference.ts:99-101, 119). A new vendor's overflow would surface as PROVIDER_HTTP_400 and then PROVIDER_ERROR, losing the CONTEXT_LIMIT recovery UI (App.tsx:226). [inferred]",
+    "Locality is decided by hostname alone (inference.ts:18). A loopback gateway or proxy that forwards to a cloud API would be classed 'local' and pass a local-only policy. [inferred]",
+    "A failed profile.test reports nothing useful. PROVIDER_HTTP_401, PROVIDER_ERROR and similar codes are not in publicMessages (bridge.ts:11-51), so a wrong key on a new vendor shows only 'The operation could not be completed'.",
+    "Timing: each inference request has a 120 s total timeout covering the whole streamed answer (inference.ts:146) and a 125 s grant (main/index.ts:99). Slow cloud models with large outputTokens (up to 200,000, contracts.ts:26) may be cut off and reported as PROVIDER_ERROR. [inferred]",
+    "There is no real streaming UX. Deltas are folded in main (inference.ts:129-134), 'message.delta' and 'thinking.delta' are never emitted (grep), and Ollama 'thinking' text is discarded (provider-stream.ts:63, 82). A native adapter that only fits complete() will not give the UI incremental text.",
+    "Vendors that require opaque state round-trips, such as reasoning or thought signatures, cannot be supported by an adapter alone. The wire-state plumbing exists only as a schema and an unused table and store methods (contracts.ts:38-44; store.ts:227-238).",
+    "Context windows are typed in by the user (App.tsx:266), with no discovery from the provider. The engine estimate is a heuristic (context.ts:30-32), so a wrong declared window gives early CONTEXT_LIMIT or provider overflows.",
+    "[inferred] profile.save computes canonicalHash over params that include the plaintext secret (main/index.ts:249) and persists it as canonical_input_hash (store.ts:377). It is an unsalted SHA-256 linked to the key, so a weak or guessable key could be checked against it offline.",
+    "The credential-reuse and replacement logic in main's profile.save (main/index.ts:248-270) and profile.delete, which falls to NOT_IMPLEMENTED (main/index.ts:298), have no unit test found by grep in tests/.",
+    "ManagedOllamaProvider (src/models/managed-provider.ts:38) is not referenced anywhere else in src, so the 'one-click local model' direction also has no main-process wiring to plug into yet. This is outside this area and was noted only in passing."
+   ],
+   "externalUnknowns": [
+    {
+     "question": "How does Google's native Gemini API authenticate a request: a header (which one) or an API key in the query string?",
+     "whyItBlocksDesign": "inference.ts:145 hard-codes Bearer and inference.ts:17 refuses endpoint query strings. The auth scheme decides whether a native kind needs a new header builder or a main-built query parameter, and whether the key would appear in URLs.",
+     "ownerPage": "Google Gemini API reference (authentication / API keys page)"
+    },
+    {
+     "question": "What is the streaming wire format of Gemini's native generate-content streaming endpoint (SSE vs JSON array, how it is selected, the chunk schema, terminal markers)?",
+     "whyItBlocksDesign": "It decides whether readSse (provider-stream.ts:47-60) can be reused and what the new accumulator must parse, and whether a query parameter is needed on the route.",
+     "ownerPage": "Google Gemini API reference: streamGenerateContent / streaming"
+    },
+    {
+     "question": "How does native Gemini function calling represent calls and results: do calls carry ids, are arguments JSON objects or strings, can calls run in parallel, and must any opaque signature or part be sent back on the next turn?",
+     "whyItBlocksDesign": "parseCalls (inference.ts:75-85) requires unique ids and object arguments. If ids are absent they must be minted, as for Ollama (inference.ts:78). If opaque state must round-trip, the unused wire-state plumbing (contracts.ts:38-44; store.ts:227-238) has to be wired into the engine.",
+     "ownerPage": "Google Gemini API function-calling guide and API reference (Content/Part schema)"
+    },
+    {
+     "question": "What finish reasons and safety-block signals does Gemini return, and what HTTP status, code or message does it use for a prompt that exceeds the model's context window?",
+     "whyItBlocksDesign": "They are needed for the outcome mapping (inference.ts:167-181) and for the CONTEXT_LIMIT classification (inference.ts:99-122). Without them, an overflow or a block would surface as a generic PROVIDER_ERROR.",
+     "ownerPage": "Google Gemini API reference (FinishReason, error codes / troubleshooting page)"
+    },
+    {
+     "question": "Where does Gemini report token usage (field names) in streamed responses?",
+     "whyItBlocksDesign": "The usage.updated event depends on TokenUsage extraction (inference.ts:163-165), and cost-based ranking (direction 3) needs real token counts.",
+     "ownerPage": "Google Gemini API reference (UsageMetadata)"
+    },
+    {
+     "question": "Does Google offer an OpenAI-compatible endpoint for Gemini, and does it support streamed tool calls with ids, max_completion_tokens and stream_options.include_usage as the existing adapter sends them (inference.ts:155)?",
+     "whyItBlocksDesign": "If it works, Gemini is reachable today through the 'openai-compatible' kind, and a native kind is only worth building for features the compatible layer lacks. That changes the scope of direction 2.",
+     "ownerPage": "Google Gemini API 'OpenAI compatibility' documentation page"
+    },
+    {
+     "question": "What request headers, SSE event types, tool_use/tool_result block shapes, stop_reason values and context-overflow error does Anthropic's Messages API use?",
+     "whyItBlocksDesign": "'anthropic' is already in the enum but has no adapter (inference.ts:143). If it is implemented as part of 'more models', the same per-kind auth, accumulator and outcome changes are needed.",
+     "ownerPage": "Anthropic API reference (Messages, streaming, errors)"
+    },
+    {
+     "question": "What are the streaming event types and function-call item shapes of OpenAI's Responses API, and how does it signal incomplete or overflow results?",
+     "whyItBlocksDesign": "'openai-responses' is declared but not implemented (inference.ts:143). Whether it is worth implementing depends on what it adds over Chat Completions for coding models.",
+     "ownerPage": "OpenAI API reference (Responses API, streaming events)"
+    },
+    {
+     "question": "What are the context window and maximum output tokens of each candidate cloud model?",
+     "whyItBlocksDesign": "Profiles rely on user-entered contextTokens and outputTokens (contracts.ts:26; App.tsx:266). Presets or ranking need verified per-model limits, or runs hit CONTEXT_LIMIT or a provider overflow.",
+     "ownerPage": "Each vendor's model card / models documentation page"
+    },
+    {
+     "question": "What is the current per-token input and output price of each candidate cloud model, and the rate limits on the tier the user has?",
+     "whyItBlocksDesign": "Cost ranking (direction 3) needs it. The 2026-10-02 corpus has pricing and Gemini rate-limit captures, but whether they are current and complete for the shortlisted models has not been checked.",
+     "ownerPage": "Vendor pricing pages and rate-limit pages"
+    },
+    {
+     "question": "Do the vendors' API terms allow sending a user's source code, and what data-retention or training-use terms apply by default?",
+     "whyItBlocksDesign": "The cloud privacy modals (App.tsx:243, 247) tell the user what leaves the machine. Whether a provider should be offered at all, or with what disclosure, depends on these terms.",
+     "ownerPage": "Vendor API terms of service / data usage policy page"
+    }
+   ],
+   "openQuestionsForUser": [
+    "For 'native profile kinds', which comes first: finishing the two kinds that are declared but not implemented (anthropic, openai-responses), or adding Gemini's native API? And is reaching Gemini through the existing OpenAI-compatible kind acceptable if it works?",
+    "Which cloud providers do you actually hold API keys or budget for, so the shortlist and the adapters are limited to providers you will use?",
+    "For 'smarter selection': should Moonzila only recommend a profile (the user still picks, and run.start takes an explicit profileId), or pick one automatically? And is cost a hard per-task cap or only a ranking weight?"
+   ]
+  },
+  {
+   "area": "MODEL SELECTION and ranking (src/models/select.ts, its callers, profile choice, the 2026-10-02 pricing-and-ranking research, specs on selection, cost and quality)",
+   "summary": "Today the user picks the model for every run; nothing chooses it automatically. The composer has a \"Model profile\" dropdown (src/renderer/App.tsx:236). It defaults to the first profile that profile.list returns (App.tsx:72, App.tsx:79), and the store sorts profiles alphabetically by name (src/engine/store.ts:169). run.start requires an explicit profileId (src/shared/params.ts:108), and the engine binds the run to that profile revision (src/engine/application.ts:229-235). The only rule applied to the choice is locality. assertConversationPolicy refuses an external profile when the session or the project is local-only (src/engine/policy.ts:68-79, called at application.ts:230 and again on every inference at src/main/index.ts:90), and the renderer disables Send rather than switching profile (App.tsx:62, App.tsx:236). The research-review chooser takes the first profile the policy allows (src/renderer/ResearchPanel.tsx:184, ResearchPanel.tsx:192). Locality is derived from whether the endpoint host is loopback (src/main/inference.ts:18-20). Only the openai-compatible and ollama kinds can run: anthropic and openai-responses throw NOT_IMPLEMENTED (inference.ts:143), and the profile form offers only those two (App.tsx:266).\n\nsrc/models/select.ts is a pure, local-only policy. It gates candidates on a moonaliza-coding-v1 lab receipt with quality >= 0.85, machine receipts at most 30 days old, RAM headroom above max(2 GiB, 15% of RAM), and known free VRAM per adapter (select.ts:15, select.ts:26-48). Among the candidates that pass, it ranks within 0.02 of the best quality: installed first, then quality, then first-token time, throughput and load time (select.ts:80-86). It has no production caller: only tests/selection.test.ts:3 imports it. The model.* IPC methods (params.ts:121-125) have no handler [inferred from grep: no case for them in engine or main, so they reach NOT_IMPLEMENTED at application.ts:265 or src/main/index.ts:298].\n\nNo profile or catalogue entry carries a price, quality score, capability flag or task tag (contracts.ts:26, src/models/catalogue.ts:11-17). The only signal per task is the run mode (run.start accepts ask, plan and build, application.ts:232). The only cost-related runtime data is token usage per step (usage.updated, application.ts:363).\n\nThe 2026-10-02 research says in its BRIEF that it passed its gate (BRIEF.md:11). All 20 evidence rows were retrieved on 2026-10-02 (EVIDENCE.md:11-30), which makes them 3 days old today. Four captures are graded partial in the ledger: E-15, E-16, E-18 and E-19. The research closed prices (U-01), free tiers (U-02), coding rank (U-03), writing rank (U-04), licences (U-05), rate limits (U-06) and staleness (U-07). Memory per local model (U-08) stays KNOWN-UNKNOWN (DISCOVERY.md:32-39), and Google already states a Gemini price step for 2027-01-01 (EVIDENCE.md:13). What it produced is a dated cloud table, not a ranking per task. It has no tool-calling benchmark, no scored model small enough for the target PC, and no shared scale between published leaderboards and the app's 0-1 lab quality.\n\nThe BRIEF also understates its own LiveBench capture. It calls Sonnet 5.5 and GPT-6 Luna unranked (BRIEF.md:96, BRIEF.md:99, BRIEF.md:113), but the raw capture has rows for Claude Sonnet 5.5 xHigh (coding 88.9, agentic 39.3, $0.141 per task), Gemini 3.8 Flash High (coding 72.5, agentic 54.2, $0.307) and GPT-6 Luna Max Effort (coding 79.0, agentic 51.2, $0.026) (raw/2026-10-02-livebench-livebench-130364a0.md:44, :54, :69).\n\nOn the user's PC, available RAM was measured at 1,235,644,416 bytes (docs/specification/model-store-selection.md:49), below the 2 GiB reserve. selectLocal therefore returns unavailable with reason host-reserve (select.ts:69), and any ranking on that machine can only offer cloud models, and only where the policy allows them.",
+   "files": [
+    {
+     "path": "/home/user/moonaliza/src/models/select.ts",
+     "role": "Pure local selection policy: selectLocal, planProbeCandidates, machineReceiptEligible. Reserve rule at :15, lab gate at :26-33, machine-receipt gate at :37-48, probe order at :55-60, ranking at :80-86. States 'No networking, probing or cloud fallback' at :65. No production caller."
+    },
+    {
+     "path": "/home/user/moonaliza/tests/selection.test.ts",
+     "role": "The only importer of select.ts (:3). Fixtures at :5-13; ranking at :99-106 (quality first, installed preferred within 2 points); fail-closed on conflicting evidence at :114-117."
+    },
+    {
+     "path": "/home/user/moonaliza/src/shared/contracts.ts",
+     "role": "ProfileKindSchema (:24), ProfileSchema (:26: kind, endpoint, model, contextTokens, outputTokens, locality, hasCredential; no price, quality or task fields), RunSchema binds profileId and profileRevisionId (:28), wire-state identity (:34-41), Hardware (:68), ConfigurationIdentity, LabReceipt and MachineReceipt (:70-75)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/shared/params.ts",
+     "role": "ProfileSaveParams (:23-25), MissionSchema with one profileId and maxAgents 1-5 (:71), SettingsSchema with no default profile and no budget (:74), run.start requires profileId (:108), unhandled model.* methods (:121-125), hardware.read (:146), mission.create (:140)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/renderer/App.tsx",
+     "role": "The user's choice of model: profileId state (:38), cloudBlocked (:62), default = first listed profile (:72, :79), composer dropdown 'Choose a model' (:236), profile form offering only Ollama and OpenAI-compatible (:266)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/renderer/ResearchPanel.tsx",
+     "role": "Review-model chooser: the first profile the policy allows unless the user picks another (:184, :192, :266)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/renderer/LocalModelPanel.tsx",
+     "role": "Shows total and available RAM and the reserve max(2 GiB, 15%) (:24, :33, :35); lists runtime models as 'Not qualified for coding' (:46); says managed install and qualification are 'still in development' (:48)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/application.ts",
+     "role": "run.start: resolves the profile, checks policy, accepts only ask/plan/build, binds the profile revision (:228-244). Session default policy (:181). Run loop: profile revision (:333), context budget from the profile (:359), usage.updated event per step (:363). Fallthrough NOT_IMPLEMENTED (:265)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/policy.ts",
+     "role": "assertInferencePolicy (:28-31) and assertConversationPolicy (:68-79): session and project local-only/cloud-allowed restrictions intersect."
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/store.ts",
+     "role": "listProfiles ORDER BY name, id (:169); profile columns (:75), with no price or quality columns."
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/inference.ts",
+     "role": "validateEndpoint derives locality from a loopback host and requires ollama to be loopback (:14-21); complete() runs only openai-compatible and ollama, others throw NOT_IMPLEMENTED (:143); token usage parsed from the provider response (:163-165)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/index.ts",
+     "role": "Per-inference policy re-check and locality check (:84-99); profile.save and profile.test (:248-283); imports probeHardware and inspectLocalRuntime (:29-30) but nothing from select.ts."
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/hardware.ts",
+     "role": "probeHardware through the native helper (:20-25); free memory is excluded from the hardware fingerprint (:16-17)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/runtime.ts",
+     "role": "Active set carries labReceipts (:18); lab receipt gate (suite moonaliza-coding-v1, quality >= 0.85, tools passed, zero unauthorized effects or writes) at :42-43."
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/catalogue.ts",
+     "role": "Signed Ed25519 catalogue: payload schema (:11-17), configurations point to runtime, model manifest, blobs, lab receipt and evidence only (:16), rollback and expiry checks (:42-45). No price, task or licence metadata."
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/local-runtime.ts",
+     "role": "Explicit discovery of an external Ollama: version and tags, every model qualified:false (:14-30)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/model-store-selection.md",
+     "role": "Selection policy spec (:23-33); the recorded PC measurement of 1,235,644,416 bytes available, below the 2 GiB reserve (:49); real qualification still required (:43)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/source-plan.md",
+     "role": "G06 local-only never switches to cloud automatically (:106), G08 automatic selection of a qualified configuration (:110), G09 unknown stays unknown (:111), receipt rules (:766-775), task D3 selection steps and qualification suite (:2586-2700); planned src/models/qualify.ts does not exist."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/decisions.md",
+     "role": "Decision 9: GPU auto-selection needs verified telemetry; unknown VRAM means a CPU configuration or unavailable (:13)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/local-model-sources.md",
+     "role": "Qualification targets (:38); no silent threshold lowering and no cloud fallback (:47); this PC was not measured and redistribution licensing was not established (:46)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/hugging-face-verification.md",
+     "role": "One observed router rate of $0.01/$0.03 per million tokens for Qwen3-4B through nscale, stated as not a price guarantee (:3)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/operate-mode.md",
+     "role": "States that the Anthropic provider family is not implemented yet (:99-102)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/development-status.md",
+     "role": "Status of the selection source checkpoint (:71-77); real qualification and main/setup integration remain (:168, :170)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/superpowers/plans/2026-10-02-research-jobs.md",
+     "role": "Mission planner design that follows selectLocal (:385-390); 'More models' with its three directions and constraints (:399-408)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/BRIEF.md",
+     "role": "Dated cloud price and rank table and recommendation of three model roles (:86-118); claims Gate: PASS (:11); U-08 known unknown (:80-84)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/DISCOVERY.md",
+     "role": "U-01..U-08 with statuses (:30-39); open volume question (:43); prices and ranks are dated facts (:53-54)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/EVIDENCE.md",
+     "role": "E-01..E-20, all retrieved 2026-10-02 (:11-30)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/raw/2026-10-02-livebench-livebench-130364a0.md",
+     "role": "LiveBench capture with per-category columns (Reasoning, Coding, Agentic Coding, Math, Data, Language, Instruction Following, cost per successful task) (:23-24); rows for Sonnet 5.5 (:44), Gemini 3.8 Flash (:54) and GPT-6 Luna (:69) that the BRIEF calls unranked."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/raw/.fetches.jsonl",
+     "role": "Ledger: all entries dated 2026-10-02; transports firecrawl-cli and http-keyless; dev.meta.ai, bestllmfor, steel.dev and benchr graded partial."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/orchestration/2026-10-05-more-models/RUN.md",
+     "role": "Untracked run ledger for this task: Stage 1 research active; Linux baseline of 1121 tests with 74 known failures (:35); collection budget of 100 credits (:39)."
+    }
+   ],
+   "extensionPoints": [
+    "A new pure ranking module beside select.ts [inferred: e.g. src/models/rank.ts]. It would combine selectLocal's result (src/models/select.ts:66-90) with cloud candidates. selectLocal itself must stay local-only: select.ts:65 says 'No networking, probing or cloud fallback', and model-store-selection.md:33 says 'This module has no cloud fallback or privacy-policy mutation'.",
+    "SelectionContext (src/models/select.ts:6, validated at :11) holds hardware, activationSetId, supportedBackends, now and minimumContextTokens. A task's needs, such as required context or tools, would enter the local half here.",
+    "Profile metadata needs a migration. Price, quality source and date, or a key into a dated model-facts table would go on ProfileSchema (src/shared/contracts.ts:26), ProfileSaveParams (src/shared/params.ts:23-25), the profile_revisions table (src/engine/migrations.ts:21 area) and profileColumns (src/engine/store.ts:75); main builds the stored profile at src/main/index.ts:261.",
+    "Signed catalogue metadata needs a schemaVersion change. Licence, size, task tags or quality per task for each local configuration would go in configurations (src/models/catalogue.ts:16), and PayloadSchema pins schemaVersion literal 1 (catalogue.ts:12). Lab receipt checks sit in src/models/runtime.ts:42-43, and LabReceiptSchema has one scalar quality (contracts.ts:72).",
+    "The recommendation call needs a home. run.start takes a mandatory profileId (params.ts:108; engine at application.ts:228-244). The declared but unhandled model.list, model.enable, model.cancel, model.import and model.remove (params.ts:121-125) are an existing slot for a model listing or recommendation method [inferred].",
+    "The renderer would surface the ranking where the default is picked today: App.tsx:72 and :79 take the first profile, and the dropdown is at App.tsx:236. The review chooser is at ResearchPanel.tsx:192, and the hardware and reserve display at LocalModelPanel.tsx:24-35.",
+    "Missions: MissionSchema has one profileId and maxAgents (params.ts:71), and mission.create is at params.ts:140. The planned pure mission planner (plan 2026-10-02-research-jobs.md:387-390) would pick a profile and concurrency for each agent.",
+    "Cost accounting: the per-step token usage event (application.ts:363; src/shared/events.ts:27; src/shared/context.ts:4-5) multiplied by a dated price would give spend. SettingsSchema (params.ts:74) has no budget or default-role field to put a cap in.",
+    "Provider reach: the kind gate in complete() (src/main/inference.ts:143) and ProfileKindSchema (contracts.ts:24) decide which ranked cloud models can be called at all.",
+    "Hardware input: probeHardware (src/models/hardware.ts:20-25), reached through hardware.read (params.ts:146) and imported in src/main/index.ts:29."
+   ],
+   "invariants": [
+    "G06: a local-only project never switches to cloud inference automatically (docs/specification/source-plan.md:106).",
+    "G08: automatic model selection chooses a qualified model, runtime, backend, quantization, context limit and concurrency configuration (source-plan.md:110). G09: unknown hardware measurements stay unknown (source-plan.md:111).",
+    "Session and project inference policies are intersecting restrictions (src/engine/policy.ts:67-79). They are enforced at run.start (application.ts:230), on every step (application.ts:356, :362) and again in main before each provider call (src/main/index.ts:90).",
+    "Locality is derived from the endpoint, not declared: only loopback is local, and ollama must be loopback (src/main/inference.ts:18-20). Main re-checks that the stored locality matches (src/main/index.ts:92-93).",
+    "Local selection never networks, probes or falls back to cloud (select.ts:65; model-store-selection.md:33). If nothing passes, it reports local unavailability and keeps API operation, without lowering thresholds (local-model-sources.md:47).",
+    "The host reserve is max(2 GiB, ceil(15% of RAM)) (select.ts:15; model-store-selection.md:29; plan:387). Free VRAM capacities are never summed (select.ts:43; source-plan.md:773). Unknown VRAM gives a CPU configuration or unavailable (decisions.md:13; source-plan.md:4060-4061).",
+    "Evidence freshness and conflicts: machine receipts are at most 30 days old and not earlier than lab qualification (select.ts:39). A newer failure supersedes an older success, and conflicting same-time evidence fails closed (select.ts:76-77).",
+    "Resources and the active set are re-checked under the inference lease immediately before use (model-store-selection.md:25).",
+    "Lab receipt thresholds are suite moonaliza-coding-v1, quality >= 0.85, tools passed, zero unauthorized effects and zero writes after cancellation (runtime.ts:43; select.ts:30). The catalogue is Ed25519-signed, rollback-protected and expiring (catalogue.ts:24-46).",
+    "Missions always ask for approval: the planner fills the approval card and the user approves (plan 2026-10-02-research-jobs.md:383, :389). On the current PC it must report that no local agent fits and offer only cloud agents the policy permits (plan:390).",
+    "Local models that do not fit must not be offered, and cloud models stay behind the project's inference policy (plan:408).",
+    "Prices and ranks are dated facts, valid for their retrieval date (research DISCOVERY.md:53-54). An observed router rate is not a price guarantee (hugging-face-verification.md:3).",
+    "A run is bound to one profile revision (application.ts:235), and provider wire state is bound to that identity (contracts.ts:34-41). [inferred] Changing model mid-run would invalidate the wire state.",
+    "Initial managed concurrency is one, and an increase needs a separately measured configuration (source-plan.md:774-775; plan:388).",
+    "API keys are encrypted at rest and kept out of transcripts (G14, source-plan.md:116). profile.save stages and commits them through the vault (src/main/index.ts:257-268)."
+   ],
+   "risks": [
+    "Nothing automatic is wired. selectLocal has no production caller, no qualification runner exists (src/models/qualify.ts, planned at source-plan.md:2593, is absent), and no real lab or machine receipts exist (development-status.md:168, :170). A ranking of local models would rest on fixtures until qualification is built.",
+    "On the target PC, 1,235,644,416 bytes are available, below the 2 GiB reserve (model-store-selection.md:49). selectLocal returns host-reserve (select.ts:69), so the local half of any ranking is empty there, and in a local-only project the ranking has nothing to offer.",
+    "The plan says Moonzila already reaches models through four profile kinds (plan:401), but only openai-compatible and ollama can run (inference.ts:143; operate-mode.md:99-102). A ranking could recommend a model, for example Anthropic's, that the app cannot call natively.",
+    "Prices go stale. Gemini steps up on 2027-01-01 (EVIDENCE.md:13), and DeepSeek charges double in peak hours (01:00-04:00 and 06:00-10:00 UTC, Mon-Fri, raw deepseek capture:48), so one price per model is wrong for part of the day. Prices compiled into the app would be stale within a quarter (BRIEF.md:116-118).",
+    "Joining leaderboard rows to profiles is unreliable. Profile.model is free text (contracts.ts:26), while LiveBench row names include an effort level, e.g. 'Claude Sonnet 5.5 xHigh Effort' vs 'Max Effort' (raw livebench:44), which a profile does not carry.",
+    "The quality scales do not compare: LiveBench is 0-100, SWE-bench is a percentage and mostly self-reported (E-18), EQ-Bench is an LLM-judged Elo (E-12), and Moonzila's lab quality is 0-1 on its own suite (contracts.ts:72). Aider is stale (E-10) and benchr is unreadable (E-19).",
+    "The BRIEF and its capture disagree. The BRIEF calls Sonnet 5.5 and GPT-6 Luna unranked and waits for a Sonnet row (BRIEF.md:96, :99, :113), but LiveBench rows for them and for Gemini 3.8 Flash are in the capture (raw livebench:44, :54, :69). A builder reading only the BRIEF will under-use the evidence.",
+    "Free tiers have data-training conditions (Google AI Studio outside the EU, Mistral's experiment tier; E-08), so ranking 'free' cloud first could conflict with what the privacy policy is meant to protect.",
+    "No spend cap or budget setting exists (SettingsSchema, params.ts:74), and the research's volume question is still open (DISCOVERY.md:43). Choosing a cloud model automatically under cloud-allowed could produce unexpected cost.",
+    "I did not re-run the research gate (read-only). 'Gate: PASS' is the BRIEF's own claim (BRIEF.md:11). The BRIEF's 'Next steps' still tells the reader to 'Review the TODO sections' (BRIEF.md:127), although none remain.",
+    "The baseline is red: 74 known Linux failures out of 1121 tests (RUN.md:35). New selection tests have to be judged against that list."
+   ],
+   "externalUnknowns": [
+    {
+     "question": "What does each candidate cloud model cost per million input, output and cached tokens on the build date? E-01..E-05 are dated 2026-10-02.",
+     "whyItBlocksDesign": "Cost is half of the ranking. A stale price inverts the order, and Gemini already has a price step announced for 2027-01-01.",
+     "ownerPage": "Vendor API pricing pages (Anthropic, OpenAI, Google Gemini, DeepSeek, Mistral)"
+    },
+    {
+     "question": "What do the routes the app can actually call charge for open-weight models: OpenAI-compatible routers such as OpenRouter or the Hugging Face router providers?",
+     "whyItBlocksDesign": "Only openai-compatible and ollama kinds run (inference.ts:143), so many models are reached through routers, whose prices differ from the model vendor's. The corpus holds one observed rate only (hugging-face-verification.md:3).",
+     "ownerPage": "Router pricing page or model-listing API reference"
+    },
+    {
+     "question": "Do vendors or routers publish machine-readable model metadata (price, context length, tool support) that could refresh a dated table automatically?",
+     "whyItBlocksDesign": "It decides whether the facts are shipped signed and dated, entered per profile, or fetched at runtime under the network and inference policy.",
+     "ownerPage": "Vendor or router API reference (models endpoint)"
+    },
+    {
+     "question": "How reliable is tool calling for each candidate model, by a published function-calling benchmark?",
+     "whyItBlocksDesign": "The plan judges candidates on tool-calling reliability (plan:408), and a coding agent depends on tools. No captured leaderboard measures it.",
+     "ownerPage": "Function-calling benchmark leaderboard page"
+    },
+    {
+     "question": "What are the context window and maximum output for each cloud model? The Anthropic capture says only 'Up to 1M, varies by model' (raw anthropic capture:159).",
+     "whyItBlocksDesign": "minimumContextTokens (select.ts:6) and a profile's contextTokens and outputTokens (contracts.ts:26) need exact figures. A wrong value means silent truncation or CONTEXT_LIMIT failures.",
+     "ownerPage": "Vendor model reference pages"
+    },
+    {
+     "question": "How much memory do small local candidates need at the app's context size? (U-08 is KNOWN-UNKNOWN.)",
+     "whyItBlocksDesign": "It decides whether any local model can be offered within about 1.15 GiB free memory, or after the user frees some, and how probes are ordered.",
+     "ownerPage": "Model card, or a measurement on the target machine (ollama ps after one prompt)"
+    },
+    {
+     "question": "How do small open models (well under 27B; the smallest open LiveBench rows are 27B) score on coding and agentic coding?",
+     "whyItBlocksDesign": "Without a score, local models cannot be ranked against cloud models until Moonzila's own lab suite runs on them.",
+     "ownerPage": "Model cards or benchmark leaderboard pages"
+    },
+    {
+     "question": "Under what licence can each small local candidate be redistributed in Moonzila's signed catalogue?",
+     "whyItBlocksDesign": "A licence that forbids redistribution removes the candidate from one-click install. local-model-sources.md:46 says redistribution licensing was not established.",
+     "ownerPage": "Licence file or model card on the model's repository"
+    },
+    {
+     "question": "What are the vendors' data-use and training terms for free tiers and paid API use? (BRIEF.md:120 leaves vendor terms out of scope.)",
+     "whyItBlocksDesign": "It decides whether a free tier may rank at all under a cloud-allowed policy, and whether the ranking must weigh privacy as well as cost.",
+     "ownerPage": "Vendor API terms of service and data-usage policy pages"
+    },
+    {
+     "question": "What are Gemini's free-tier RPM and RPD limits per model? (E-06: the table is rendered client-side and is not in the capture.)",
+     "whyItBlocksDesign": "A free model with a demo-grade request rate cannot carry a multi-step agent run, so ranking needs to know the rate as well as the price.",
+     "ownerPage": "Gemini API rate-limits page (rendered in a browser)"
+    },
+    {
+     "question": "Do the Anthropic and Gemini APIs accept OpenAI-compatible chat-completions requests, with tool calls and streaming usage?",
+     "whyItBlocksDesign": "It decides whether top-ranked models can be called today through openai-compatible, or only after native profile kinds exist.",
+     "ownerPage": "Vendor API reference (OpenAI-compatibility page)"
+    }
+   ],
+   "openQuestionsForUser": [
+    "Should smarter selection choose the model for each run automatically, or recommend one and wait for your confirmation? Today you always pick it in the composer, and the mission design already requires your approval.",
+    "What is a 'task' for the ranking: the existing modes (ask, plan, build, research), the research's split into coding, writing and default roles, or a judgement of each request's difficulty? How should cost weigh against quality: a monthly budget or spend cap (the research assumed 10M input and 2M output tokens a month, and that question is still open), cheapest acceptable, or best within budget?",
+    "Where should the price and quality facts live: shipped with the app as a signed, dated table re-collected every quarter, entered by you on each profile, or refreshed from vendors at runtime as a network call under the project's policy?"
+   ]
+  },
+  {
+   "area": "Existing research that a \"more models\" decision could reuse (docs/research/* corpora plus the older docs/handoff/work/research corpus and the spec notes built on it), at /home/user/moonaliza on main-axuse @ b490e50",
+   "summary": "docs/research holds 16 nested Research-Kit corpora. All 16 gates PASS today: I ran preflight read-only from each corpus root, and `git status --porcelain --ignored` showed no change afterwards. Six bear on models.\n\n- **2026-10-02-model-pricing-and-ranking** is the only one about choosing models. It is a snapshot dated 2026-10-02 (E-01..E-20). It closes U-01..U-07: per-million-token prices for Anthropic, OpenAI, Gemini, DeepSeek and Mistral; free tiers; LiveBench and SWE-bench coding ranks; EQ-Bench writing ranks; licence families; Gemini rate-limit tiers; how fast the data goes stale. U-08, how much memory a local model needs, is left KNOWN-UNKNOWN (DISCOVERY.md:39). Preflight warns that its BRIEF.md is stale and that E-15..E-19 came through the unmetered http-keyless transport.\n- **Two streaming corpora (2026-09-29)** cover only two wire formats: native Ollama /api/chat and OpenAI Chat Completions, including Ollama /v1. Both close every unknown; streaming-tool-calls' U-03 was closed later by the ollama-v1 corpus. The Responses API is explicitly out of scope (streaming BRIEF.md:85).\n- **context-overflow and open-gaps (2026-09-28/29)** cover overflow refusals and token usage for those same two paths. Context-overflow leaves U-04 (does the reserved output count against the window) and U-05 (what native Ollama's truncate:false refusal says) KNOWN-UNKNOWN. Open-gaps adds only Anthropic's count_tokens (E-04).\n- **coding-knowledge-base and agent-repo-review (2026-10-03)** touch models only at the edges: Context7 only as a plug-in the user approves, knowledge-base answers are not gate evidence, and the reviewer-loop, bait-tool and supply-chain lessons. Every page in both was collected without the metered Firecrawl CLI. agent-repo-review leaves U-06 KNOWN-UNKNOWN.\n- **The older corpus at docs/handoff/work/research (2026-09-24..28, also PASS)** holds the local-model mechanics: Windows memory APIs, the Ollama v0.34.4 portable runtime, manifest and blob identity, and Qwen3 download sizes (523 MB / 1.4 GB / 2.5 GB, E-17). It also records the Anthropic thinking-signature rule (E-03).\n\nFrom the code [read]:\n- Only the 'openai-compatible' and 'ollama' kinds are implemented. 'anthropic' and 'openai-responses' throw NOT_IMPLEMENTED (src/main/inference.ts:143), which matches what the corpora cover.\n- The host reserve, max(2 GiB, 15% of RAM) (src/models/select.ts:15), is larger than the 1.0-1.2 GiB the user's 8 GB PC had free (docs/specification/local-model-sources.md:55). So selectLocal returns 'host-reserve' there for every model, whatever its size (select.ts:69) [inferred].\n\nNo corpus covers any of these: a native Gemini API, Anthropic Messages or OpenAI Responses streaming, how reliably small models call tools, peak memory per model, primary licence files for specific models, or the vendors' data-use terms.",
+   "files": [
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/DISCOVERY.md",
+     "role": "Contract for the pricing/ranking corpus. U-01..U-07 CLOSED (lines 32-38); U-08, memory per local model, KNOWN-UNKNOWN (line 39). The open intent question, monthly token volume, is at line 43. U-05 says vendor API terms were 'not re-read here' (line 36)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/BRIEF.md",
+     "role": "Dated (2026-10-02) model table with cost at 10M in / 2M out (lines 88-105). Proposes three model roles: coding, writing, default plus an Ollama fallback (lines 112-116). Says to re-collect quarterly (116-118). Preflight flags it hygiene/brief-stale."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/EVIDENCE.md",
+     "role": "E-01..E-20, all retrieved 2026-10-02. Prices: E-01..E-05. Gemini rate limits: E-06. Ollama library: E-07. Free tiers (secondary): E-08. LiveBench: E-09. Aider (stale): E-10. Writing: E-11/E-12. Licences, all secondary: E-13/E-14/E-16/E-17. Llama owner page walled: E-15. SWE-bench mirror: E-18. benchr unreadable: E-19. Ollama README: E-20."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/raw/2026-10-02-livebench-livebench-130364a0.md",
+     "role": "LiveBench capture with 58 model rows, more than the brief summarised: e.g. Gemini 3.7 Flash High at line 38, Qwen3.8 27B (open) at line 57, Gemini 3.5 Flash-Lite at line 82. It has no small (\u22644B) local model rows [read rows]."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/raw/2026-10-02-library-ollama-b4859ee6.md",
+     "role": "Ollama library capture. It carries per-model capability tags such as 'tools' and 'thinking' (qwen3 0.6b+ line 62, gemma4 e2b line 83, qwen3.5 0.8b line 104) that E-07 does not mention. These are advertised tags, not proof of reliability."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-02-model-pricing-and-ranking/research/raw/2026-10-02-models-pricing-deepseek-api-docs-deepseek-8eb12065.md",
+     "role": "DeepSeek capture: an Anthropic-format base URL (line 26) and Tool Calls supported (line 32). DeepSeek is reachable through existing wire formats, so it does not need a native kind [inferred]."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-09-29-streaming-tool-calls/research/BRIEF.md",
+     "role": "Decision (line 59 on): one accumulator per wire format, native Ollama and OpenAI Chat Completions. The Responses API is out of scope (line 85). U-03 was KNOWN-UNKNOWN here and closed by the ollama-v1 corpus. E-01..E-07, retrieved 2026-09-29."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-09-29-ollama-v1-stream-chunking/research/BRIEF.md",
+     "role": "U-01..U-04 CLOSED (E-01..E-06, 2026-09-29), no known unknowns. Rule: a new id at a used index starts a new call (line 67). Ollama before v0.4.7 is refused (line 84)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-09-29-context-overflow/research/BRIEF.md",
+     "role": "U-01..U-03 CLOSED (E-01..E-14, 2026-09-29). U-04 and U-05 KNOWN-UNKNOWN (line 71). Decisions: truncate:false and shift:false on every native Ollama request (line 77); overflow classified as CONTEXT_LIMIT by matching phrases (line 85); /v1 cannot refuse truncation (line 96); reserve the reply in the budget (line 102)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-09-28-open-gaps/research/BRIEF.md",
+     "role": "U-01..U-06 CLOSED (E-01..E-13, 2026-09-28). Usage is recorded per response; streams need include_usage (line 60). Use Anthropic count_tokens when that provider family lands (line 62)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-03-coding-knowledge-base/research/BRIEF.md",
+     "role": "U-01..U-09 CLOSED (E-01..E-16, 2026-10-03, all http-keyless). Model-relevant parts: Context7 only as a user-approved MCP plug-in (line 83); knowledge-base answers are untrusted and not gate evidence (line 80)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/research/2026-10-03-agent-repo-review/research/BRIEF.md",
+     "role": "U-01..U-05 CLOSED (E-01..E-05, 2026-10-03, http-keyless). U-06 (the GitHub topic listing) is KNOWN-UNKNOWN. Patterns only: a reviewer loop, bait tools for injection tests (line 51), supply-chain pinning (line 52)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/handoff/work/research/DISCOVERY.md",
+     "role": "Older corpus (2026-09-24..28) with local-model mechanics. U-08..U-15 CLOSED (Windows memory APIs, portable Ollama v0.34.4, /api/ps, Qwen3 sizes, manifest identity). U-06 and U-07 KNOWN-UNKNOWN. Gate PASS with 9 warnings, one of them E-18, a 404 capture."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/handoff/work/research/raw/2026-09-26-tags-qwen3-ollama-0eff70ea.md",
+     "role": "Qwen3 tag sizes: 0.6b 523MB at 40K context (line 57), 1.7b 1.4GB (line 81), 4b 2.5GB at 256K (line 105). These are download sizes only."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/local-model-sources.md",
+     "role": "Spec note built on the older corpus. Qualification targets (line 38). Model licensing for redistribution was not established (line 44). The PC measured 8,515,145,728 bytes RAM with 1.0-1.2 GiB available, below the 2 GiB reserve (line 55)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/hugging-face-verification.md",
+     "role": "Not a gated corpus. It records a live check through Hugging Face's OpenAI-compatible router (https://router.huggingface.co/v1, line 5), with a tool-capable Qwen3-4B route (line 3). That is a way to reach more cloud models through the existing kind."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/research-kit-integration-review.md",
+     "role": "Lists what each corpus applied and what work remains (lines 17-21): wider provider/version qualification, model-specific capacity checks, live masking before live display."
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/inference.ts",
+     "role": "ProviderKind union (line 8). OVERFLOW regex from the context-overflow corpus (line 101). Only openai-compatible and ollama are admitted; others get NOT_IMPLEMENTED (line 143). Bearer auth (line 145). Endpoint path chosen by kind (line 157). Usage mapping (line 164)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/provider-stream.ts",
+     "role": "The two accumulators cite the streaming corpora (lines 5-7, 120-126). OllamaAccumulator at line 71, OpenAIAccumulator at line 128."
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/select.ts",
+     "role": "Local selection: host reserve max(2 GiB, 15%) (line 15); lab gate 'moonaliza-coding-v1' with quality \u2265 .85 and toolsPassed (line 30); returns host-reserve (line 69); local-only ranking sort (line 84); no cloud fallback (line 65)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/catalogue.ts",
+     "role": "Signed Ed25519 catalogue (line 31). Runtimes and configurations (lines 15-16). Every configuration needs a lab-receipt and an evidence artifact (line 40)."
+    },
+    {
+     "path": "/home/user/moonaliza/src/shared/contracts.ts",
+     "role": "Inference policy 'local-only' | 'cloud-allowed' (lines 17, 21). ProfileKindSchema enum (line 24). ProfileSchema contextTokens up to 2,000,000 (line 26)."
+    },
+    {
+     "path": "/home/user/moonaliza/docs/orchestration/2026-10-05-more-models/RUN.md",
+     "role": "Untracked orchestration ledger: collection budget of at most 100 credits for this task; kit 0.9.5 READY with 642 credits."
+    }
+   ],
+   "extensionPoints": [
+    "New research goes in a new nested corpus, docs/research/2026-10-05-<slug>/, scaffolded like the existing 16 (each has AGENTS.md, research/kit.json with kitPath /root/.agents/research-kit, and a committed research/raw/.fetches.jsonl). It must collect its own captures: preflight requires every cited page to be in that project's own ledger (Research-Kit AGENTS.md rule 1 step 5) [inferred]. So facts that sit only in another corpus's raw files, such as the Ollama 'tools' tags (library capture lines 62/83/104), must be fetched again.",
+    "Refreshing prices and ranks means re-collecting docs/research/2026-10-02-model-pricing-and-ranking (its plan.json), as BRIEF.md:116-118 says to do quarterly. Gemini's 2027-01-01 price step (E-03) is already on record.",
+    "A new provider kind touches: src/shared/contracts.ts:24 (ProfileKindSchema), src/main/inference.ts:8 (ProviderKind), src/engine/store.ts:12 (a third copy of the kind union), the admission gate at src/main/inference.ts:143, the auth header at inference.ts:145, the endpoint path at inference.ts:157, the usage mapping at inference.ts:164, and a new accumulator next to provider-stream.ts:71/128.",
+    "src/engine/migrations.ts:17-24: profile_revisions.kind is TEXT NOT NULL with no CHECK. A new kind would need no SQLite table rebuild, so the sqlite-table-rebuild corpus is not needed for direction 2 [inferred].",
+    "Overflow classification for a new provider reuses the OVERFLOW regex at src/main/inference.ts:101. A new provider's own overflow wording would extend that list, as context-overflow BRIEF.md:85-93 prescribes.",
+    "Local catalogue entries: src/models/catalogue.ts:15-16 (runtimes, configurations) plus artifact roles at line 10. Every configuration needs model-manifest, model-blob, lab-receipt and evidence artifacts (line 40).",
+    "Ranking: src/models/select.ts:84 sorts local candidates only, by installed, quality, firstTokenMs, tokensPerSecond and loadLatencyMs. A grep of src for price or cost fields found none, so cost-aware ranking of cloud and local models would be a new input [read grep; inferred]."
+   ],
+   "invariants": [
+    "Corpora are evidence. Ledgers and captures under docs/research/*/research/raw are never edited, and new facts go into a new corpus (Research-Kit AGENTS.md 'Invariants'; all 7 relevant ledgers are tracked by git).",
+    "Local selection keeps the host reserve max(2 GiB, 15% of total RAM) (src/models/select.ts:15). It returns 'host-reserve' when free RAM is at or below it (line 69). It never probes, uses the network or falls back to cloud (line 65).",
+    "A local model is offered only with a lab receipt from suite 'moonaliza-coding-v1' with quality \u2265 .85, toolsPassed, zero unauthorized effects and zero writes after cancellation (select.ts:30). Machine receipts must be at most 30 days old, with load \u2264 90 s, first token \u2264 30 s and \u2265 4 tok/s (select.ts:39-41).",
+    "The catalogue is Ed25519-signed over 'MoonAliza activation set v1\\0' plus the payload (catalogue.ts:31). It is rejected on rollback, expiry or app-version mismatch (lines 42-45).",
+    "Cloud inference is gated by project/session policy 'local-only' | 'cloud-allowed' (src/shared/contracts.ts:17, 21).",
+    "Kinds not yet implemented must stay refused until their response and terminal-state contracts are implemented (src/main/inference.ts:142-143). 'ollama' endpoints must be loopback (inference.ts:19).",
+    "Native Ollama requests send truncate:false and shift:false. An over-window 400/413/422 is classified as CONTEXT_LIMIT by bounded phrase matching, and the provider body is never surfaced (context-overflow BRIEF.md:77-93; inference.ts:101-106).",
+    "Tool calls are executed only on a terminal tool_calls finish. On OpenAI-compatible streams, a new id at a used index starts a new call. Ollama before v0.4.7 is refused (ollama-v1 BRIEF.md:62-84; streaming BRIEF.md:59-80).",
+    "Usage is reported only when observed: streams send include_usage, and a missing count must not be reported as 0 (open-gaps BRIEF.md:56-72; integration review line 17).",
+    "Live display of streamed text requires masking across chunk splits first; until then, whole responses are redacted (integration review line 21; streamed-secret-masking corpus).",
+    "Knowledge-base and Context7 answers are untrusted text and never gate evidence (coding-knowledge-base BRIEF.md:80-83).",
+    "Download size is not peak memory, and listing a model does not qualify it (local-model-sources.md:34, 9). If no candidate passes, report local unavailability and do not lower thresholds or fall back to cloud (local-model-sources.md:47)."
+   ],
+   "risks": [
+    "On the user's current PC, no local model of any size can be offered. Measured free RAM of 1.0-1.2 GiB (local-model-sources.md:55) is below the 2 GiB reserve (select.ts:15), so selectLocal returns host-reserve and planProbeCandidates returns [] (select.ts:56, 69) [inferred]. Direction 1 helps only other machines unless the user frees memory.",
+    "The pricing corpus is a 2026-10-02 snapshot. Preflight flags its BRIEF.md as stale (hygiene/brief-stale). Its licence claims rest only on secondary rows (E-13, E-14, E-16, E-17) because the owner page E-15 was walled. Mistral is partial (E-05), and Sonnet 5.5 and GPT-6 Luna have no rank (BRIEF.md:96, 99).",
+    "No corpus measures tool-calling reliability. LiveBench, SWE-bench, EQ-Bench and Aider rank coding and writing, not function calling. The captured LiveBench rows hold no small local models; the smallest open row seen is Qwen3.8 27B (raw line 57). Ranking local models by those leaderboards would be unfounded.",
+    "Two kinds are already declared but unimplemented and unresearched: 'anthropic' and 'openai-responses' (inference.ts:143; streaming BRIEF.md:85). A Gemini-native kind would be a third adapter with no corpus behind it. The kind union is duplicated in three places (contracts.ts:24, inference.ts:8, store.ts:12), so they can drift apart.",
+    "Several reusable corpora collected some pages without the metered Firecrawl CLI: coding-knowledge-base and agent-repo-review entirely, pricing E-15..E-19. They pass under evidencePolicy=pluralist only. Under strict, transport-not-metered warnings become failures (Research-Kit AGENTS.md rule 1).",
+    "Facts present in raw captures but not in evidence rows, such as the Ollama 'tools' tags and the extra LiveBench rows, cannot be cited without re-collecting them in the new corpus [inferred]. The task budget is 100 credits (RUN.md).",
+    "An openai-compatible profile pointed at a local Ollama gets silent truncation (context-overflow BRIEF.md:96-100). Offering new local models through that kind would bypass the native-path guard.",
+    "The older local-model corpus pins Ollama v0.34.4 (E-15, E-16) and its Qwen3 sizes are from 2026-09-26. Newer families in the 2026-10-02 library capture (gemma4 e2b, qwen3.5 0.8b) have no size, memory, licence or runtime-compatibility row anywhere.",
+    "The context-overflow known unknowns (U-04: is output counted against the window; U-05: the native refusal text) remain open. A new provider adds another unverified overflow wording."
+   ],
+   "externalUnknowns": [
+    {
+     "question": "What does Google Gemini's native API look like for tool calls: how tools are declared in the request, how a model's call appears in the response, how tool results are sent back, and which finish reasons end a turn?",
+     "whyItBlocksDesign": "Direction 2's Gemini adapter needs the wire contract. No corpus covers it: the pricing corpus captured only Gemini pricing and rate limits (E-03, E-06).",
+     "ownerPage": "Gemini API reference (generateContent) and function-calling guide on ai.google.dev"
+    },
+    {
+     "question": "How does Gemini stream (transport format, and whether a function call arrives whole or in fragments), and where do usage counts arrive in a stream?",
+     "whyItBlocksDesign": "It decides whether a third accumulator is needed beside OllamaAccumulator and OpenAIAccumulator (provider-stream.ts:71, 128), and how usage is filled (inference.ts:164).",
+     "ownerPage": "Gemini API reference for streamGenerateContent / streaming docs"
+    },
+    {
+     "question": "Does Gemini offer an OpenAI-compatible Chat Completions endpoint, and does it stream tool calls with index, id, a tool_calls finish reason, and usage the way the existing OpenAIAccumulator expects?",
+     "whyItBlocksDesign": "If it does, Gemini may need only an openai-compatible profile rather than a native kind, which changes direction 2's scope.",
+     "ownerPage": "Gemini API 'OpenAI compatibility' documentation page"
+    },
+    {
+     "question": "What auth scheme does each native API use (Gemini, Anthropic Messages, OpenAI Responses)? Does inference.ts's Bearer Authorization header (line 145) work for them?",
+     "whyItBlocksDesign": "Credential handling and vault redaction are per kind; a wrong header fails every request.",
+     "ownerPage": "Each vendor's API authentication reference"
+    },
+    {
+     "question": "What status and body does Gemini (and Anthropic Messages / OpenAI Responses) return for an over-window request, and does Gemini offer a pre-send token count?",
+     "whyItBlocksDesign": "Overflow must map to CONTEXT_LIMIT through the OVERFLOW list (inference.ts:101). Open-gaps U-03 established pre-send counting only for Anthropic.",
+     "ownerPage": "Gemini API error/troubleshooting page and countTokens reference; Anthropic and OpenAI error references"
+    },
+    {
+     "question": "Does Gemini require any continuation state, such as thinking or thought data, to be returned unchanged across tool turns, as the older corpus E-03 records for Anthropic thinking signatures?",
+     "whyItBlocksDesign": "The canonical message contract (InferenceMessage, inference.ts:10) carries no provider-native state. Dropping required state could break multi-turn tool use.",
+     "ownerPage": "Gemini API thinking documentation"
+    },
+    {
+     "question": "How do Anthropic Messages streaming and OpenAI Responses streaming deliver tool calls (event types, how argument deltas arrive, what event ends the turn)?",
+     "whyItBlocksDesign": "Both kinds are declared but NOT_IMPLEMENTED (inference.ts:143), and the streaming corpus excluded the Responses API (BRIEF.md:85). They are the cheapest native kinds to finish before adding new ones.",
+     "ownerPage": "Anthropic Messages streaming reference; OpenAI Responses API streaming events reference"
+    },
+    {
+     "question": "What are Gemini's per-model free-tier request limits, and do the Gemini API terms allow prompts on the free tier to be used for training?",
+     "whyItBlocksDesign": "The free tier is the brief's zero-cost cloud default. The per-model table was client-rendered and not captured (E-06), and the training claim rests on a secondary source (E-08). Under 'cloud-allowed', project code would be sent there.",
+     "ownerPage": "Gemini API rate-limits page (rendered) and Gemini API Additional Terms of Service"
+    },
+    {
+     "question": "How does each candidate cloud vendor (Anthropic, OpenAI, Google, DeepSeek, Mistral, Hugging Face router providers) use and retain API inputs?",
+     "whyItBlocksDesign": "The inference policy must tell the user where project code goes. The pricing corpus U-05 says vendor terms were 'not re-read here' (DISCOVERY.md:36).",
+     "ownerPage": "Each vendor's commercial terms / API data-usage policy page"
+    },
+    {
+     "question": "How much peak RAM (and VRAM) does each candidate small local model use at a fixed quantization and context on the pinned Ollama runtime?",
+     "whyItBlocksDesign": "Models that do not fit must not be offered. The pricing corpus U-08 is KNOWN-UNKNOWN, and E-17 gives download sizes only.",
+     "ownerPage": "No page owns this; it is measured on the target machine (ollama ps after one prompt). Model cards may state requirements."
+    },
+    {
+     "question": "How reliably do small open models (\u22644B, e.g. qwen3 0.6b/1.7b, qwen3.5 0.8b, gemma4 e2b) call tools, according to a published function-calling benchmark?",
+     "whyItBlocksDesign": "The plan judges candidates on tool-calling reliability, and no corpus holds a function-calling leaderboard. It decides which models are worth a lab qualification run.",
+     "ownerPage": "A function-calling leaderboard's own page (e.g. the Berkeley Function Calling Leaderboard) and the model cards"
+    },
+    {
+     "question": "What licence governs each specific candidate local model, read from its own licence file, and does it allow MoonAliza's signed catalogue to point to or re-host its weights?",
+     "whyItBlocksDesign": "Licence decides whether a model enters the catalogue. Existing licence rows are secondary (E-14, E-16, E-17), the Llama owner page was walled (E-15), and redistribution was never established (local-model-sources.md:44).",
+     "ownerPage": "The licence file in each model's repository / the Ollama model page's license layer"
+    },
+    {
+     "question": "What minimum Ollama version does each newer model family need, compared with the managed runtime pinned at v0.34.4?",
+     "whyItBlocksDesign": "A catalogue configuration binds a model to a runtime (catalogue.ts:16). A model the pinned runtime cannot load would fail qualification or require a runtime bump.",
+     "ownerPage": "Ollama model library page and Ollama release notes"
+    },
+    {
+     "question": "What are the manifest digest, blob sha256 values and sizes for each candidate tag?",
+     "whyItBlocksDesign": "The signed catalogue requires pinned model-manifest and model-blob artifacts (catalogue.ts:10, 40).",
+     "ownerPage": "Ollama registry manifest for the tag / Ollama tags page"
+    },
+    {
+     "question": "What is each cloud model's current API model id, context window and output cap?",
+     "whyItBlocksDesign": "ProfileSchema needs model, contextTokens (\u2264 2,000,000) and outputTokens (contracts.ts:26). The pricing table uses display names, and only DeepSeek's 1M context was captured (E-04).",
+     "ownerPage": "Each vendor's models reference page / models-list endpoint"
+    },
+    {
+     "question": "May LiveBench (or another leaderboard) scores be embedded and shipped in the app as a ranking input, and how often are they updated?",
+     "whyItBlocksDesign": "Direction 3 has to choose between shipping ranks in the app and linking to them. LiveBench is the only current ranking in the corpus with a cost-per-task column (E-09).",
+     "ownerPage": "LiveBench repository licence / site terms"
+    },
+    {
+     "question": "What are Mistral's per-model API rates today, and do the 2026-10-02 prices still hold on the build date?",
+     "whyItBlocksDesign": "Cost-based ranking needs current per-model prices. Mistral is partial (E-05), and prices move quarterly (pricing U-07).",
+     "ownerPage": "Mistral API pricing page; each vendor's pricing page re-collected"
+    }
+   ],
+   "openQuestionsForUser": [
+    "What monthly token volume should cost ranking assume? This is still the open intent question in docs/research/2026-10-02-model-pricing-and-ranking/research/DISCOVERY.md:43. The brief assumed 10M input and 2M output tokens a month.",
+    "On this PC, free RAM (about 1.15 GiB) is below the 2 GiB host reserve the code enforces (src/models/select.ts:15, 69), so no local model of any size can be offered here. Should direction 1 (more local models) still come first even though it would only help other machines, or go after native kinds and smarter selection?",
+    "Which cloud vendors do you have, or plan to get, API keys and budget for (Google Gemini, Anthropic, OpenAI, DeepSeek, Mistral, the Hugging Face router)? The answer decides which native kinds and vendor terms the research covers first."
+   ]
+  },
+  {
+   "area": "SPECS, DOCS, INVARIANTS and TESTS around models (Moonzila @ b490e50, branch main-axuse; read-only)",
+   "summary": "Models reach Moonzila two ways. The first is user profiles. ProfileKindSchema declares four kinds: openai-compatible, openai-responses, anthropic and ollama (src/shared/contracts.ts:24). Only openai-compatible and ollama run: complete() throws NOT_IMPLEMENTED for the other two (src/main/inference.ts:142-143), and the profile form offers only those two (src/renderer/App.tsx:266). operate-mode.md:99-102 also says the Anthropic family \"the product does not implement yet\". The second is the signed managed catalogue. It checks an Ed25519 envelope under the domain 'MoonAliza activation set v1\\0' (src/models/catalogue.ts:31; managed-artifacts.md:7). Activation, the GGUF-only model store, the managed Ollama runtime, the scheduler and the local selector all exist in source. None of them is wired into main, engine or IPC: grep finds no reference to ActivationStore, selectLocal or ManagedOllamaProvider in src/main. The model.* methods are declared (src/shared/params.ts:121-126) but have no handler, so they fall through to NOT_IMPLEMENTED (src/engine/application.ts:265; src/main/index.ts:298). HANDOFF.md:85-86 lists genuine lab and machine qualification and the production catalogue trust inputs as unfinished. The D3 qualification harness the plan names (src/models/qualify.ts, scripts/qualify-model.mts; source-plan.md:2586-2709) does not exist. The documented host reserve is max(2 GiB, ceil 15% of physical RAM) (src/models/select.ts:62; model-store-selection.md:29). The measured PC has 8,515,145,728 bytes RAM (local-model-sources.md:55) and 1,235,644,416 bytes available (model-store-selection.md:49). [inferred] On that PC selectLocal returns 'host-reserve' and planProbeCandidates returns [] (select.ts:103,116), so today's policy would offer no one-click local model there. Cloud use is gated by locality. Locality comes from the endpoint: loopback is 'local', anything else is 'external' (inference.ts:14-20). assertConversationPolicy combines the session and project policies (src/engine/policy.ts:68-79), and main re-checks it before each inference (src/main/index.ts:90-93). docs/ARCHITECTURE.md is prose. It has no per-module row for any src/models/* file and touches providers only at lines 5, 9, 11, 33 and 44. There is no docs/adr directory; decisions live in docs/specification/decisions.md. In the Linux baseline (74 failures, /home/user/task5-handoff/baseline-failing.json), 23 failures are in model-area files, all needing the Windows native helper: managed-ollama 11, owned-transport 7, owned-connection 3, hardware 1, scheduler 1. The pure model and provider files pass fully on Linux.",
+   "files": [
+    {
+     "path": "/home/user/moonaliza/AGENTS.md",
+     "role": "Project rules (:8 preserve local/cloud policy and secret isolation, never manufacture qualification or benchmark evidence; :9 no credentials in source/logs/PRs, tests need none; :10 behavioural regression tests, Windows for native; :33 research through Research-Kit first). Quality gate :48-58; Linux baseline :60-64; invariants table :76-87; commit gate :96 (a commit touching src, lib, bin, scripts or app must stage docs/ARCHITECTURE.md)"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/ARCHITECTURE.md",
+     "role": "Prose architecture with no src/models rows. :5 main owns credentials and provider transport; :9 profile edits bind to revision, and a credential-bearing profile cannot move endpoint or provider without a new credential; :11 managed-model qualification, trust inputs and signed delivery remain separate requirements; :33 NDJSON/SSE transport, native no-truncation, refusal inspection bounded to 64 KiB; :44 model-store, receipt and activation-signature identity strings keep the old spelling"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/decisions.md",
+     "role": "Reviewed decisions. :7 (3) native provider state is bound to a profile-revision identity including API family, endpoint and model, and incomplete tool calls never execute; :8 (4) main-owned network broker binds the credential destination, uses system proxy and normal certificate validation; :13 (9) GPU auto-selection needs verified telemetry, unknown VRAM means CPU or unavailable; :15 (11) evidence needs a real producer; :17 (12) identity strings kept"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/source-plan.md",
+     "role": "Original full spec. Global constraints G05-G28 :107-130 (G06 no automatic cloud switch, G09 unknown stays unknown, G14 keys encrypted and out of logs, G18 tests use fakes and no real credentials, G19-G20 no fabricated qualification or benchmarks, G26 support claims only for qualified configurations, G27 no secret-retrieval API to the renderer). :288 a loopback URL does not prove local execution. 6.1 rules :646-649. 6.3 :772-774. 6.4 signed sets :791-797. C1 provider definition of done :1989-1995 and required cases :2056. D2 :2527-2534. D3 :2610, :2672, :2682. D5 :2839-2852. Licences :362-369 and :3812"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/local-model-sources.md",
+     "role": "Local-model facts and boundary. :7 a listing does not establish quality or memory fit; :18 unknown VRAM stays null, a hardware failure must not block API profiles; :26 managed Ollama env (OLLAMA_NO_CLOUD=1, parallel 1); :34 Qwen3 download sizes, which are 'not qualified recommendations' and not peak memory; :36 reserve max(2 GiB, 15%); :38 qualification targets; :42 never touch user-owned runtimes; :46 model licensing for redistribution not established; :47 no silent threshold lowering and no cloud fallback; :55 measured PC"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/managed-artifacts.md",
+     "role": "Signed catalogue and activation rules. :7 the trust root is app configuration; :9 tests use generated keys and synthetic receipts, none shipped; :13 withRuntimeStopped; :17 downloads verify size and SHA-256, keep a 256 MiB reserve, send no credentials, follow only listed redirect hosts; :19 ZIP rules"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/managed-provider.md",
+     "role": "Owned Ollama boundary. :13 fixed routes, no credentials or proxy, 8 MiB/16 KiB/4 MiB bounds; :17 the descriptor never comes from the renderer or the model; :19 cloud disabled, one model; :27-31 CPU placement only, no GPU selection, no receipts minted; :39 tests are not quality evidence"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/model-store-selection.md",
+     "role": "Model store and selection. :9 name moonaliza/<sha>:verified; :13 GGUF only; :25 candidates come from verified activation, recheck under the lease; :27-31 lab and machine receipt rules and ranking; :33 no cloud fallback; :41 pinned digest behind a tag route; :49 measured 1,235,644,416 bytes free"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/managed-scheduler.md",
+     "role": "Inference lease and queue rules (:9 cold runtime per lease; :11 RUNTIME_STOP_UNCONFIRMED fences the queue; :35 test coverage)"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/hugging-face-verification.md",
+     "role": "Only real cloud-provider evidence. :3 observed HF router rates are not a price guarantee; :5 OpenAI-compatible router with an explicit provider suffix; :14 not general quality evidence, cloud stays a per-project policy"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/implementation-sources.md",
+     "role": ":12 says streaming, tool calls, Responses and Anthropic adapters remain separate work. The streaming and tool-call part is now stale; Responses and Anthropic are still unimplemented"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/context-recovery.md",
+     "role": ":5 a cloud profile in a local-only project disables Send; :7 the credential is kept only at the same endpoint and kind, enforced in main; :31 native Ollama truncate:false and shift:false, /v1 cannot enforce them"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/folder-free-chat.md",
+     "role": ":9 and :20 general chats default to local-only, and a chat cannot override a stricter project policy"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/research-review-ui.md",
+     "role": ":40-42 the review model picker shows cloud profiles disabled under local-only"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/project-memory.md",
+     "role": ":196, :242, :260 local_only records never reach external profiles (design for a later phase)"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/specification/operate-mode.md",
+     "role": ":99-102 Operate's model features need the Anthropic family, 'which the product does not implement yet'"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/superpowers/plans/2026-10-02-research-jobs.md",
+     "role": "'More models' task :399-408 (three directions, the 1.15 GiB constraint, cloud stays behind policy); constraints :38-44; recorded for later :365 (the profile dialog's API key is held in a controlled input)"
+    },
+    {
+     "path": "/home/user/moonaliza/docs/orchestration/2026-10-05-more-models/RUN.md",
+     "role": "Untracked run ledger. Stage 1 research active; Mandate waits for the user (:19, :43); 100-credit collection budget (:39); baseline 1121 tests, 74 failed (:35)"
+    },
+    {
+     "path": "/home/user/moonaliza/HANDOFF.md",
+     "role": ":46 managed local models status; :50 about 1.15 GiB free, below the 2 GiB reserve; :85-86 next steps D3 qualification and production trust inputs, never fabricated; :132-138 opt-in real artifact checks"
+    },
+    {
+     "path": "/home/user/moonaliza/src/shared/contracts.ts",
+     "role": "ProfileKindSchema :24, ProfileSchema :26 (strict: hasCredential only, no secretRef), ProfileIdentitySchema and wireStateMatches :34-41, ModelChunk :46-53, ModelProvider :56, Hardware/ConfigurationIdentity/LabReceipt/MachineReceipt :63-75"
+    },
+    {
+     "path": "/home/user/moonaliza/src/shared/params.ts",
+     "role": "ProfileSaveParams :23-29 (write-only secret); method registry for profile.* :117-120, model.* :121-126 (no handlers), hardware.read :146, runtime.inspect :147"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/inference.ts",
+     "role": "Second ProviderKind union :8; validateEndpoint :14-21 (HTTPS or loopback http, no query, ollama must be loopback, loopback means local); Bearer auth :144-145; only openai-compatible and ollama admitted :142-143; redirect 'error' :158; overflow classification :99-122"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/provider-stream.ts",
+     "role": "OllamaAccumulator, OpenAIAccumulator, readNdjson and readSse; a new streaming kind needs its own accumulator"
+    },
+    {
+     "path": "/home/user/moonaliza/src/main/index.ts",
+     "role": "Partitions moonaliza-local (direct proxy) and moonaliza-providers :62-64; infer :85-107 (policy re-check, locality re-derivation, 125 s vault grant bound to the profile revision, output redaction, tool-call secret refusal); profile.save :248-262 (credential-move rule :257); profile.test :271-283; hardware.read with runtimeIdentity 'unmanaged;moonaliza-<ver>' :221"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/policy.ts",
+     "role": "assertInferencePolicy :28-31 and assertConversationPolicy :68-79, which raise CLOUD_NOT_ALLOWED"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/store.ts",
+     "role": "Third hand-written kind union :12; immutable profile revisions :155-171; wire state bound to profile revision :227-238"
+    },
+    {
+     "path": "/home/user/moonaliza/src/engine/migrations.ts",
+     "role": "profile_revisions DDL :17-24. kind has no CHECK constraint (:19); locality is CHECK'd (:21)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/catalogue.ts",
+     "role": "Signed payload schema :10-17 (artifact roles; runtimes; configurations needing a lab-receipt and an evidence artifact; no licence field); verification order :24-47"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/runtime.ts",
+     "role": "ActivationStore. Lab proof :43 (suite 'moonaliza-coding-v1', quality >= 0.85, tools passed, zero unauthorised effects or writes after cancel); atomic activation :99-137"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/model-store.ts",
+     "role": "GGUF-only materialisation. Allowed layer media types :14 (includes a 'license' layer, never inspected); format checks :44, :50; model name :56"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/select.ts",
+     "role": "Pure selection. Reserve :62; lab eligibility :73-80; machine eligibility thresholds :84-95; probe planning by artifact bytes against headroom :102-107; ranking :127-133; no cloud fallback"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/managed-provider.ts",
+     "role": "Managed config schema :8-12 (CPU only; outputTokens max 131072 against the profile's 200000); identity, load and placement checks :18-35"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/managed-ollama.ts",
+     "role": "Owned runtime env :77 (OLLAMA_NO_CLOUD=1 and related); 60 s startup and 5 min lifetime"
+    },
+    {
+     "path": "/home/user/moonaliza/src/models/local-runtime.ts",
+     "role": "Read-only inspection of the user's external Ollama at 127.0.0.1:11434; models always qualified:false (:189)"
+    },
+    {
+     "path": "/home/user/moonaliza/src/renderer/App.tsx",
+     "role": "Profile form offers only ollama and openai-compatible :266; API key in React state :256 and :266; cloudBlocked notice :61-62 and :234"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/provider-transport.test.ts",
+     "role": "37 tests on complete() and validateEndpoint: endpoint rules, INVALID_ENDPOINT, bounded body, usage, redirect refusal, terminal outcomes, no error-text leak, pre-aborted not sent, native tool IDs (OpenAI and Ollama), malformed and duplicate calls, CONTEXT_LIMIT classification"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/provider-stream.test.ts",
+     "role": "14 tests. Replay fixtures from research evidence E-04 and E-07 (docs/research/2026-09-29-streaming-tool-calls) delivered in 7-byte chunks; stream cut before terminal, size bound, cancellation"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/contracts.test.ts",
+     "role": "21 tests. Write-only credentials, renderer cannot set locality or secretRef (:65-72); profile DTO rejects secrets (:74-82); wire state must match the full identity including kind (:124-133)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/catalogue.test.ts",
+     "role": "6 tests on signature domain, rollback, expiry, app range, roles, unsafe paths and base64 (generated fixture key)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/activation.test.ts",
+     "role": "12 tests on atomic activation, invalid proof keeping the previous set, unsigned or rollback refusal, cancellation, tamper detection, real scheduler gating"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/selection.test.ts",
+     "role": "38 tests on receipt identity, thresholds, reserve boundary (:46-56), host-reserve and no cloud fallback (:57-65), backends and context, GPU adapters, probe order, ranking, stale and conflicting evidence"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/model-store.test.ts",
+     "role": "16 tests on exact bytes, shared blobs, rejection of non-GGUF and remote configs, links and junctions, metadata cleanup"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/download.test.ts",
+     "role": "15 tests on digest, resume with strong ETag, redirects without credentials, disk space, retries"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/archive.test.ts",
+     "role": "24 tests on safe Windows paths, expansion limits, cancellation"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/managed-ollama.test.ts",
+     "role": "12 tests on managed provider identity, cloud, version and placement checks, Stop. 11 are in the Linux baseline"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/owned-transport.test.ts",
+     "role": "7 tests on the authenticated loopback transport. All 7 are in the Linux baseline"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/owned-connection.test.ts",
+     "role": "3 native ownership tests. All 3 are in the Linux baseline"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/hardware.test.ts",
+     "role": "5 tests. The real Windows probe test is in the Linux baseline"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/scheduler.test.ts",
+     "role": "23 tests. The native child and grandchild test is in the Linux baseline"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/policy.test.ts",
+     "role": "local-only refuses an external provider (:31)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/application.test.ts",
+     "role": "run.start CLOUD_NOT_ALLOWED (:79)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/folder-free-chat.test.ts",
+     "role": "local-only chat refuses cloud (:42, :68)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/vault.test.ts",
+     "role": "7 tests on purpose-bound grants, tombstone, epoch revoke, redaction"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/local-model-panel.test.tsx",
+     "role": "Hardware failure never fabricates capacity (:21)"
+    },
+    {
+     "path": "/home/user/moonaliza/tests/workbench.test.tsx",
+     "role": "Profile setup, cloud preflight, profile revision keeps the credential (:44, :55, :81, :98)"
+    },
+    {
+     "path": "/home/user/moonaliza/e2e/local-models.spec.ts",
+     "role": "Windows-only journey: hardware readiness, Check Ollama, profiles still available"
+    },
+    {
+     "path": "/home/user/moonaliza/e2e/context-recovery.spec.ts",
+     "role": "Windows-only: a credential-bearing profile retargeted through the bridge is refused (:52-57)"
+    },
+    {
+     "path": "/home/user/moonaliza/scripts/check-model-store.ts",
+     "role": "Opt-in real producer pinned to qwen3:0.6b manifest 7df6b6...(858 bytes) (:19-20) and Ollama 0.34.4 (:28)"
+    },
+    {
+     "path": "/home/user/moonaliza/scripts/check-live-provider.mjs",
+     "role": "Opt-in, billable live HF provider check outside the suite"
+    },
+    {
+     "path": "/home/user/moonaliza/.github/workflows/windows.yml",
+     "role": "Acceptance CI: typecheck, lint, npm test, build, runtime check, e2e, packaged e2e"
+    },
+    {
+     "path": "/home/user/task5-handoff/baseline-failing.json",
+     "role": "Pinned 74-name Linux baseline, outside the repo"
+    },
+    {
+     "path": "/home/user/task5-handoff/results/p5-final-7c1923c/tests.json",
+     "role": "Baseline JSON report: 1121 total, 74 failed, 6 skipped (Windows-only)"
+    }
+   ],
+   "extensionPoints": [
+    "New native profile kind, contract: add it to ProfileKindSchema (src/shared/contracts.ts:24). It flows into ProfileSaveParams (src/shared/params.ts:24), ProfileIdentitySchema (contracts.ts:34) and StoredProfileSchema (src/engine/control.ts:10-11). The hand-written unions at src/main/inference.ts:8 and src/engine/store.ts:12 must also change. No DB migration is needed for kind itself: profile_revisions.kind has no CHECK (src/engine/migrations.ts:19).",
+    "New native profile kind, adapter: complete() admits only openai-compatible and ollama (src/main/inference.ts:142-143). A new kind needs its own branch with request encoding (today encodeMessages :47-73 handles only the OpenAI and Ollama shapes), response schema and terminal mapping (:167-181), tool-call parsing (:75-85), usage extraction (:163-165), overflow classification (:99-122) and URL path (:157).",
+    "New native profile kind, streaming: provider-stream.ts holds only the Ollama and OpenAI accumulators. readStreamed picks a reader by `local` (src/main/inference.ts:129-134) and would need a per-kind reader.",
+    "New native profile kind, auth and endpoint: auth is hard-coded as `Authorization: Bearer` (src/main/inference.ts:144-145). validateEndpoint refuses any query string (inference.ts:17), which tests assert (tests/provider-transport.test.ts:10). Any per-vendor auth placement must change inside main only.",
+    "New native profile kind, renderer: the profile form offers only two kinds (src/renderer/App.tsx:266), and default endpoints are set in the same onChange.",
+    "New native profile kind, wiring: main's infer (src/main/index.ts:85-107) and profile.test (:271-283) call complete() for every kind, so a new kind is reached through complete() without new IPC.",
+    "New catalogue model: add artifacts with roles model-manifest, model-blob, lab-receipt and evidence, plus a configuration entry, to a signed payload (src/models/catalogue.ts:10-16). The receipt must pass runtime.ts:43 and the GGUF checks in model-store.ts:44 and :50. The envelope must be signed by a key in the app's trustedKeys (catalogue.ts:28). No production trustedKeys exist in src: only tests define them (tests/catalogue.test.ts:6, tests/activation.test.ts:12).",
+    "Catalogue to user flow: no handler exists for model.list/enable/cancel/import/remove/storage.change (declared at src/shared/params.ts:121-126). A main resolver must build ManagedOllamaProvider (src/models/managed-provider.ts:38-54) from ActivationStore.readActive (src/models/runtime.ts:93-98) and selectLocal (src/models/select.ts:66-90). The renderer panel is src/renderer/LocalModelPanel.tsx (hardware.read only today).",
+    "Hardware gating: selectLocal and planProbeCandidates need Hardware measured with runtimeIdentity equal to the catalogue runtime digest (select.ts:75; model-store-selection.md:25). main's hardware.read uses 'unmanaged;moonaliza-<version>' (src/main/index.ts:221), so a managed flow needs its own measurement call [inferred].",
+    "Ranking input (direction 3): local ranking lives in selectLocal (src/models/select.ts:127-133): quality band 0.02, installed, first token, throughput, load. Profiles carry no cost or quality fields (ProfileSchema, src/shared/contracts.ts:26), so cloud ranking needs new data. A run binds one profileRevisionId (RunSchema contracts.ts:28; source-plan.md:649 'A profile is immutable for the duration of a run'). Policy admission is assertConversationPolicy (src/engine/policy.ts:68-79).",
+    "Docs to update in the same commit: docs/ARCHITECTURE.md is required by the commit gate for any src change (AGENTS.md:96). Spec pages per subsystem live under docs/specification/. Decisions with a rejected alternative go to docs/specification/decisions.md (numbered items, :17 and :19 as examples), because there is no docs/adr. Plan progress and 'Recorded for later' go in docs/superpowers/plans/2026-10-02-research-jobs.md (AGENTS.md:74)."
+   ],
+   "invariants": [
+    "Never manufacture model qualification, signing identities, benchmark results or release evidence (AGENTS.md:8; source-plan.md:121 G19, :122 G20, :130 G28; decisions.md:15 item 11; HANDOFF.md:85-86). Lab and machine receipts come only from real measured runs. Tests use generated keys and synthetic receipts that are never shipped (managed-artifacts.md:9).",
+    "Signed catalogue: verify Ed25519 over the domain 'MoonAliza activation set v1\\0' before parsing URLs or identities. The trust root is app configuration, never the document (src/models/catalogue.ts:24-46; managed-artifacts.md:7; source-plan.md:791). The private signing key never ships (source-plan.md:797). Rollback, expiry and app-version range are enforced (catalogue.ts:42-45). The domain string keeps its original spelling (decisions.md:17; ARCHITECTURE.md:44).",
+    "Activation is atomic and keeps the last good set. A new runtime is never activated with stale lab receipts (source-plan.md:793; managed-artifacts.md:11; runtime.ts:99-137). It runs under withRuntimeStopped (managed-artifacts.md:13).",
+    "Model artifacts are pinned by manifest and blob SHA-256, never by mutable tags (source-plan.md:2527; local-model-sources.md:45; model-store-selection.md:41). Only local GGUF is accepted (model-store-selection.md:13; model-store.ts:44,50).",
+    "Lab qualification gate: suite 'moonaliza-coding-v1', quality >= 0.85, toolsPassed, zero unauthorised effects, zero writes after cancellation (runtime.ts:43; select.ts:77). Machine gate: load <= 90 s, first token <= 30 s, >= 4 tok/s, evidence <= 30 days old (select.ts:84-88; model-store-selection.md:27-29). Targets: 20 tool cases and 10 fixtures x 3 runs (source-plan.md:2682; local-model-sources.md:38). Thresholds are never lowered silently (local-model-sources.md:47).",
+    "Hardware reserve: available RAM must cover measured demand plus max(2 GiB, ceil 15% of physical RAM) (select.ts:62,88; model-store-selection.md:29; source-plan.md:2672; local-model-sources.md:36). Download size is not peak memory (local-model-sources.md:34). Unknown VRAM stays null and is never summed or inferred from shared memory (decisions.md:13; source-plan.md:111 G09, :772; model-store-selection.md:29). A hardware failure must not block API profiles (local-model-sources.md:18).",
+    "No automatic cloud fallback: a local-only project never switches to cloud (source-plan.md:108 G06, :2610; model-store-selection.md:33; local-model-sources.md:47). External profiles are refused with CLOUD_NOT_ALLOWED under local-only session or project policy (src/engine/policy.ts:30,77). This is re-checked in main before every inference (src/main/index.ts:90). The UI disables cloud profiles under local-only (context-recovery.md:5; research-review-ui.md:42).",
+    "Locality is derived in main from the endpoint, never from the renderer: loopback http or https is local, other https is external, and ollama must be loopback (inference.ts:14-20; index.ts:92-93). The renderer cannot supply locality, secretRef or hasCredential (tests/contracts.test.ts:65-72).",
+    "No secrets in the renderer: credentials are write-only (params.ts:26). ProfileSchema exposes only hasCredential (contracts.ts:26; tests/contracts.test.ts:74-82). There is no secret-retrieval API (source-plan.md:129 G27). Keys are encrypted and kept out of logs and transcripts (G14 :116). The secret is used in main only under a purpose-bound vault grant tied to the profile revision (index.ts:97-100). Model text is redacted and tool calls carrying a secret are refused (index.ts:102-106). Gap recorded: the API key sits in a controlled React input (App.tsx:256; plan :365).",
+    "Credential destination binding: a credential-bearing profile cannot change endpoint or kind without a new credential or an explicit clear (index.ts:257; ARCHITECTURE.md:9; context-recovery.md:7; decisions.md:8). Requests use redirect:'error' (inference.ts:158), and endpoints refuse userinfo, query and fragment (inference.ts:17).",
+    "Provider continuation state is bound to the full profile-revision identity (profileId, revisionId, kind, endpoint, model) and never crosses providers (decisions.md:7; contracts.ts:34-41; source-plan.md:646; store.ts:227-238). Incomplete, blocked or truncated outputs never execute tool calls (decisions.md:7; inference.ts:171,179-181).",
+    "Provider refusal text is inspected only up to 64 KiB and never crosses into the engine or exceptions (ARCHITECTURE.md:33; inference.ts:103-122). Errors cross the bridge only as ErrorCodeSchema codes (ARCHITECTURE.md:5).",
+    "Managed runtime ownership: loopback on an owned port, OLLAMA_NO_CLOUD=1, parallel 1, one loaded model, CPU placement only, no GPU selection until attested (managed-ollama.ts:77; managed-provider.md:19,27,31; source-plan.md:774). User-owned Ollama is never stopped, upgraded or modified (local-model-sources.md:42; managed-scheduler.md:11).",
+    "Testing standard: tests use fake services and synthetic projects with no real credentials (source-plan.md:120 G18; AGENTS.md:9). Behavioural regression tests, with real filesystem and process behaviour where needed (AGENTS.md:10). Link tests follow the junction-in-mkdtemp convention (AGENTS.md:46). Merge needs no failure outside the Linux baseline, none of it hidden, file-load parity, and a green Windows CI on the exact head (AGENTS.md:19, :63-64).",
+    "Licences: preserve applicable licences and notices (source-plan.md:362). Redistribution rights for bundled upstream code are an external input never invented (source-plan.md:3812). Model licensing for redistribution is explicitly not established (local-model-sources.md:46). [inferred] The catalogue schema has no licence field (catalogue.ts:11-17)."
+   ],
+   "risks": [
+    "[inferred] With 8,515,145,728 bytes RAM (local-model-sources.md:55) and 1,235,644,416 bytes free (model-store-selection.md:49), the reserve is 2 GiB, so available <= reserve. selectLocal returns 'host-reserve' (select.ts:116) and planProbeCandidates returns [] (select.ts:103). Direction 1 offers zero models on the user's PC unless the reserve policy changes, and changing it is a design decision against several spec lines.",
+    "Two of the four declared kinds are accepted by the IPC contract (ProfileSaveParams, params.ts:24) but throw NOT_IMPLEMENTED at inference (inference.ts:142-143). The renderer hides them (App.tsx:266). No test asserts the NOT_IMPLEMENTED path (grep of tests finds openai-responses nowhere; 'anthropic' appears only in contracts.test.ts:130).",
+    "The kind union is written out three times (contracts.ts:24, inference.ts:8, store.ts:12), so adding a kind risks drift. [inferred] TypeScript catches only some of it, because store.ts and inference.ts are not derived from the schema.",
+    "[inferred] Loopback is classified 'local' (inference.ts:18-20), while source-plan.md:288 says a loopback URL does not prove local execution. An openai-compatible profile pointing at a localhost proxy for a cloud vendor would pass local-only policy. That matters if 'more models' is delivered through local gateways. The external user Ollama is only read via /api/version and /api/tags (local-runtime.ts:187-188), with no cloud-disabled check, unlike the managed runtime (managed-provider.md:19).",
+    "[inferred] The hardware/fit rule as coded applies only to the managed catalogue path. A user-created 'ollama' profile against their own runtime has no memory gate, so 'do not offer models that do not fit' is not enforced there.",
+    "Testing on Linux is partial: the managed-ollama (11), owned-transport (7), owned-connection (3), hardware (1) and scheduler (1) tests fail in the Linux baseline (baseline-failing.json). Every e2e journey and the opt-in real producers (scripts/check-model-store.ts, check-runtime-artifacts.ts) are Windows-only. Changes to managed runtime code can be validated only by Windows CI (AGENTS.md:43).",
+    "Source-plan C1's required provider cases are 429 with Retry-After, 500, system proxy, TLS rejection, signed thinking plus tool result, and profile switching (source-plan.md:2056). Grep of tests/provider-*.test.ts finds no 429, 500, proxy or TLS case; only 401 (:84-85) and 400/413/422 (:233-252) are covered. complete() has no retry logic.",
+    "Production catalogue trust inputs (trustedKeys) are absent from src, and the D3 harness (src/models/qualify.ts, scripts/qualify-model.mts) does not exist. A one-click model cannot be added honestly without building qualification first (HANDOFF.md:85-86; AGENTS.md:8).",
+    "Stale or missing docs. implementation-sources.md:12 still lists streaming and tool calls as future work. docs/ARCHITECTURE.md has no rows for src/models/*, although the commit gate requires it to be staged with src changes (AGENTS.md:96). source-plan C1 names src/providers/* and tests/providers.test.ts, which do not exist; the adapters live in src/main/inference.ts and provider-stream.ts.",
+    "Limit mismatch: the managed config caps outputTokens at 131072 (managed-provider.ts:10) while profiles allow 200000 (contracts.ts:26). [inferred] Harmless today, but a catalogue entry tied to a profile could disagree.",
+    "The research budget is 100 credits for the whole task (RUN.md:39), and the root research corpus (research/ with raw/.fetches.jsonl) puts commits under the Research-Kit gate. Vendor-API facts must come from a nested project under docs/research/<date>-<topic>/ (AGENTS.md:97), not from memory."
+   ],
+   "externalUnknowns": [
+    {
+     "question": "Google Gemini native API: endpoint path shape, auth (header name or query key), streaming framing, tool and function-call request and response format, call IDs, terminal and finish reasons, usage fields, and context-overflow error codes",
+     "whyItBlocksDesign": "complete() hard-codes Bearer auth and refuses endpoint query strings (inference.ts:17,144-145). The terminal-state, tool-call and overflow mapping must be exact to keep 'incomplete calls never execute' and CONTEXT_LIMIT classification",
+     "ownerPage": "Google Gemini API reference (generateContent / streamGenerateContent, function calling, API keys)"
+    },
+    {
+     "question": "Anthropic Messages API and OpenAI Responses API wire formats (both already declared as kinds but unimplemented), including thinking/signature continuation blocks",
+     "whyItBlocksDesign": "source-plan.md:1992-1993 and :646-649 require signed thinking to survive tool round trips and never cross providers; the wire-state schema must carry them",
+     "ownerPage": "Anthropic Messages API reference; OpenAI Responses API reference"
+    },
+    {
+     "question": "Terms of service for using each candidate cloud API from a third-party desktop agent with the user's own key (e.g. Gemini API additional terms, regional availability, data use)",
+     "whyItBlocksDesign": "Determines whether a kind may be offered at all and what the privacy review dialog must disclose",
+     "ownerPage": "Vendor API terms of service / additional terms pages"
+    },
+    {
+     "question": "Licence of each candidate open-weight coding model (e.g. Qwen3 small variants) and whether Moonzila-mediated download from the Ollama registry is permitted",
+     "whyItBlocksDesign": "The catalogue has no licence field (catalogue.ts:11-17) and local-model-sources.md:46 says model licensing is not established; source-plan.md:362 requires preserving licences and notices",
+     "ownerPage": "Model card and LICENSE file on the model's official repository; Ollama library page / registry terms"
+    },
+    {
+     "question": "Exact manifest/blob digests and sizes of candidate small models at the chosen quantization, and whether the pinned Ollama 0.34.4 runtime supports their architectures",
+     "whyItBlocksDesign": "Catalogue entries pin exact identities (model-store-selection.md:41) and the runtime is pinned; an unsupported architecture cannot load",
+     "ownerPage": "Ollama library tags page and registry manifest; Ollama release notes for v0.34.4"
+    },
+    {
+     "question": "Peak resident memory of each candidate model at 2K-4K context on CPU",
+     "whyItBlocksDesign": "Fit decisions need measured RAM demand; download size is not peak memory (local-model-sources.md:34). Only a monitored probe on the PC can establish it, so this is a day-one measurement rather than a page",
+     "ownerPage": "None authoritative; requires actual measurement (model card may give hints only)"
+    },
+    {
+     "question": "Current per-million-token prices and free-tier limits for candidate cloud models",
+     "whyItBlocksDesign": "Direction 3 ranks by cost; observed rates are not a price guarantee (hugging-face-verification.md:3)",
+     "ownerPage": "Vendor pricing pages (and HF Inference Providers router inventory)"
+    },
+    {
+     "question": "Whether a user-owned Ollama at 127.0.0.1 can serve 'cloud' models that forward prompts off-machine, and how to detect it",
+     "whyItBlocksDesign": "Loopback profiles are treated as local (inference.ts:18-20); if loopback can forward to cloud, local-only policy could be bypassed",
+     "ownerPage": "Ollama documentation on cloud models and the /api/status or equivalent endpoint"
+    },
+    {
+     "question": "Coding/tool-calling benchmark results that can be cited as lab evidence vs. those that can only be leads",
+     "whyItBlocksDesign": "Lab receipts must be real Moonzila suite results (runtime.ts:43); public benchmarks can only shortlist candidates, not qualify them (G19, G26)",
+     "ownerPage": "Official benchmark leaderboards / model cards (lead-only for qualification)"
+    }
+   ],
+   "openQuestionsForUser": [
+    "The documented host reserve is max(2 GiB, 15% of RAM), and your PC measured about 1.15 GiB free. Under today's rules no one-click local model can be offered on it. Should the task keep that reserve, so direction 1 ships the mechanism but offers nothing on this PC until memory is free? Or do you want the reserve rule changed as a recorded decision?",
+    "A new one-click catalogue model needs a production Ed25519 signing key that you hold outside the repository, plus real qualification runs: the D3 harness, 20 tool cases, 10 fixtures x 3, on real hardware. Are building that harness and supplying the key in scope for this task? Or should direction 1 wait while directions 2 and 3 go first?",
+    "For native kinds, which providers do you actually want, and do you have API accounts or keys for an opt-in live check of each? Candidates: Gemini, plus Anthropic and OpenAI Responses, which are already declared but unimplemented. For smarter selection, may Moonzila pick a cloud model automatically within a cloud-allowed project, or only recommend one for you to choose?"
+   ]
+  }
+ ],
+ "critique": {
+  "corrections": [
+   {
+    "claim": "Mapper 5 (specs/tests): select.ts line citations, including reserve at select.ts:62, lab gate at :73-80/:77, runtimeIdentity check at :75, machine thresholds at :84-95/:88, probe planning at :102-107/:103, host-reserve at :116 and ranking at :127-133.",
+    "verdict": "wrong line numbers",
+    "evidence": "src/models/select.ts has 90 lines. The correct lines are: reserve :15, labEligible :26-33 (suite/quality gate :30, runtimeIdentity :28), machine eligibility :37-48 (RAM headroom :41), probes :55-60 ([] when headroom <= 0 at :56), host-reserve :69, ranking :80-86. The substance of the mapper's claims holds."
+   },
+   {
+    "claim": "Mapper 5: local-runtime.ts:189 (qualified:false) and :187-188 (the external Ollama is read only via /api/version and /api/tags).",
+    "verdict": "wrong line numbers",
+    "evidence": "src/models/local-runtime.ts has 30 lines. /api/version and /api/tags are at :25-26 and qualified:false is at :27. The substance holds."
+   },
+   {
+    "claim": "Mapper 3: G06 (a local-only project never switches to cloud) is at docs/specification/source-plan.md:106.",
+    "verdict": "wrong line",
+    "evidence": "source-plan.md:106 is G04. G06 is at :108. G08 at :110 and G09 at :111 are cited correctly."
+   },
+   {
+    "claim": "Mapper 1: the run loop checks policy at engine/application.ts:352, 362 and 375.",
+    "verdict": "partly wrong",
+    "evidence": "The checks are at application.ts:356 (each step), :362 (after inference) and :375 (before each tool). Line 352 builds `current`. Mapper 3 has 356 right."
+   },
+   {
+    "claim": "Mappers 1 and 2: the model.* IPC methods have no engine case and fall to NOT_IMPLEMENTED at engine/application.ts:265.",
+    "verdict": "incomplete",
+    "evidence": "Only model.list, model.enable, model.cancel and model.remove are engine-owned (shared/params.ts:121-123,125). model.import and model.storage.change are main-owned (params.ts:124, :126) and fall to main's default at src/main/index.ts:298. A handler for one-click install therefore has to be placed in both processes."
+   },
+   {
+    "claim": "Mapper 1: cloud policy is enforced 'in main before every inference call'.",
+    "verdict": "overstated",
+    "evidence": "profile.test (src/main/index.ts:271-283) calls complete() on any stored profile, external ones included, with no assertConversationPolicy. It sends only the fixed prompt 'Reply with OK.' with outputTokens 32 (:276) and no project content. The policy check covers every run inference (index.ts:90), not every provider call. A new native kind becomes reachable through profile.test as soon as complete() admits it."
+   },
+   {
+    "claim": "Mapper 5 risk: '[inferred] Loopback is classified local while source-plan.md:288 says a loopback URL does not prove local execution.'",
+    "verdict": "not inferred; it is a read spec-vs-code divergence",
+    "evidence": "source-plan.md:288 reads: 'Treat externally configured endpoints as external providers unless their local execution properties are verified. A loopback URL alone does not prove that its server never forwards requests to a cloud service.' inference.ts:18-20 sets locality 'local' for any loopback host. The pricing corpus's Ollama library capture already shows a 'cloud' tag on a listed model (raw/2026-10-02-library-ollama-b4859ee6.md:83, gemma4), so the concern is concrete for user-owned Ollama profiles."
+   },
+   {
+    "claim": "Plan docs/superpowers/plans/2026-10-02-research-jobs.md:401. Mapper 1 corrected only the 'four kinds reach models' half.",
+    "verdict": "the second half also overstates",
+    "evidence": ":401 also says there is 'a signed managed catalogue of local models and runtimes (src/models/catalogue.ts), hardware-qualified before use.' No catalogue is shipped, no production trustedKeys exist in src, no lab or machine receipt exists, and nothing is wired (HANDOFF.md:46, :85-86; main wires only hardware.read and runtime.inspect at index.ts:221-222). No model is hardware-qualified today."
+   },
+   {
+    "claim": "Mapper 1 extension point: a new user-facing code only needs adding to publicMessages in src/main/bridge.ts:11-51.",
+    "verdict": "incomplete",
+    "evidence": "Run failures cross as run.failed events whose error must satisfy PublicErrorSchema/ErrorCodeSchema (shared/events.ts:14; shared/errors.ts:3-17, :21). The engine also collapses any reason not in its failures map to PROVIDER_ERROR (engine/application.ts:393-394). A new code needs ErrorCodeSchema, the engine failure map and bridge publicMessages. ErrorCodeSchema already reserves MODEL_UNAVAILABLE, MODEL_UNQUALIFIED, STORAGE_FULL, UPDATE_NOT_QUIESCENT, NETWORK_ERROR, TIMEOUT and PROVIDER_UNAVAILABLE (errors.ts:11, :15), but publicMessages maps none of them."
+   },
+   {
+    "claim": "Mapper 4: '[inferred] DeepSeek is reachable through existing wire formats, so it does not need a native kind.'",
+    "verdict": "premature",
+    "evidence": "The DeepSeek capture (raw/2026-10-02-models-pricing-deepseek-api-docs-deepseek-8eb12065.md:28) says thinking mode is the default. OpenAIChunkSchema (provider-stream.ts:101-118) has no reasoning field, so non-strict zod strips one, and history keeps only content (application.ts:347). Whether thinking-mode tool turns need reasoning content sent back is not established in any corpus. The capture also prices cache-hit input separately (:39-40), which TokenUsageSchema cannot represent (shared/context.ts:4)."
+   },
+   {
+    "claim": "Mapper 3: the BRIEF calls Sonnet 5.5 and GPT-6 Luna unranked although the LiveBench capture has their rows.",
+    "verdict": "holds, and the BRIEF has a further conflict",
+    "evidence": "raw/2026-10-02-livebench-livebench-130364a0.md:44 (Claude Sonnet 5.5 xHigh Effort), :54 (Gemini 3.8 Flash High) and :69 (GPT-6 Luna Max Effort) exist, while BRIEF.md:96 and :99 say 'unranked here'. BRIEF.md:112-116 also recommends 'a local Ollama model as the zero-cost fallback'. A run is bound to one profileRevisionId (contracts.ts:28; application.ts:235) and source-plan.md:649 says 'A profile is immutable for the duration of a run', so a fallback can only be a new run the user starts. BRIEF.md:84's day-one step 'ollama pull <model>' would modify a user-owned runtime, which local-model-sources.md:42 forbids."
+   },
+   {
+    "claim": "Mapper 2: the user's PC cannot be offered any managed model at any size.",
+    "verdict": "holds, with an omitted CPU fact",
+    "evidence": "Reserve = max(2 GiB, ceil 15% of 8,515,145,728) = 2 GiB (select.ts:15), and available is 1,235,644,416 B (model-store-selection.md:49), so selectLocal returns host-reserve at select.ts:69. Missed: the same measurement records an Intel Pentium 4405U with 4 logical processors (local-model-sources.md:55). Machine receipts need >= 4 tok/s and first token <= 30 s (select.ts:40), and the runtime is cold-started per lease (scheduler.ts:171-172). [inferred] Freeing memory alone may not make any model qualify on this PC."
+   },
+   {
+    "claim": "Mapper 4: 16 nested corpora under docs/research.",
+    "verdict": "holds; the project's AGENTS.md is stale",
+    "evidence": "`ls docs/research` lists 16 directories, but AGENTS.md:98 still says 'the ten projects under docs/research/'. AGENTS.md:92 also says kit 0.9.3, while RUN.md:9/:38 say 0.9.5."
+   },
+   {
+    "claim": "External unknowns across mappers 1, 3, 4 and 5 (Gemini native auth, streaming, function calling, finish reasons, overflow, usage and OpenAI compatibility; per-model context and output limits; prices; vendor data-use terms; local model licences; peak RAM per model).",
+    "verdict": "duplicated",
+    "evidence": "The Gemini wire contract appears in 3 maps (6 entries in mapper 1, 6 in mapper 4, 1 in mapper 5). Context/output limits appear in mappers 1, 3 and 4; prices in 1, 3, 4 and 5; data-use terms in 1, 3, 4 and 5; licences in 2, 3, 4 and 5; peak RAM in 2, 3, 4 and 5. They should be merged into one row each before plan.json is written, or the 100-credit budget (RUN.md:39) pays for duplicate pages."
+   },
+   {
+    "claim": "Mapper 2 unknown: 'Which coding models with reliable native tool calling are published as Ollama GGUF manifests ... and do any fit a CPU-only budget well under 1 GiB of RAM at a useful context?'",
+    "verdict": "no primary page can answer it as framed",
+    "evidence": "It bundles a registry fact (tags, sizes and quantisations: Ollama library and manifest), a benchmark judgement ('reliable', lead-only for qualification under G19, source-plan.md:121) and a machine measurement (fit). The fit part is also moot under current code: headroom is negative, so planProbeCandidates returns [] whatever the size (select.ts:56). It should be split, and the fit question replaced by the user decision on the reserve rule."
+   },
+   {
+    "claim": "Mapper 2 unknown: 'What RAM does Ollama (llama.cpp CPU backend) need for a given GGUF at a given num_ctx, including KV cache' (owner: Ollama docs / llama.cpp docs).",
+    "verdict": "no primary page owns it",
+    "evidence": "MachineReceipt.requiredRamBytes must be measured (select.ts:41; model-store-selection.md:33; local-model-sources.md:34). Mapper 5 framed the same unknown correctly as 'requires measurement'. Any page result can be a lead only."
+   },
+   {
+    "claim": "Mapper 2 unknown: 'Where would a signed catalogue be hosted ... and does that host return strong ETags?'",
+    "verdict": "mixes intent and fact",
+    "evidence": "Where to host is a user or design decision (it belongs with the signing-key question). Only the ETag/Content-Range/redirect-host behaviour of a chosen host is external, and the existing corpus docs/research/2026-10-02-artifact-download-rest may already cover GitHub release assets."
+   },
+   {
+    "claim": "Mapper 3 unknown: 'How do small open models (well under 27B) score on coding and agentic coding?' (owner: model cards or leaderboard pages).",
+    "verdict": "answerable only as a lead",
+    "evidence": "Model-card scores are vendor self-reports (S/L under Rule 4). G19/G26 (source-plan.md:121, :128) bar them from qualifying a configuration. The row should be marked shortlist-only so the contract does not treat it as closing a design unknown."
+   }
+  ],
+  "missedAreas": [
+   "Run binding vs managed models. runs.profile_id and profile_revision_id are NOT NULL with a foreign key to profile_revisions (engine/migrations.ts:33, :37). run.start requires profileId (params.ts:108). main's infer() builds every call from the stored profile (src/main/index.ts:88-95). The managed runtime binds a fresh ephemeral loopback port on every start (models/managed-ollama.ts:41-46, :76-77, :87), while a profile endpoint is fixed and validated at save (inference.ts:14-21). So a catalogue model cannot be represented as an ordinary 'ollama' profile: it needs a new kind or route in main's infer(). [inferred] That route must keep infer()'s policy re-check, locality re-derivation and redaction (index.ts:90-106), which ManagedOllamaProvider (managed-provider.ts:38-54) does not do.",
+   "Error mapping for the managed path. Internal codes thrown by src/models/* (MODEL_IDENTITY, MODEL_LOAD, MODEL_CONFIGURATION at managed-provider.ts:22-29; MODEL_QUALIFICATION, MODEL_MANIFEST, ACTIVATION_CORRUPT, INSTALL_CANCELLED at runtime.ts:43-134; CATALOGUE_* at catalogue.ts:25-45; RUNTIME_VERSION/RUNTIME_CLOUD at managed-ollama.ts:92-100) are in neither ErrorCodeSchema (shared/errors.ts:3-17) nor bridge publicMessages (main/bridge.ts:11-51). Every install or serve failure would show as INTERNAL_ERROR.",
+   "App-update channel. electron-updater 6.8.9 is a dependency (package.json) but nothing in src or scripts imports it (grep), and HANDOFF.md:48 lists signed release and update work as still required. Key rotation and revocation are specified to travel only through a trusted app update (source-plan.md:797), so both the catalogue refresh channel and the key-rotation channel are absent. The user runs installed 0.7.0 (HANDOFF.md:50) while package.json is 0.8.1, which matters for a catalogue's app.min/maxExclusive range (catalogue.ts:13, :45).",
+   "Packaging of the trust root. source-plan.md:791 requires a bundled trusted public key. electron-builder.yml ships only dist/** and package.json in an integrity-checked asar (enableEmbeddedAsarIntegrityValidation, onlyLoadAppFromAsar), and extraResources holds only MoonAlizaHost.exe. [inferred] A key placed in extraResources would sit outside the asar integrity check; a key compiled into dist would not.",
+   "Known storage-guard defect P4-23 (plan 2026-10-02-research-jobs.md:412). privateDirectory lstats from the filesystem root (models/artifact-files.ts:16-25), so on a machine where any parent of the data folder is a link, the model store, downloads, archives, runtime and managed Ollama all refuse. Direction 1 inherits this until P4-23 is fixed.",
+   "Licence display and consent. There is no licence or notice file at the repository root and none in the packaged files (electron-builder.yml). model-store accepts an 'application/vnd.ollama.image.license' layer (model-store.ts:14) that nothing reads. model.enable already carries 'user-confirmed' authorization (params.ts:122), which is the natural hook for showing a model's licence before a one-click download.",
+   "Fixed prompt overhead vs small local contexts. Measured read-only with the app's own estimateInput (engine/context.ts:30-32), with the system prompt approximated by its length (application.ts:343, :354): about 1,158 estimated tokens with no tools, about 2,768 with the 7 ask-mode tools and about 3,745 with the 10 build-mode tools (application.ts:339-340), before any history and before the output reserve (context.ts:37). No code relates this floor to a configuration's contextTokens; selectLocal's minimumContextTokens defaults to 512 (select.ts:11). Small-context local configurations, the only kind that might fit a small RAM budget, may hit CONTEXT_LIMIT on every step. [inferred]",
+   "Tools are offered regardless of model capability. Every project run sends READ/GIT tools, and in build mode WRITE/COMMAND tools too (application.ts:339-341). Neither ProfileSchema (contracts.ts:26) nor the catalogue (catalogue.ts:16) has a tools-capable flag. [inferred] A profile pointed at a model without tool support fails every project step as PROVIDER_ERROR, so a curated shortlist needs a per-model tool-support fact.",
+   "Thinking and reasoning handling. complete() sends no thinking control for Ollama (inference.ts:153-155; grep finds no 'think'), and OllamaAccumulator parses `thinking` but discards it (provider-stream.ts:63, :82). All three small families in the corpus are tagged 'thinking' (raw library capture :62 qwen3, :83 gemma4, :104 qwen3.5), including the only pinned model, qwen3:0.6b (scripts/check-model-store.ts:19-27). profile.test caps output at 32 tokens and requires outcome 'complete' (index.ts:276, :280). [inferred] Reasoning that consumes the output budget becomes 'incomplete', then PROVIDER_ERROR, then INTERNAL_ERROR.",
+   "Usage and cost accounting contract. TokenUsageSchema has only inputTokens and outputTokens (shared/context.ts:4), with no cached-input or reasoning counts, although vendors price cache hits separately (DeepSeek capture :39-40). usage.updated is per step (application.ts:363), and session.read returns only the latest usage event (application.ts:148), so per-run spend needs summation that does not exist. diagnostics.export is declared (params.ts:153) but unhandled (index.ts:298). There is no telemetry anywhere in src (grep), so no observed-quality data exists to feed ranking.",
+   "Settings and migrations. SettingsSchema is strict (params.ts:74), and the engine parses stored settings merged over defaults (application.ts:158). [inferred] A new default-profile or budget field written by a newer app makes an older app's strict parse fail after a downgrade. SCHEMA_VERSION is 4 (migrations.ts:3), but the upgrade fixtures stop at tests/fixtures/schema-v3.sql. Profile price or quality columns need a v5 migration plus a v4 fixture, and putProfile's immutability comparison iterates profileColumns (store.ts:159-160).",
+   "Run budgets vs cold-start local inference. Default settings are modelStepBudget 24 and runDurationMinutes 15 (application.ts:158; deadline at :329-331), and the scheduler stops the managed runtime after every inference lease (scheduler.ts:171-172). [inferred] A CPU-only managed model on weak hardware may hit BUDGET_EXCEEDED long before 24 steps, because each step pays a cold load.",
+   "E2E coverage for a new external kind. The only e2e provider fake is a loopback /api/chat (e2e/workbench.spec.ts:14). A non-loopback endpoint must be https (inference.ts:19), and a loopback fake is classified 'local', so cloud-policy behaviour for a new external kind needs an https fake with test-time TLS, following tests/fixtures/github-tls.ts. CI (.github/workflows/windows.yml:18-51) never runs scripts/check-model-store.ts or scripts/check-runtime-artifacts.ts, so the real managed path is never exercised in CI.",
+   "Non-streaming fallback strictness. When an OpenAI-compatible server answers without text/event-stream, the body is parsed with ChatSchema (inference.ts:130, :40), and tool calls must match OpenAICalls, which is .strict() and requires a string id and type 'function' (inference.ts:43). The streaming accumulator passes `type` through unchanged (provider-stream.ts:172). [inferred] A compatible vendor or router that omits `type` or `id` on tool calls, or adds fields to them, fails as PROVIDER_INVALID_RESPONSE, so the 'reach more models through openai-compatible' path depends on per-vendor wire details."
+  ],
+  "missedUnknowns": [
+   {
+    "question": "For OpenAI-format endpoints whose models think by default (DeepSeek's capture says 'thinking (default)'), must the reasoning content be sent back on tool-call turns, and do reasoning tokens count against max_completion_tokens?",
+    "whyItBlocksDesign": "OpenAIChunkSchema drops any reasoning field (provider-stream.ts:101-118), history keeps only content (application.ts:347), and profile.test uses 32 output tokens (index.ts:276). If either answer is yes, 'reachable through openai-compatible' is false for these models: they would need wire-state plumbing (contracts.ts:37-43; store.ts:227-238) or a native kind.",
+    "ownerPage": "DeepSeek API docs, Thinking Mode guide (api-docs.deepseek.com/guides/thinking_mode, linked from the captured pricing page :28) and Tool Calls guide"
+   },
+   {
+    "question": "At the pinned Ollama v0.34.4, does /api/chat enable thinking by default for 'thinking'-tagged models, how is it turned off (request field name), do thinking tokens count against num_predict, and how is thinking returned in the stream?",
+    "whyItBlocksDesign": "complete() sends no thinking control (inference.ts:153-155), and the accumulator discards `thinking` (provider-stream.ts:63, :82). qwen3, gemma4 and qwen3.5 are all tagged 'thinking' (library capture :62, :83, :104), including the pinned qwen3:0.6b. A length outcome becomes 'incomplete' and then PROVIDER_ERROR (inference.ts:171; application.ts:366).",
+    "ownerPage": "Ollama API reference for /api/chat and api/types.go (ChatRequest) at tag v0.34.4 on github.com/ollama/ollama"
+   },
+   {
+    "question": "Does the Ollama v0.34.4 Windows CPU backend require AVX or AVX2, and does the measured CPU (Intel Pentium 4405U, local-model-sources.md:55) support those instruction sets?",
+    "whyItBlocksDesign": "If the runtime cannot use this CPU, or falls back to a much slower path, no model can meet the machine thresholds (>= 4 tok/s, first token <= 30 s; select.ts:40) on the user's PC even after memory is freed. That decides whether direction 1 can ever help this machine.",
+    "ownerPage": "Ollama Windows/hardware-support docs and release notes at v0.34.4; Intel ARK product page for the Pentium 4405U (instruction set extensions)"
+   },
+   {
+    "question": "For each OpenAI-compatible target on the shortlist (OpenAI, DeepSeek, Mistral, Hugging Face router, Gemini's compatibility layer), are max_completion_tokens and stream_options.include_usage accepted, and do streamed tool-call deltas carry `id` and `type: \"function\"`?",
+    "whyItBlocksDesign": "complete() always sends max_completion_tokens and stream_options (inference.ts:155) and requires id plus type 'function' on every call (inference.ts:43; provider-stream.ts:172). One rejected parameter fails every request as PROVIDER_HTTP_400, then PROVIDER_ERROR. Mapper 1 asked this only for Gemini.",
+    "ownerPage": "Each vendor's Chat Completions / OpenAI-compatibility API reference page"
+   },
+   {
+    "question": "How does each candidate cloud vendor signal rate limiting (status, Retry-After header, per-tier request and token limits)?",
+    "whyItBlocksDesign": "complete() has no retry (inference.ts:157-161), and source-plan C1 requires 429-with-Retry-After handling (source-plan.md:2056). A multi-step agent run (up to 24 steps by default, application.ts:158) on a low tier fails mid-run as PROVIDER_ERROR, which also affects the ranking's 'usable' judgement.",
+    "ownerPage": "Each vendor's rate-limits / errors reference page"
+   },
+   {
+    "question": "Which network permission governs fetching vendor price or model metadata at runtime: inference policy, research policy, or neither?",
+    "whyItBlocksDesign": "G07 keeps research-network permission and inference-provider permission separate (source-plan.md:109), and ProjectPolicySchema has only 'inference' and 'research' (contracts.ts:17). A runtime refresh of the ranking table is a third kind of egress with no policy today. This is an intent question for the user, not a page.",
+    "ownerPage": "User decision (no external page); record it in the More models DISCOVERY.md under Build intent"
+   }
+  ],
+  "missedInvariants": [
+   "G05: API and local inference use the same canonical conversation and tool contracts (source-plan.md:107). A native kind or the managed path must map onto InferenceMessage and Completion (inference.ts:10-11), not introduce a per-provider contract above main.",
+   "A loopback URL alone does not prove local execution, and externally configured endpoints are external until their local properties are verified (source-plan.md:288). The code currently contradicts this (inference.ts:18-20). Any 'more local models via a user-owned Ollama' path must resolve the conflict rather than inherit it.",
+   "G21: pinned versions change only with recorded verification (source-plan.md:123). Moving the managed runtime off Ollama 0.34.4 for newer model families needs recorded verification, and new lab receipts for every configuration on it (source-plan.md:793; runtime.ts:43).",
+   "G25: application updates activate only after admission of new work has stopped and owned work is in a verified safe state (source-plan.md:127). Catalogue activation already follows the same rule (withRuntimeStopped, runtime.ts:100-101). Any refresh channel must too.",
+   "G26: production support claims apply only to configurations backed by retained qualification evidence (source-plan.md:128). UI copy, 'one-click' labels and ranking output must not present an unqualified model as supported.",
+   "G07: research-network permission and inference-provider permission are separate settings (source-plan.md:109). Ranking or price refresh must not borrow either silently.",
+   "Never send one provider's wire state to another, and never reconstruct signed thinking from displayed text (source-plan.md:646-647). A later run may use another profile and must recalculate its context budget (source-plan.md:650). Any 'fallback' model is a new run, never a mid-run switch.",
+   "Every run inference passes through main's infer(): run-context recheck, conversation policy, locality re-derivation, a purpose-bound vault grant, output redaction and refusal of secret-bearing tool calls (src/main/index.ts:85-107). A managed-model route must not bypass it. profile.test is the only provider call outside it, and it carries only a fixed prompt (index.ts:276).",
+   "Public failures must be ErrorCodeSchema members (shared/errors.ts:3-17, :21; events.ts:14). Unmapped reasons become PROVIDER_ERROR in runs (application.ts:394) and INTERNAL_ERROR at the bridge (bridge.ts:54-55). No provider error text crosses either boundary.",
+   "User-owned runtimes are never started, stopped, upgraded or modified by Moonzila (local-model-sources.md:42; local-runtime.ts:13). This rules out 'ollama pull' on the user's Ollama as a qualification or measurement step (contrast pricing BRIEF.md:84)."
+  ]
+ }
+}

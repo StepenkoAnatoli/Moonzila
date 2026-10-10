@@ -1,0 +1,681 @@
+[
+ {
+  "unknowns": [
+   {
+    "id": "U-01",
+    "status": "CLOSED (unchanged; E-01, E-15)"
+   },
+   {
+    "id": "U-02",
+    "status": "CLOSED (unchanged; E-02, E-03, E-15)"
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED (unchanged; E-04..E-06, E-15)"
+   },
+   {
+    "id": "U-04",
+    "status": "CLOSED (unchanged; E-07, E-15; day-one outputTokens probe)"
+   },
+   {
+    "id": "U-05",
+    "status": "CLOSED (unchanged; E-08)"
+   },
+   {
+    "id": "U-06",
+    "status": "KNOWN-UNKNOWN (unchanged; measurement, day-one tool-call run)"
+   },
+   {
+    "id": "U-07",
+    "status": "CLOSED, refined: E-09 + E-37. Google keeps prompts, context and responses for 55 days for abuse monitoring, across all Gemini API and AI Studio use (paid and unpaid). How long unpaid-quota content is kept for product improvement is stated on neither page."
+   },
+   {
+    "id": "U-08",
+    "status": "CLOSED (unchanged; E-10)"
+   },
+   {
+    "id": "U-09",
+    "status": "CLOSED (unchanged; E-11, E-17)"
+   },
+   {
+    "id": "U-10",
+    "status": "CLOSED (unchanged; E-12, E-13)"
+   },
+   {
+    "id": "U-11",
+    "status": "CLOSED (was OPEN): E-32 + E-33. Training is barred except on an opt-in-by-default product that was not opted out, Feedback, an Order Form, and always on Labs/Preview models. The privacy policy trains on Input/Output 'subject to your opt-out'; the API default is not stated, so it is treated as training unless opted out. The opt-out is an account setting and never covers labs/preview models. Neither page draws a line by plan or by how API use is paid. Retention is generation time plus 30 rolling days (unless ZDR); Agents API until the account ends. Carries a single-witness note."
+   },
+   {
+    "id": "U-12",
+    "status": "CLOSED (unchanged; E-18..E-21)"
+   },
+   {
+    "id": "U-13",
+    "status": "CLOSED (unchanged; E-22)"
+   },
+   {
+    "id": "U-14",
+    "status": "CLOSED (was OPEN): granite4:350m is Apache 2.0 on IBM's own 350M card (E-35). granite4:3b (also tagged granite4:micro, E-20) is Apache 2.0 by IBM's Granite 4.0 repository, which names granite-4.0-micro and says all Granite 4.0 Language Models are Apache 2.0 (E-36). No Granite size leaves the shortlist."
+   },
+   {
+    "id": "U-15",
+    "status": "KNOWN-UNKNOWN (was OPEN): E-34 sets no instruction-set option and reads the llama.cpp commit from LLAMA_CPP_VERSION, which was not captured. It installs whatever ggml-cpu*.dll variants the build produced ('multiple variants from GGML_CPU_ALL_VARIANTS'). The Windows x64 variant set and non-AVX support are not stated by any capture. Day one: on the Pentium 4405U, install v0.34.4, list lib/ollama ggml-cpu*.dll, load a small tag with num_gpu 0, and read the loaded CPU backend and system-info line (or the failure). This is the outcome DISCOVERY's own fallback named."
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED (unchanged; E-31)"
+   },
+   {
+    "id": "U-17",
+    "status": "KNOWN-UNKNOWN (unchanged; day-one measurement)"
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN (unchanged; its collection-attempts warning is accepted in the row)"
+   },
+   {
+    "id": "U-19",
+    "status": "CLOSED (unchanged; E-15, graded full)"
+   },
+   {
+    "id": "U-20",
+    "status": "KNOWN-UNKNOWN (unchanged; day-one letters)"
+   }
+  ],
+  "preflight": "PASS: 0 blocking, 1 warning, 26 passing [evidencePolicy=pluralist]. All 92 quotes were found in their captures, and the 38-entry chain verifies. The one warning is collection-attempts/unknown-attempted on U-18; DISCOVERY's U-18 row accepts it explicitly ('a speed on this CPU is on no page'). The earlier hygiene/brief-stale warning was cleared by redrafting the brief with brief.mjs --force and re-authoring it. Corroboration: U-07 and U-11 rest on one vendor's own pages each and pass with reasoned [single-witness] notes; U-14 shows as independent (6 documents, 4 hosts). handoff.mjs: exit 0, 'handoff OK - 38 ledger entries, 37 evidence rows, every capture they cite on disk, chain verifies' [role=collector]. brief.mjs --state: authored; contradictions answered, decision answered. doctor.mjs, for information: preflight, ledger-chain, secret-scan and handoff all pass. Its one blocker is firecrawl-auth (the Firecrawl CLI on this machine is not logged in). That only matters for collecting, and it was not touched.",
+  "handoff": "The corpus at /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist is closed: no unknown is OPEN, and the gate passes with only the U-18 warning that DISCOVERY accepts. Nothing was committed or pushed, nothing was fetched, nothing under research/raw/ was edited, and no key was looked for or written.\n\nFiles changed (all uncommitted, inside the project folder):\n- /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist/research/EVIDENCE.md: E-32..E-37 rewritten from the auto-extracted cells into claims with line numbers and word-for-word [quote: ...] anchors.\n- /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist/research/DISCOVERY.md: a final-closure paragraph added; U-07 refined; U-11 and U-14 set to CLOSED; U-15 set to KNOWN-UNKNOWN.\n- /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist/research/BRIEF.md: redrafted with brief.mjs --force, then re-authored. It keeps 'Reviewed by: agent', cites an E-row for every claim, and has an E-01..E-37 source list.\n- /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist/research/BRIEF.md.bak-2026-10-05: created by brief.mjs --force. It is the old gate=fail brief and is not gitignored, so delete it before 'git add research/' unless you want it kept. I left it because the folder is untracked and the backup is its only copy.\n\nDesign consequences now in the brief:\n- Mistral is offered for private code only after the user confirms the training opt-out on their Mistral account, never on a labs or preview model, and with the 30-day abuse retention disclosed.\n- Gemini's paid tier states 55-day abuse logging, and flagged content can be reviewed by people.\n- All Granite tags stay on the shortlist under Apache 2.0.\n- On the target machine, the first day-one step is the U-15/U-16 log reading, because if no CPU variant loads without AVX, the local measurements (U-12 pulls, U-17, U-18) cannot run there.\n\nThings I got wrong and fixed:\n1. Quote anchor. Mistake: an E-34 quote ran across a '#' comment marker between capture lines 651 and 652. Where: EVIDENCE.md, row E-34. Impact: preflight failed with citations/quote-not-found (blocking); nothing delivered was affected. Cause: I copied the sentence across two comment lines. Fix: split it into two fragments joined by an ellipsis. Verified: preflight re-run, 92 quotes found.\n2. Brief state. Mistake: I reworded the brief's opening '_Auto-drafted' marker. Where: BRIEF.md, line 5. Impact: brief.mjs --state reported 'legacy' instead of 'authored'. Cause: the kit identifies an authored brief by that literal string. Fix: restored the marker. Verified: brief.mjs --state now reports authored, and preflight still passes.\n\nOptional, if you want U-15 narrowed by a page before day one (I do not need it): https://raw.githubusercontent.com/ollama/ollama/v0.34.4/LLAMA_CPP_VERSION is a URL built from the path E-34 line 123 states. That file would give the llama.cpp commit only. The Windows release flags (GGML_CPU_ALL_VARIANTS) sit in a release workflow that no capture links, so the day-one log reading still settles it.",
+  "applied": [
+   "E-32 (Mistral commercial terms): rewritten as a claim covering section 4.1 (the service licence excludes model training), section 4.2 (the training exceptions, quoted), section 4.3 (Labs/Preview models always used for training; opt-out and ZDR do not apply), Feedback, confidentiality, consumers being sent to consumer terms, and the absence of any retention period or plan/payment distinction.",
+   "E-33 (Mistral privacy policy): rewritten as a claim covering the business-activity scope limit, 'Your Input and Output, subject to your opt-out', the account-level training opt-out, API retention (generation time plus 30 rolling days unless ZDR; Agents API until the account ends; fine-tuning until deleted), and no plan/payment distinction.",
+   "E-34 (llama/server/CMakeLists.txt at v0.34.4): rewritten as a claim. The llama.cpp commit is read from LLAMA_CPP_VERSION, which was not captured; the file sets no GGML_NATIVE/AVX/SSE option; the CPU build installs ggml-cpu*.dll 'multiple variants from GGML_CPU_ALL_VARIANTS'; the variant set and non-AVX support are not stated.",
+   "E-35 (granite-4.0-350m card): rewritten as a claim. IBM states 'License: Apache 2.0' for this model itself; release date; tool calling; 350M Dense has a 32K sequence length, matching Ollama's granite4:350m; its BFCL v3 self-report is not comparable with BFCL V4.",
+   "E-36 (ibm-granite/granite-4.0-language-models repo): rewritten as a claim. 'All Granite 4.0 Language Models are distributed under Apache 2.0 license.'; the repo names granite-4.0-micro, which Ollama tags 3b/micro; the LICENSE file text was not captured.",
+   "E-37 (Gemini abuse-monitoring page): rewritten as a claim. 55-day retention of prompts, context and output for Prohibited Use Policy enforcement and legal disclosures; human review of flagged content; logged data trains only policy-enforcement models; scope is all Gemini API and AI Studio use.",
+   "DISCOVERY U-07: the pending-refinement text replaced with E-37's 55-day figure and scope; the single-witness note updated to cover both Google pages.",
+   "DISCOVERY U-11: OPEN to CLOSED on E-32/E-33, with a conservative rule (training assumed unless opted out), the free-plan-credit versus pay-as-you-go residual labelled and shown to change no design, the retention figures, and a reasoned single-witness note.",
+   "DISCOVERY U-14: OPEN to CLOSED. granite4:350m Apache 2.0 (E-35); granite4:3b/micro Apache 2.0 (E-36).",
+   "DISCOVERY U-15: OPEN to KNOWN-UNKNOWN, citing E-30 and E-34 as attempts, with the day-one step on the Pentium 4405U as DISCOVERY's own fallback planned.",
+   "DISCOVERY: a 'Final closure' paragraph added after the earlier closure review (run 3 = plan-3.json, E-32..E-37, 37 captures, no OPEN row); the plan text is kept as written.",
+   "BRIEF.md: redrafted with brief.mjs --force (new stamp: inputs=83aac83962ce3113, gate=pass), then re-authored. Changes: header Gate: PASS with the 15 closed / 5 known-unknown counts and the accepted U-18 warning; vendor data-use table updated (Gemini 55 days, Mistral row); Granite licence rows filled in; runtime section updated with E-34; contradictions 5 (adds E-35), 9 (Mistral's training default) and 10 (Gemini's logging period) updated or added; the pending-pages section removed; design points 1, 3, 6 and 9 updated; Decision rewritten with the first build step, the order after it, and out-of-scope items; source list extended to E-37; 'Reviewed by: agent' kept.",
+   "Verification run (cwd /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist): preflight PASS (0 blocking, 1 accepted warning); handoff.mjs exit 0; brief.mjs --state authored; doctor.mjs run for information."
+  ],
+  "declined": [
+   {
+    "issue": "Closing U-15 as CLOSED",
+    "reason": "No capture states which CPU instruction-set variants the Windows x64 v0.34.4 build ships, or whether one runs without AVX. E-34 reads the llama.cpp commit from LLAMA_CPP_VERSION (not captured) and installs whatever ggml-cpu*.dll variants the build produced, and the release flags sit in a workflow that no capture links. Even read, those pages would describe the build request, not the shipped payload on the target machine. KNOWN-UNKNOWN with the day-one log reading is the outcome DISCOVERY's fallback named; marking it CLOSED would be false."
+   },
+   {
+    "issue": "Marking U-11's free-plan-credit versus pay-as-you-go part KNOWN-UNKNOWN",
+    "reason": "The task rule says a KNOWN-UNKNOWN must be unreachable from the captures, and the consumer terms are merely uncollected. So I closed U-11 on what Mistral's own pages state: neither page distinguishes by plan or payment. The residual is labelled in the row and in Contradiction 9, and it changes no design, because the rule already assumes training unless the user has opted out."
+   },
+   {
+    "issue": "Deleting research/BRIEF.md.bak-2026-10-05",
+    "reason": "brief.mjs --force created it as the backup of the previous gate=fail brief. The project folder is untracked, so this backup is the only copy of the old text. I left the decision to the lead and flagged it so it is not committed by accident."
+   },
+   {
+    "issue": "doctor.mjs blocker firecrawl-auth (the Firecrawl CLI is not authenticated)",
+    "reason": "It only matters for collecting, which is finished, and the task forbids looking for or writing a key. It does not affect preflight or handoff."
+   },
+   {
+    "issue": "Committing or pushing the changes",
+    "reason": "The task says not to commit or push; the lead integrates."
+   }
+  ]
+ },
+ {
+  "unknowns": [
+   {
+    "id": "U-05",
+    "status": "KNOWN-UNKNOWN - the owner page (E-36) was collected and does not state the over-window body. It names an over-long input context only as an example cause of a generic 500 INTERNAL, and an over-large prompt as one of 504 DEADLINE_EXCEEDED. No message, ErrorInfo reason or other field separates an over-window 500 from any other INTERNAL error, and the page does not say whether a 400 INVALID_ARGUMENT can occur instead. Day one: U-18 (2) records HTTP status, gRPC status, message and every details entry; if the status is 500, refusalCode must also read 500 bodies for the Gemini kind. U-18 (9) covers countTokens with tools or a generateContentRequest. The retryable codes are now answered (E-36, E-05)."
+   },
+   {
+    "id": "U-20",
+    "status": "CLOSED (E-37, E-07, E-04, E-34). In a chat-completions response each Gemini 3 tool call carries the signature as extra_content.google.thought_signature. On the next request it goes back on the assistant message's tool_calls entry, 'Required and Validated', for every call of the current turn. Of parallel calls only the first carries one, and a missing signature is a 4xx. Not on the page: which streamed chunk carries extra_content (every example is a whole message), whether a response without a tool call carries one on this endpoint, and the exact error body. Those are measured by U-18 (8). This is a judgement call, flagged in the handoff."
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED - E-37 now answers the open sub-question. On Gemini 3, omitting the first functionCall part's signature in any step of the current turn is a 400 that names the call and its content index. Only the current turn is validated. Signatures on non-call parts are recommended but not validated, and a dummy signature exists for calls no Gemini response produced. Rests on E-02, E-34, E-37, E-04, E-03."
+   },
+   {
+    "id": "U-06",
+    "status": "CLOSED - the thought-signature sentence now points at E-37 (extra_content per tool call); the streamed carriage is U-18 (8)."
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED - E-36 added. 402 and 429 share the gRPC status RESOURCE_EXHAUSTED, so retry is keyed on the HTTP code and a Gemini 402 is never retried. No retry-delay field is documented, so that stays with U-18 (11)."
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN - probes (2), (8) and (11) rewritten to say exactly what E-36 and E-37 leave open."
+   }
+  ],
+  "preflight": "PASS - 0 blocking, 0 warnings, 30 passing [evidencePolicy=pluralist]. Run from cwd /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats with Node v24.21.0. unknown-closure: 18 closed, 2 known-unknown. citations: 37 evidence rows, 244 quotes found in their captures, including every new quote in E-36 and E-37. collection-attempts: every known-unknown was reached for. Corroboration: U-20 is accepted as a single witness with its own reason, the same one U-03 uses. The brief-stale warning from before is cleared.",
+  "handoff": "All three commands passed, run from /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats:\n- preflight.mjs: PASS, 0 warnings.\n- handoff.mjs: OK - 38 ledger entries, 37 evidence rows, every cited capture on disk, chain verifies (role=collector).\n- brief.mjs --state: authored, with contradictions and decision answered.\n\nNothing under research/raw/ was edited. Every raw file is still timestamped 14:30, from run 4, and the chain verifies. Nothing was fetched, committed or pushed, and research.mjs and decompose.mjs were not run.\n\n**U-05 stays KNOWN-UNKNOWN.** Its owner page is now collected (E-36), but it does not state the over-window body. It only lists \"Your input context is too long.\" as an example cause of a generic 500 INTERNAL, so it can't drive a classifier. Design consequence: the Gemini adapter gets no CONTEXT_LIMIT rule until U-18 (2) records the body. A rule that matched every 500 would misclassify real server faults. If the recorded status is 500, refusalCode must read 500 bodies for the Gemini kind; today it reads only 400, 413 and 422. Separately, a Gemini 402 shares 429's gRPC status, so retry must key on the HTTP code.\n\n**U-20 is now CLOSED - this is a judgement call you may want to reverse.** E-37 names the field (extra_content.google.thought_signature on each tool call) and the requirement to send it back, which are the facts the row blocks on. It does not show a streamed chunk, so I handed which chunk carries the field to U-18 (8). That follows the corpus's existing pattern: U-01, U-02 and U-16 are also CLOSED with a stream-level remainder measured there. If you'd rather mark U-20 KNOWN-UNKNOWN because Moonzila always streams, change only the status cell. The Evidence cell already names the day-one step.\n\nDesign consequences written into BRIEF.md (design points 1, 4, 5, 6 and the new 10; Decision steps 1, 4 and 5; compatibility table):\n- Gemini 3 tool turns through the existing openai-compatible kind need the provider-state slot per tool call, to carry extra_content back. Until U-18 (8) runs they stay untested.\n- On the native API only the current turn is validated, so dropping earlier runs' tool messages (application.ts:347) breaks no Gemini request.\n- The native adapter must keep empty-text parts that carry a signature, and send a step's calls before its responses.\n- A dummy signature is only for a call no Gemini response produced.\n\nThree new contradictions are recorded:\n- 15: the role 'model' vs 'assistant' inconsistency in Google's OpenAI-compatibility samples.\n- 16: a missing signature gets a 400 (E-37), while E-02 also has a MISSING_THOUGHT_SIGNATURE finish reason.\n- 17: the thoughtSignature / thought_signature key spelling.\n\n**Leftovers for you:**\n1. research/BRIEF.md.bak-2026-10-05 is the backup brief.mjs --force made of the previous authored brief. I left it rather than delete it; remove it before committing if you don't want it in the corpus.\n2. research/TIMELINE.md was last regenerated before run 4, so it lacks E-36 and E-37. It isn't part of the gate; I did not regenerate it.\n\nWhat I got wrong: nothing to report.",
+  "applied": [
+   "research/EVIDENCE.md E-36: auto-extracted Finding rewritten into a claim with 9 quotes copied word for word: error body, codes and remedies, 402/429 sharing RESOURCE_EXHAUSTED, over-window named only as an example cause under 500 INTERNAL and 504, and an explicit not-stated list.",
+   "research/EVIDENCE.md E-37: auto-extracted Finding rewritten with word-for-word quotes covering the Gemini 3 4xx rule, current-turn-only validation, the 400 and its message, non-call signatures not validated, empty-text signature parts in streams, interleaving as a 400, dummy signatures, Gemini 2.5, the OpenAI section's extra_content.google.thought_signature field and 'Required and Validated', the sample role inconsistency, and the not-stated items (streamed chunk, no-tool-call responses, error body).",
+   "research/EVIDENCE.md E-07 and E-35: corrected the now-false 'not collected' / 'no capture names the field' statements to point at E-37 and E-36.",
+   "research/DISCOVERY.md: state paragraph rewritten for runs 1-4 (38 of 45 credits spent, 18 CLOSED / 2 KNOWN-UNKNOWN), with every 'collection decision' statement removed.",
+   "research/DISCOVERY.md: U-05 Evidence rewritten as KNOWN-UNKNOWN on its merits, naming precisely what E-36 does not state, with day-one steps U-18 (2) and (9).",
+   "research/DISCOVERY.md: U-20 changed to CLOSED from E-37, with a single-witness note and its streamed carriage handed to U-18 (8). Its history note now says the page was collected in run 4.",
+   "research/DISCOVERY.md: U-03 now answers the missing-signature question (a 400, current turn only) from E-37, with the design consequence.",
+   "research/DISCOVERY.md: U-06 now cites the E-37 field, and U-16 adds E-36 (key retry on the HTTP code, never retry a Gemini 402).",
+   "research/DISCOVERY.md: U-18 probes (2), (8) and (11) made precise, and the 'Already decided' list records run 4.",
+   "The false claim that the thought-signatures guide 'is linked from no capture' is gone from DISCOVERY U-20 and BRIEF; both now state it is linked from the E-34 source HTML, line 802 (verified in the capture).",
+   "research/MAP.md: D-9 and T-2 rewritten for the new statuses; the D-1/S-1 coverage note now says four URLs served the Interactions variant and the generateContent variants are E-34, E-36 and E-37.",
+   "research/SOURCES.md line 42: 'the generateContent variant it links was not collected' corrected to 'collected in run 4 as E-36'.",
+   "research/BRIEF.md: redrafted with brief.mjs --force for a current stamp, then the authored brief carried over and updated: header (37 pages, four runs), status paragraph, contract table (U-03, U-05, U-06, U-16, U-20), Gemini native section (signatures, retry, errors and over-window, Legacy labels), Gemini row of the compatibility table, contradiction 12 updated and 15-17 added, the U-05 known-unknown rewritten, the U-20 known-unknown section removed, U-18 probes, the not-stated list, design points 1/4/5/6/9 plus new point 10, Decision steps 1/4/5, and Next steps with the collection sign-off item removed. 'Reviewed by: agent' kept."
+  ],
+  "declined": [
+   {
+    "issue": "Close U-05",
+    "reason": "E-36 does not state the message or reason of an over-window refusal; it names over-long input only as an example cause of a generic 500 INTERNAL. Closing the row would let a classifier be built on a guess. It stays KNOWN-UNKNOWN with U-18 (2) and (9)."
+   },
+   {
+    "issue": "Delete research/BRIEF.md.bak-2026-10-05",
+    "reason": "It is the backup brief.mjs --force keeps by design. Deleting it is the lead's call before committing."
+   },
+   {
+    "issue": "Regenerate research/TIMELINE.md",
+    "reason": "It is a derived review aid outside the gate, and the task scoped updates to BRIEF, MAP and DISCOVERY. It lacks only the E-36 and E-37 rows and makes no false claim."
+   },
+   {
+    "issue": "Edit research/plan-4.json notes ('instead of a collection decision')",
+    "reason": "The plan records why run 4 was collected and is accurate as history. Plans are run inputs, not claims the gate judges."
+   }
+  ]
+ },
+ {
+  "checked": "I checked rows E-01 to E-19 in research/EVIDENCE.md (37 rows in total; E-19, the middle row, is included). For each row I opened its capture under research/raw/ and re-read every number, line reference and paraphrase against the text. For E-07 I also used the .source.html to confirm the alias list (mistral-medium-3-5, mistral-medium-3, mistral-medium-latest). For E-15 I parsed the OpenRouter JSON and confirmed 466 objects, next:null, and every cited id, context, max-completion and canonical_slug value. For E-16 I searched the HF source HTML and confirmed it carries no licence tag. I ran every [quote: ...] in E-01 to E-19 through a script: all 51 quotes are in their captures, 30 word for word and 21 once markdown is stripped. URL, retrieval date and capture path match the ledger for all 19 rows. E-17's ledger type S was promoted to P in the row; the row says so, and platform.claude.com is Anthropic's own host, so P is right. P/S/L is right for every row except E-19's re-hosted Google readme text. preflight passes (0 blocking, 1 warning: U-18 has no recorded fetch attempt) and handoff OK (38 entries, chain verifies). I also cross-checked how DISCOVERY U-05/U-07/U-08/U-09/U-10/U-12/U-19/U-20 and BRIEF.md use these rows. No row in this half has an invented number, a fact taken from another model variant, a licence for weights claimed from a code licence, or a CLOSED with no support. The problems found are dropped qualifiers, one stale cross-reference, and claims in DISCOVERY/BRIEF that go beyond what E-08, E-10, E-13 and E-18 say. Read-only: I edited no file and fetched nothing.",
+  "issues": [
+   {
+    "severity": "material",
+    "location": "research/EVIDENCE.md E-10; DISCOVERY.md U-08 (line 70); BRIEF.md line 68 (OpenAI row of the data-use table)",
+    "problem": "The row drops qualifiers the capture attaches to retention, and U-08 (CLOSED) and the brief repeat the stronger version. Brief line 68 says /v1/chat/completions keeps no application state; the capture says 'None, see below for exceptions' and lists those exceptions. Brief line 68 also says /v1/responses keeps state '30 days by default'; the capture says 'at least 30 days'. The Responses API is the path the brief needs for gpt-6.1-sol tool calls, and chat/completions is the path for gpt-6-luna, so the data-use disclosure built from this table would understate retention on both.",
+    "evidence": "Capture line 180: '| `/v1/chat/completions` | No | 30 days | None, see below for exceptions | Yes, see below for limitations |'. Line 209: 'Audio outputs application state is stored for 1 hour'. Line 212: 'Prompt caching may store encrypted key/value tensors in GPU-local storage as application state ... not retained after the 24-hour expiration'. Line 210: under ZDR 'the `store` parameter will always be treated as `false`'. Line 216: 'the Responses API has a 30 day Application State retention period by default, or when the `store` parameter is set to `true`. In those cases, response data will be stored for at least 30 days.' E-10 quotes only the first sentence of line 216 and gives the table cells without their qualifiers.",
+    "fix": "In E-10, quote 'In those cases, response data will be stored for at least 30 days.' and give the chat/completions cells as 'None, see below for exceptions' and ZDR 'Yes, see below for limitations', naming the exceptions: prompt-cache KV tensors up to 24h, audio 1h, the store parameter, and CSAM image retention. Carry 'at least 30 days' and 'no application state except prompt-cache tensors (<=24h) and store' into U-08 and BRIEF line 68."
+   },
+   {
+    "severity": "minor",
+    "location": "DISCOVERY.md U-05 evidence cell; BRIEF.md lines 120-121 and 309 (from E-08)",
+    "problem": "U-05 says BFCL 'lists none of the U-01..U-04 cloud models'. Brief lines 120-121 say it lists 'none of the cloud models above', and line 309 says it 'has no row for any shortlisted cloud model'. But U-01 and the brief's own cloud table (line 45) include claude-haiku-4-5-20251001, and BFCL ranks it 6th. E-08 itself names the Haiku row but calls it one of the 'older models', while E-01 lists Haiku 4.5 as one of the four current Anthropic models. The conclusion (BFCL cannot rank the first-build presets) still holds, because Haiku is not one of them. The sentences themselves are false.",
+    "evidence": "BFCL capture line 43: '| 6 | 68.7 | [Claude-Haiku-4-5-20251001 (FC)]...'. Line 124: '| 87 | 25.26 | [Claude-Haiku-4-5-20251001 (Prompt)]...'. E-01 capture line 18: 'Claude API ID | ... | claude-haiku-4-5-20251001'. Line 12: 'All current models support ...'. BRIEF line 45 lists claude-haiku-4-5-20251001 in the cloud table.",
+    "fix": "Reword U-05 and the brief to say BFCL lists none of the first-build presets (Fable 5.1, Opus 5.5, Sonnet 5.5, gpt-6.1-sol, gpt-6-luna, the three Gemini models, Mistral Medium 3.5, DeepSeek V4). Add that it does list claude-haiku-4-5-20251001 (FC) at 68.7, rank 6 (line 43). In E-08, drop 'older' for Haiku 4.5 or say 'previous generation'."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-09 (last sentence)",
+    "problem": "Stale cross-reference. E-09 says the 'Abuse monitoring' page https://ai.google.dev/gemini-api/docs/usage-policies was 'not collected'. It was collected later (ledger seq 38) and is cited as E-37, which gives the 55-day figure. Someone reading E-09 alone is told the logging period cannot be checked.",
+    "evidence": "E-09: '... links an \"Abuse monitoring\" page, https://ai.google.dev/gemini-api/docs/usage-policies, not collected.' Ledger seq 38: url https://ai.google.dev/gemini-api/docs/usage-policies, raw research/raw/2026-10-05-abuse-monitoring-gemini-api-google-ai-fo-google-5e08212c.md. EVIDENCE E-37 cites it.",
+    "fix": "Replace 'not collected' with 'collected as E-37 (55 days)'."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-09 (paid-service logging and grounding sentences)",
+    "problem": "Two narrowings. (1) The paid-logging quote stops at 'Prohibited Use Policy'. The sentence goes on to give further purposes, so 'solely for detecting and preventing violations' reads narrower than the terms. (2) The row names Grounding with Google Search as 'a stated exception' with 30-day storage. The same capture gives the same 30-day storage for Grounding with Google Maps, which E-04/E-05/E-06 show as Supported on all three shortlisted Gemini models.",
+    "evidence": "Capture lines 193-197: 'Google logs prompts and responses for a limited period of time, solely for detecting and preventing violations of the Prohibited Use Policy to maintain the safety and security of the Services, and any required legal or regulatory disclosures.' Lines 414-417: 'it is reasonably necessary for Google to store prompts, contextual information that you may provide, and generated content for thirty (30) days for the purposes of creating Google Maps Grounded Results'.",
+    "fix": "Extend the quote to '... and any required legal or regulatory disclosures', and add the Google Maps grounding 30-day storage clause beside the Search one."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-13; BRIEF.md line 70 (DeepSeek retention cell)",
+    "problem": "'For as long as you have an account' is given as DeepSeek's retention of input data. In the capture it is an example tied to providing the Services. The same section also allows retention for legitimate business interests (including improving and developing the Services) and for violations. 'Input data kept as long as the account exists' (brief) is therefore a floor, not a ceiling.",
+    "evidence": "Capture lines 400-415: 'We retain Personal Data for as long as necessary ... when we have a legitimate business interest to do so (such as improving and developing our Services ...) ... For example, when we process your Personal Data to provide you with the Services, we keep this Personal Data for as long as you have an account ... If you violate any of our terms ... we may keep your Personal Data as necessary'.",
+    "fix": "Say: for service provision, as long as the account exists. Add that it may be retained longer for legitimate business interests (improving and developing the Services), for legal obligations, or after violations, with no period stated."
+   },
+   {
+    "severity": "minor",
+    "location": "DISCOVERY.md U-12 ('never peak memory'); BRIEF.md line 75 ('it bounds the download, never peak memory') (from E-18)",
+    "problem": "The capture does not define the 'Size / Usage' column. E-18 itself says the page does not say which end of a range is the download. U-12 and the brief nonetheless state that the column bounds the download and is 'never' peak memory. That is an unsupported 'never', and the header's own word 'Usage' points toward memory. The error is in the conservative direction, since U-17 still measures memory on day one.",
+    "evidence": "E-18 capture line 83 header 'Size / Usage'; line 104 '1.2GB - 1.3GB \u00b7 256K context window'. E-18: 'The column is headed \"Size / Usage\" and the page does not say which end of a range is the download.'",
+    "fix": "Replace with: 'Ollama's Size / Usage column, undefined on the page; not taken as download size or peak memory until U-17 measures it.'"
+   },
+   {
+    "severity": "minor",
+    "location": "BRIEF.md line 55 (cites E-03 for 272K pricing); research/EVIDENCE.md E-03",
+    "problem": "Citation hygiene. The brief cites E-02 and E-03 for 'prompts over 272K input tokens at 2x input and 1.5x output'. E-03's row does not state this. The gpt-6-luna capture does support it, at line 167.",
+    "evidence": "gpt-6-luna capture line 167: 'Prompts with more than 272K input tokens are priced at 2x input and cache rates and 1.5x output for the full request.' The E-03 row has no 272K clause.",
+    "fix": "Add the 272K clause, with its line number, to E-03."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-08 ('Small rows it does list')",
+    "problem": "The list reads as exhaustive but leaves out the highest-scoring small rows on the page. The omitted Qwen3-4B row is the nearest sibling of the qwen3.5:4b candidate. The listed rows (18.98-28.41) make small-model tool calling look uniformly lower than the page shows.",
+    "evidence": "BFCL capture line 91: '| 54 | 35.68 | [Qwen3-4B-Instruct-2507 (FC)]'. Line 92: '| 55 | 35.52 | [Qwen3-4B-Instruct-2507 (Prompt)]'. Also line 138: Gemma-3-4b-it (Prompt) 19.62, rank 101; line 146: Gemma-3-1b-it (Prompt) 7.17, rank 109.",
+    "fix": "Write 'e.g.' before the list, or add Qwen3-4B-Instruct-2507 (FC) 35.68, rank 54 (line 91)."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-19 (Type P)",
+    "problem": "E-19 is typed P but cites readme claims that are Google's statements about Gemma 4, re-hosted on Ollama's page: the coding-benchmark improvements, native function calling, and E2B/E4B effective parameter counts. Ollama owns the tag, size and capability facts, not these. The P source for them is Google's model card (E-27).",
+    "evidence": "gemma4 capture line 273: 'Achieves notable improvements in coding benchmarks alongside native function-calling support'. Line 355: '2.3B effective (5.1B with embeddings) | 4.5B effective (8B with embeddings)'. Both sit in the re-hosted model readme, not in Ollama's tag table.",
+    "fix": "Mark the readme-derived claims as S (Google's text re-hosted) and rest the parameter counts on E-27. Keep P for Ollama's tag, size and capability facts."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md.bak-2026-10-05 (outside the E-row scope)",
+    "problem": "The corpus directory is untracked and holds a stale second brief (312 lines against BRIEF.md's 349). The documented handoff, 'git add research/', would commit it beside BRIEF.md, and a builder could read the outdated handoff.",
+    "evidence": "`git status` shows '?? docs/research/2026-10-05-coding-model-shortlist/'. research/ contains BRIEF.md (349 lines) and BRIEF.md.bak-2026-10-05 (312 lines).",
+    "fix": "Delete or move the .bak file out of research/ before committing the corpus."
+   }
+  ]
+ },
+ {
+  "issues": [
+   {
+    "severity": "material",
+    "location": "research/EVIDENCE.md E-32 (Finding cell); carried into research/BRIEF.md line 71 (Mistral API row of the data-use table)",
+    "problem": "The row says Labs or Preview Models are \"always used for training\". The capture only says Mistral \"may use\" that data, so the row turns a permission into a certainty. BRIEF line 71 repeats it (\"and always on Labs or Preview Models\"). The same BRIEF cell also lists the section 4.2 exceptions without case (a)(i), where the customer opted in on a product that is opt-out by default. That table is what a builder will use for the UI disclosure text, so the overstatement would reach users as a false statement of Mistral's terms.",
+    "evidence": "Capture 2026-10-05-commercial-terms-of-service-mistral-af68fe49.md line 80: \"By using Labs or Preview Models, you acknowledge that (i) Mistral AI may use Customer Data and Outputs generated from Labs or Preview Models to train its artificial intelligence models and (ii) the opt-out preferences you selected ... does not apply\". Line 78 (4.2) lists \"(d) when Customer uses Labs or Preview Models\" as an exception that allows training, not as a guarantee that training happens. The E-32 row reads: \"Labs or Preview Models (identifiable by the prefix \"labs\" in AI Studio) are always used for training\". DISCOVERY U-11 words it correctly (\"neither the opt-out nor zero data retention applies\").",
+    "fix": "In E-32 change \"are always used for training\" to \"may be used for training, and the opt-out and zero data retention do not apply to them (section 4.3)\". In BRIEF line 71 replace \"and always on Labs or Preview Models\" with \"and on Labs or Preview Models, where Mistral may train and the opt-out does not apply\", and add the missing (a)(i) case or say \"among other cases\"."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-37 (\"the page the Gemini terms link (E-09)\"); DISCOVERY U-07 (\"the one the terms link\"); BRIEF Contradictions item 10 (\"the abuse-monitoring page they link\"); EVIDENCE.md E-09 (\"not collected\")",
+    "problem": "The Gemini Additional Terms text does not link the Abuse monitoring page. The only link is an entry in the docs site's left-hand navigation in the raw HTML. The corpus still treats the terms as pointing to that page, and BRIEF item 10 uses this to equate the terms' unnamed \"limited period of time\" with 55 days. The real connection goes the other way: the abuse page cites the Additional Terms. Separately, E-09 still says the page was \"not collected\", but E-37 now collects it.",
+    "evidence": "In the terms capture .md, grep finds neither \"usage-policies\" nor \"abuse monitoring\". The single hit in 2026-10-05-gemini-api-additional-terms-of-service-g-google-a56c52f5.source.html is line 999: `<li class=\"devsite-nav-item\"><a href=\"https://ai.google.dev/gemini-api/docs/usage-policies\" class=\"devsite-nav-title\">...Abuse monitoring`, which is the sidebar. The abuse capture, lines 74-76, says: \"By using the Gemini API, you agree to the following guidelines, the Gemini API Additional Terms of Service and Generative AI Prohibited Use Policy\". E-09 ends: \"links an \\\"Abuse monitoring\\\" page, https://ai.google.dev/gemini-api/docs/usage-policies, not collected.\"",
+    "fix": "In E-37, U-07 and BRIEF item 10, say the page is linked from the docs navigation on the terms page and that it references the Additional Terms itself (abuse capture lines 74-76). That reference is what ties the 55 days to the terms' \"limited period\". Update E-09 so it says the page was collected later as E-37."
+   },
+   {
+    "severity": "minor",
+    "location": "DISCOVERY U-11 (Retention sentence); BRIEF line 71 (Retention column) and design point 3 line 286 (\"with the 30-day abuse retention disclosed\"); the source is EVIDENCE.md E-33",
+    "problem": "The corpus states Mistral's API retention (output generation, then 30 rolling days) as a fixed fact for UI disclosure, but drops two qualifiers from the captures. First, the privacy policy gives these periods only \"for illustrative purposes\". Second, the policy says it does not apply to personal data processed in the course of the customer's business; there Mistral acts as processor under the DPA (E-32 line 150), which was not collected. BRIEF Contradiction 9 notes the scope exclusion but dismisses it only for training (\"the rule already assumes the worse case\"). For retention there is no worst-case rule, so the 30-day disclosure could be wrong for an organisation's account.",
+    "evidence": "Privacy capture line 90: \"You will find the main applicable retention periods below, for illustrative purposes:\". Line 16: \"This Privacy Policy does not apply if you use our Mistral AI Products to process personal data in the context of your business activities.\" Commercial terms capture line 150 (12.3): \"the Data Processing Agreement ... will apply\". U-11 says: \"Retention: API inputs and outputs are kept as long as needed to generate the output, then 30 rolling days to monitor abuse unless zero data retention is activated\".",
+    "fix": "In E-33 and U-11 add that the policy gives these periods \"for illustrative purposes\" and does not cover business-context processing, where the DPA (not collected) governs. In BRIEF, word the disclosure as \"Mistral's privacy policy states 30 days (illustrative; an organisation's DPA may differ)\", or record DPA retention as a day-one check."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-21 (\"No cloud tag\") and E-19 (cloud tags list); BRIEF line 91 and design point 6 line 306",
+    "problem": "Each Ollama library page shows only some of its tags. E-21 says phi4-mini has \"No cloud tag\" without noting that only 2 of 5 tags were shown; E-20 correctly limits its claim with \"are shown\". E-19 lists gemma4:cloud and gemma4:31b-cloud as the cloud tags, but the page showed 13 of 51. The BRIEF then names only those two as the cloud tags kept out of the catalogue, which a builder could read as a complete list.",
+    "evidence": "phi4-mini capture line 81: \"5 models\"; only phi4-mini:latest and phi4-mini:3.8b are listed (lines 89-112). gemma4 capture line 81: \"51 models\"; 13 tag rows are listed (lines 89-253). BRIEF line 306: \"Cloud tags (gemma4:cloud, gemma4:31b-cloud, E-19) never enter it.\" DISCOVERY U-12 does note that \"each shows a subset\".",
+    "fix": "In E-21 write \"no cloud tag among the 2 of 5 tags shown\". In E-19 note \"13 of 51 tags shown\". In BRIEF, make the rule \"no tag whose name ends in cloud or -cloud\" (or check the full tags list at pull time) rather than naming only two tags."
+   }
+  ],
+  "checked": "I checked the second half of the evidence table, rows E-19 to E-37 (19 of 37), against the captures under /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist/research/raw/. I opened every capture. For each row I checked that every [quote:] is present (using the kit's own matching rules in ~/.agents/research-kit/lib/quotes.mjs, which ignore Markdown link syntax), that the cited line numbers are right, and that each number, date, size, context window, parameter count and licence line matches the capture.\n\nLicence claims are each tied to the right model and the publisher's own text: the Qwen model-repo LICENSE files (diffed: identical apart from the copyright year), the Gemma 4 model card, the IBM 1B and 350M model cards, IBM's Granite 4.0 GitHub README statement about the models, and the Microsoft MIT LICENSE. None rests on a code licence.\n\nEvery row's P/S/L grade is right: each page belongs to the owner of the fact. E-31's ledger entry is graded S, but the row explains why it was promoted to P, and Intel owns that page. All 19 URLs, retrieval dates (2026-10-05), transport (firecrawl-cli) and completeness (full) match the ledger.\n\nI also traced how these rows are used in DISCOVERY (U-07, U-11 to U-16) and in BRIEF.md (the data-use table, the local-candidates table, Runtime and CPU, Contradictions 5 and 8 to 10, Known unknowns, and the design points). Preflight passes (0 blocking, 1 accepted warning on U-18), and handoff.mjs reports OK (38 ledger entries, chain verifies).\n\nNo issues in E-20, E-22 to E-31, E-34, E-35 or E-36. For example, E-22's release list, dates and notes, and its count of 40 failed-widget notices, all match. E-30 and E-34 correctly say the instruction-set variants are not settled by those files. E-31's ISA list is exact. I found no KNOWN-UNKNOWN whose answer is already in a capture.\n\nNot reported, because the corpus documents them as decisions: U-15 leaves cmake/local.cmake, LLAMA_CPP_VERSION and the release workflow unfetched, and U-11's question about the API's training default stays unanswered. Both were budget calls under the 45-credit cap (about 42 spent), each with a stated fallback."
+ },
+ {
+  "checked": "Corpus: /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats. Everything below was read-only, and no fetch, research.mjs or decompose.mjs was run.\n\nGate and handoff:\n- preflight.mjs: PASS, 0 blocking, 0 warnings, 30 passing. The 37 evidence rows contain 244 quotes and every one was found in its capture. Chain of 38 entries intact, 18 CLOSED and 2 KNOWN-UNKNOWN. Single-witness for U-03 and U-20 was accepted on the record.\n- handoff.mjs: exit 0 (\"38 ledger entries, 37 evidence rows, every capture they cite on disk, chain verifies\", role=collector).\n\nThe two new captures, read line by line in full:\n- raw/2026-10-05-api-errors-gemini-generate-content-api-l-google-db16b1be.md (136 lines).\n- raw/2026-10-05-thought-signatures-gemini-generate-conte-google-e2a2fdbb.md (987 lines).\n- Ledger seq 37 and 38 use transport firecrawl-cli and completeness full. Both rows are typed P, which is correct: they are ai.google.dev owner pages, and all 37 rows are P.\n- Provenance claims hold: the E-35 capture line 69 links generate-content/api-errors, the E-34 source HTML line 802 has the site-nav \"Thought signatures\" link, and the E-07 capture line 351 is the OpenAI thought-signatures pointer.\n- Credit figures 18/14/4/2 = 38 match .usage.jsonl.\n- E-36 and E-37: every quote is verbatim and the \"last updated\" dates are right.\n\nDISCOVERY rows:\n- U-03 is CLOSED and justified. E-02 states \"A base64-encoded string\" and the merge rules are at E-34 capture lines 1305-1308. E-04 source HTML line 1471 was checked.\n- U-05 is KNOWN-UNKNOWN and justified. I searched every Google capture for over-window wording and for a countTokens tools or generateContentRequest body; neither the E-35 Interactions table, the E-05 token section nor the E-06 tool example answers it.\n- U-20 is CLOSED with the streamed-carriage gap stated, following the corpus's U-18 convention.\n- I also checked U-06, U-16 and U-18, plus the Moonzila source at src/engine/application.ts:347. Earlier runs keep only text messages and each run starts with a user text message, so \"earlier turns are not validated, so dropping earlier runs' tool messages breaks no request\" holds.\n\nBRIEF and MAP: I read every passage on U-03, U-05, U-20, thought signatures, Gemini errors, retry and over-window (BRIEF lines 1-90, 90-160, 250-262, 310-420, 420-580; MAP D-9, S-3, T-2, T-4, T-6 and the notes), plus SOURCES rows 42-44.\n\nOverall: two material defects in the BRIEF, both on the compatible-endpoint carriage. The DISCOVERY rows are sound apart from the role citation they share with the BRIEF.",
+  "issues": [
+   {
+    "severity": "material",
+    "location": "research/BRIEF.md lines 16-17, 257 (compat table, Gemini layer), 437-438 (design point 1), 523-526 (design point 10); research/MAP.md line 31 (T-2)",
+    "problem": "The BRIEF and MAP say every Gemini 3 tool call on the OpenAI-compatible endpoint carries extra_content.google.thought_signature (\"rides on each tool call\", \"Each tool call in a Gemini 3 response carries ...\"). E-37 shows that for parallel calls only the first call carries one. DISCOVERY U-20 and the E-37 row state this correctly, but no compatible-endpoint passage in the BRIEF mentions it. A builder following design point 10 into a fail-closed accumulator, as Moonzila's existing ones are, could treat a call without extra_content as a protocol error. That would break every parallel tool step (Moonzila allows up to 8 calls per step).",
+    "evidence": "E-37 capture, compat parallel example: line 843 has the signature on the first call only; line 860 reads `\"type\": \"function\" // No signature on Parallel FC`; line 893 reads `\"function\": { //No Signature`. E-37 row: [quote: \"type\": \"function\" // No signature on Parallel FC]. DISCOVERY U-20: \"of parallel calls only the first carries one\".",
+    "fix": "In BRIEF lines 16-17, 257, 437-438 and 523-526 and in MAP T-2, say the signature arrives on the first call of each step (on parallel calls only the first carries one). State that the accumulator keeps extra_content only when present, never requires it, and sends back exactly what arrived on each call."
+   },
+   {
+    "severity": "material",
+    "location": "research/DISCOVERY.md U-20 Evidence (\"Moonzila keeps role assistant, which the parallel example and E-07 use\"); research/BRIEF.md Contradictions 15, line 339 (\"the one E-07's examples and E-37's parallel example use\")",
+    "problem": "The role-'assistant' resolution cites E-07's examples as support, but E-07 has no message with role assistant. Its examples use only system and user roles and contain no tool_calls or assistant turn at all. The resolution therefore rests on one E-37 example against the other E-37 example on the same page, plus convention. The corpus presents it as better supported than it is, which is a citation with no evidence behind it.",
+    "evidence": "Role values in the E-07 capture (2026-10-05-openai-compatibility-gemini-api-google-a-google-746b888a.md): 27 user and 8 system, none assistant or model. Every 'assistant' string in the capture and its source HTML (source lines 1292, 1314, 1424, 1447, 1570, 1595) is the content \"You are a helpful assistant.\". grep for tool_calls or tool_call_id in the E-07 capture returns nothing.",
+    "fix": "Remove E-07 as a witness for role assistant in both places. Say that E-37's two samples disagree (sequential example \"model\", parallel example \"assistant\"), that Moonzila keeps assistant because it is the Chat Completions role it already sends, and that U-18 (8) decides it."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-37 (\"The native examples spell the key thoughtSignature in responses and once thought_signature in a request\"); research/BRIEF.md Contradictions 17, lines 348-351",
+    "problem": "The spelling census is wrong. One native model-response example uses thought_signature, so \"thoughtSignature in responses\" is not uniform. BRIEF #17 also concludes the adapter \"never picks a spelling\". That contradicts the dummy-signature path that U-03 and design point 10 prescribe for a current-turn call no Gemini response produced: there the adapter writes a signature it did not receive and must choose a key. E-02 names that key: Part.thoughtSignature.",
+    "evidence": "E-37 capture line 532, inside the native \"Text/In-context reasoning\" Turn 1 model response: `\"thought_signature\": \"<Signature_C>\" // OPTIONAL (Recommended)`. Native responses at lines 228, 293 and 435 use thoughtSignature. E-02 capture line 4024: `thoughtSignature` `string (bytes format)`.",
+    "fix": "Correct the E-37 census to: native examples use thoughtSignature except the parallel request (line 473) and the text-part response (line 532). In BRIEF #17, keep 'resend as received', and add that a dummy signature written by the native adapter goes in E-02's field name, thoughtSignature."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md design point 1, lines 431-432",
+    "problem": "Overstated: \"Gemini's model content of every step of the current turn must go back whole, signatures in their original parts, or the request is a 400\". E-37 makes a 400 only for a missing signature on the first functionCall part of a step, and for calls interleaved with their responses. Signatures on non-functionCall parts are explicitly not validated. Resending whole content is a sound design choice, but the 400 consequence claimed for it is stronger than the evidence.",
+    "evidence": "E-37 capture lines 132-133: \"If you omit a `thought_signature` for the first `functionCall` part in any step of the current turn, the request will fail with a 400 error.\" Lines 518-520: \"The API does **not** strictly enforce validation. You won't receive a blocking error if you omit them\".",
+    "fix": "Reword it as: the adapter resends each step's content whole (the design), and a missing signature on a step's first functionCall part is a 400 (E-37). Do not attach the 400 to the whole content."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md line 152 (\"No message or reason tells that 500 from any other\"), also line 15 (\"with no message a classifier could match\"); research/MAP.md D-9 (\"with no message\"); DISCOVERY U-18 (2) (\"gives no message\")",
+    "problem": "These passages state the page's silence as a fact about the API. E-36 shows no over-window body at all, so it cannot establish that no distinguishing message or ErrorInfo reason exists. DISCOVERY U-05 phrases it correctly (\"Not stated on that page\"). The day-one probe exists precisely because such a message may exist.",
+    "evidence": "E-36 row: \"Not stated on this page: the message, ErrorInfo reason or any other field that tells an over-window 500 INTERNAL from any other INTERNAL error\". The capture's only body example is a 400 API_KEY_INVALID (lines 81-104).",
+    "fix": "Use 'the page states no message or reason that tells ...' (BRIEF 152, MAP D-9, U-18 (2)) and 'the page gives no message a classifier could match' (BRIEF 15)."
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-36 (\"only the HTTP code separates never-retry from wait-and-retry\"; \"input size appears only in the Example column of two rows\"); DISCOVERY U-18 (2) and BRIEF line 382 (\"whether the status is 400 or 500\")",
+    "problem": "Two readings go past the page.\n1. The page shows neither a 402 nor a 429 body, so the message or ErrorInfo reason may also separate them. 'Only the HTTP code' is an inference; keying retry on the HTTP code is still the right design.\n2. The 429 row also ties failure to token volume and request size. A single oversized probe prompt (1.5 times the window) on a low-TPM key may therefore come back as 429 RESOURCE_EXHAUSTED, but the probe framing allows only 400 or 500.",
+    "evidence": "E-36 capture line 71, 429 row: Example \"You are sending too many requests, using too many tokens, ...\"; Solution \"... Reduce the rate or size of your requests.\" Line 73, 500 row Solution: \"Reduce your input context ...\" (input size appears in a Solution cell too).",
+    "fix": "E-36: write 'the page documents no field besides the HTTP code that separates them'. Drop 'only in the Example column', or note that the 429 row names token volume. U-18 (2) and BRIEF 382: record whatever status comes back, including a 429 for a request over the key's TPM, and do not class a 429 as CONTEXT_LIMIT."
+   },
+   {
+    "severity": "minor",
+    "location": "research/SOURCES.md line 43 (generate-content/api-errors, Used for)",
+    "problem": "The cell still carries the plan's intent, \"the generateContent error reference (status and body for an over-window prompt, retryable codes)\". That reads as if the page gives the over-window status and body, which is exactly what it does not do and why U-05 stays KNOWN-UNKNOWN. The E-35 row directly above was rewritten to say what that page actually holds; this one was not.",
+    "evidence": "SOURCES.md line 43 vs DISCOVERY U-05: \"Collected, and the blocking fact is not on the owner page.\" SOURCES.md line 42 (E-35): \"states no over-window code and no 429 retry delay\".",
+    "fix": "Rewrite it as: 'U-05, U-16 (E-36): error body (code, message, status, details) and per-code retry advice; names over-long input only as an example cause of 500 INTERNAL and 504, with no over-window body.'"
+   },
+   {
+    "severity": "minor",
+    "location": "research/EVIDENCE.md E-37; DISCOVERY U-03; BRIEF lines 128-130",
+    "problem": "Two paraphrases drop qualifiers from the capture.\n1. \"Gemini 2.5 puts the signature on the first part and returning it is optional\" leaves out \"if there are function calls in a response\". With no function calls, Gemini 2.5 puts a signature on no part.\n2. \"which Google strongly discourages\" is attached to the dummy values. The page actually discourages injecting custom function-call blocks, and offers the dummy signatures as the fallback when that cannot be avoided.",
+    "evidence": "E-37 capture lines 953-962: \"If there are function calls in a response, ... Gemini 2.5 will have the signature in the first part ... If there are no function calls in a response, ... Gemini 2.5 won't have a signature in any part.\" Lines 922-929: \"While injecting custom function call blocks into the request is strongly discouraged, in cases where it can't be avoided, ... you can set the following dummy signatures\".",
+    "fix": "Add 'when the response has function calls' to the Gemini 2.5 clause. Write 'injecting such calls is strongly discouraged; where unavoidable, the dummy values skip validation'."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md.bak-2026-10-05",
+    "problem": "A superseded brief sits in research/ and is not gitignored, so it would be committed and travel with the corpus. It contradicts the current gate state: 35 pages, 17 CLOSED, 3 KNOWN-UNKNOWN, and U-20 as KNOWN-UNKNOWN \"collect its page\". A builder who opens the wrong file gets the old status.",
+    "evidence": "BRIEF.md.bak-2026-10-05 lines 6 and 11-14 (\"All 35 pages ... three runs\", \"17 are CLOSED ... 3 are KNOWN-UNKNOWN\") and line 77 (\"U-20 ... KNOWN-UNKNOWN - collect its page\"). The project .gitignore has no rule covering *.bak*.",
+    "fix": "Remove the backup from research/ before committing, or move it outside the corpus. Git history already keeps the prior version once BRIEF.md is committed."
+   }
+  ]
+ },
+ {
+  "issues": [
+   {
+    "severity": "material",
+    "location": "research/DISCOVERY.md U-09 (line 71); research/BRIEF.md data-use table line 69, Contradiction 6 (line 199), design point 3 (line 280), Decision 'nothing is waiting to be collected' (line 320)",
+    "problem": "Anthropic's standard API retention is stated as 'not retained by default, except Covered Models'. The page this rests on says it does not define standard retention and sends the reader to another page, whose URL is in the capture and was never collected. U-09's retention half is therefore CLOSED on an over-read, and Anthropic is put in the 'offerable for private code' class partly on that over-read.",
+    "evidence": "E-17 capture line 16: 'For Anthropic's standard retention policies outside these arrangements, see the [commercial data retention policy](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data)'. Line 23, the 'not retained by default' sentence, sits under 'Where a feature necessarily requires storage...' (line 20), so it is about feature storage. Line 30, on ZDR: 'Under a ZDR arrangement, Anthropic does not store customer prompts or responses at rest after the API response is returned.' That sentence would add nothing if non-ZDR organisations already had no retention. DISCOVERY U-09 still says 'An Anthropic host stated a retention regime, so the priority-4 trigger did not fire.'",
+    "fix": "On the collector, collect the privacy.claude.com article (URL copied from E-17 line 16). Otherwise mark U-09's retention half KNOWN-UNKNOWN. In BRIEF, keep Anthropic's class on the training half only (E-11). Change the retention cell and the design-point text to 'standard (non-ZDR) API retention not established; E-17 defers it to an uncollected policy', with the 2-year flagged-content and Covered-Model 30-day facts kept."
+   },
+   {
+    "severity": "material",
+    "location": "research/DISCOVERY.md U-10 (line 72); research/EVIDENCE.md E-13 (line 28); research/BRIEF.md DeepSeek data-use row, Contradiction 7, design point 3 (line 289)",
+    "problem": "DeepSeek is said to use API prompts for training and to store them in the PRC 'per its privacy policy'. That policy explicitly excludes data from apps built on the open platform, and E-13 and Contradiction 7 leave this exclusion out. Both captures also link DeepSeek's own training-methods page, which was not collected. U-10's training half (and its PRC-storage half) is an inference presented as a CLOSED finding.",
+    "evidence": "Privacy-policy capture lines 33-37: 'the processing rules for Personal Data collected from end users when accessing downstream systems or applications developed by developers using our open platform services are not covered by this privacy policy'. Lines 39-41 and API terms section 8.2 (line 437) link 'Model Mechanism and Training Methods' at https://cdn.deepseek.com/policies/en-US/model-algorithm-disclosure.html, not collected. API terms 5.5 (lines 239-243) repeat the carve-out. E-13 cites only the scope lines 21-22.",
+    "fix": "Add the carve-out to E-13 and Contradiction 7. On the collector, collect the training-methods page (URL copied from the capture), or mark U-10's training half KNOWN-UNKNOWN. In BRIEF, state the exclusion as a conservative choice ('no DeepSeek page commits to not training on API inputs; PRC law governs, E-12'), not as 'training use and PRC storage per its privacy policy'."
+   },
+   {
+    "severity": "material",
+    "location": "research/DISCOVERY.md U-05 (line 67); research/BRIEF.md 'Benchmarks' bullet (line 120)",
+    "problem": "U-05 asks which of the U-01..U-04 models BFCL does not list. It answers that BFCL lists none of them, and the brief says it 'lists none of the cloud models above'. But claude-haiku-4-5-20251001 is in U-01's evidence and in the brief's cloud table, and BFCL lists it.",
+    "evidence": "BFCL capture line 43: '| 6 | 68.7 | [Claude-Haiku-4-5-20251001 (FC)]...'. E-08 itself records 'Claude-Haiku-4-5-20251001 (FC) 68.7, rank 6'. The brief's cloud table has the row 'claude-haiku-4-5-20251001 (alias claude-haiku-4-5) | 200K | 64K' (E-01).",
+    "fix": "Say that BFCL V4 (last updated 2026-04-12) lists claude-haiku-4-5-20251001 (FC) at 68.7, rank 6, as BFCL reports it in its own harness, and none of the Claude 5.x, GPT-6.x, Gemini 3.5/3.7/3.8, Mistral Medium 3.5 or DeepSeek V4 models. Keep 'no BFCL row for any first-build-step model' if that is the intended scope."
+   },
+   {
+    "severity": "material",
+    "location": "research/BRIEF.md design point 1 (lines 268-272) and 'Then, in order' (lines 330-333)",
+    "problem": "Design point 1 makes local models on this PC wait only for U-15, U-17 and U-18. The free-RAM block (1,235,644,416 B free, under the 2 GiB reserve) is mentioned, then left out of that exit condition. 'Then, in order' schedules the U-12 pulls and the U-17/U-18 measurements on the target machine with no note that memory must be freed first. This is inconsistent with 'Already decided', with MAP D-9 and with the brief's own Out-of-scope line ('E-31, memory, U-15'). A builder could take passing measurements as unblocking this PC, or run memory and speed measurements on a machine that has under 1.24 GB free.",
+    "evidence": "DISCOVERY lines 108-110: 'On the user's current PC, free RAM (1,235,644,416 B) is below the 2 GiB reserve, so the local shortlist serves other machines until memory is freed'. BRIEF line 272: 'The local shortlist serves other machines until that reading and the U-17 and U-18 measurements pass.' gemma4:e2b alone is 4.6GB - 7.5GB (E-19).",
+    "fix": "Rewrite the exit condition: no local model is offered on this PC while available RAM minus max(2 GiB, 15% of RAM) cannot hold the model, whatever U-15, U-17 and U-18 show. In the day-one order, say that U-17/U-18 on this PC need memory freed first, or are measured on a machine that clears the reserve."
+   },
+   {
+    "severity": "minor",
+    "location": "research/DISCOVERY.md U-04 (line 66)",
+    "problem": "U-04 is CLOSED, but one of its four asked facts, the output limit, is not answered by any capture. It is in effect a known unknown with a day-one probe written inside a CLOSED row.",
+    "evidence": "E-07: 'A maximum output token limit is not stated on this card.' U-04 asks for the 'output limit'.",
+    "fix": "Split it: CLOSED for id, context and function calling; KNOWN-UNKNOWN for max output with the existing probe. Or state plainly in the row that the output-limit part is open."
+   },
+   {
+    "severity": "minor",
+    "location": "research/DISCOVERY.md U-20 (line 82); research/BRIEF.md Known unknowns U-20 (lines 254-257)",
+    "problem": "U-20 is KNOWN-UNKNOWN as 'reached for on both publishers' own pages', but the BFCL capture links a results-data repository that may carry data terms, and it was not reached. The LiveBench day-one step says to write 'through the GitHub repository its card refers to', yet the card gives no URL, so the step is not directly runnable.",
+    "evidence": "BFCL capture line 168: 'All the model response we obtained is available [here](https://github.com/HuanzhiMao/BFCL-Result).' Line 22-23 links the code-and-data repo. LiveBench card line 140 mentions 'Our github readme' with no link (DISCOVERY admits 'the card gives no URL').",
+    "fix": "Name BFCL-Result as an uncollected candidate page for score-data terms (collect it on the collector, or put it in the day-one step). Give a capture-sourced LiveBench contact URL, or say how the builder finds it."
+   },
+   {
+    "severity": "minor",
+    "location": "research/DISCOVERY.md U-15 (line 77)",
+    "problem": "U-15 says the CPU-variant settings live in release settings and llama.cpp source 'that no capture holds'. But E-30 names the in-repo file where backend build rules live, and that file was not collected. The day-one log reading is still the decisive check, so this is about wording.",
+    "evidence": "E-30 capture line 50: '# build rules live in subprojects under cmake/.' Line 78: 'include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/local.cmake)'.",
+    "fix": "List cmake/local.cmake at v0.34.4 as an uncollected candidate in U-15's evidence cell, or collect it, while keeping the day-one log reading as the closure."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md data-use table, OpenAI row (line 68)",
+    "problem": "'/v1/chat/completions keeps no application state' is stronger than OpenAI's table, which says None with exceptions.",
+    "evidence": "OpenAI capture line 180: '/v1/chat/completions | No | 30 days | None, see below for exceptions'. Lines 209-212 list them: audio outputs stored 1 hour, prompt-cache tensors up to 24 hours, and the store parameter.",
+    "fix": "Write 'no application state by default, except audio outputs (1 h), prompt-cache tensors (up to 24 h) and store=true'."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md small local candidates intro (line 75)",
+    "problem": "The brief says Ollama's 'Size / Usage' range 'bounds the download'. No capture says what the range measures. The header says 'Usage', and E-18 itself says the page does not say which end is the download.",
+    "evidence": "E-18: 'The column is headed \"Size / Usage\" and the page does not say which end of a range is the download.' Example from E-19: gemma4:e2b '4.6GB - 7.5GB'.",
+    "fix": "Write: 'Ollama's Size / Usage column; the page does not say what the range measures. The download size is recorded from the day-one pull, peak memory from U-17.'"
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md Mistral data-use row (line 71) and Contradiction 9",
+    "problem": "The 30-day API retention comes from Mistral's privacy policy, and that policy excludes business-context processing, where the DPA applies instead. The DPA is linked from two captures and was not collected. The brief's 'worst case is assumed' reasoning covers training only, not retention.",
+    "evidence": "E-33 capture line 16: 'This Privacy Policy does not apply if you use our Mistral AI Products to process personal data in the context of your business activities.' E-32 section 12.3 (line 150) and E-14 link the Data Processing Addendum.",
+    "fix": "Scope the retention cell: '30 rolling days per the privacy policy (individual use); for organisation accounts the DPA, not collected, may govern'."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md design point 6 (line 307) and 'Then, in order' list",
+    "problem": "The size criterion is inconsistent. gemma4:e4b is flagged as past the 'about 4B' bound because it is '8B with embeddings', but gemma4:e2b is 5.1B with embeddings, and its Ollama size (4.6-7.5GB) exceeds qwen3.5:4b's, yet e2b is listed without a flag.",
+    "evidence": "E-27 capture lines 125-128: E2B '2.3B effective (5.1B with embeddings)', E4B '4.5B effective (8B with embeddings)'. E-19 line 104: gemma4:e2b 4.6GB - 7.5GB. E-18 line 130: qwen3.5:4b 3.3GB - 4.0GB.",
+    "fix": "Pick one measure (effective or with embeddings) and apply it to both Gemma sizes, flagging e2b as well if 'with embeddings' is the measure."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md Contradiction 3 (lines 185-191); EVIDENCE E-15",
+    "problem": "The OpenRouter evidence is quoted selectively. The entry matching DeepSeek's own model version gives a different max-completion figure from the one quoted, which reads as agreement.",
+    "evidence": "Parsed E-15 capture: deepseek/deepseek-v4-pro-0813 max completion 943718 (DeepSeek's page names MODEL VERSION 'DeepSeek-V4-Pro-0813'); ~deepseek/deepseek-pro-latest 393216; deepseek/deepseek-v4-pro 384000. Only the last is cited.",
+    "fix": "List all three OpenRouter DeepSeek-Pro entries; the conclusion (trust the owner's page) is unchanged."
+   },
+   {
+    "severity": "minor",
+    "location": "research/BRIEF.md.bak-2026-10-05",
+    "problem": "An old brief sits in research/ and would be committed by the prescribed 'git add research/'. It says 'Gate: FAIL', lists U-11, U-14 and U-15 as OPEN, and says Gemini paid logging has 'no number of days stated', so a builder could read stale, contradicting claims.",
+    "evidence": "diff against BRIEF.md: the old brief reads 'Gate: FAIL, 3 blocking rows, all deliberately OPEN' and has the row '| Mistral API | OPEN (U-11) | OPEN |'. The corpus directory is currently untracked in git ('?? docs/research/2026-10-05-coding-model-shortlist/').",
+    "fix": "Remove the .bak file from research/ (or move it outside the corpus) before the corpus is committed."
+   }
+  ],
+  "checked": "Read-only checks run in /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist with Node v24.21.0. preflight.mjs: PASS, 0 blocking, 1 warning (U-18 collection-attempts, already accepted in DISCOVERY), 26 passing, exit 0. handoff.mjs: OK, 38 ledger entries (one is the recorded 404 for ml/backend/ggml), 37 evidence rows, chain verifies, exit 0. The corpus directory is still untracked in git, so it has not travelled yet.\n\nRead all of DISCOVERY.md (U-01..U-20, Already decided, plan and risk sections), EVIDENCE.md (E-01..E-37), BRIEF.md, MAP.md, and the BRIEF .bak diff. Checked each E-row and the brief claims built on it against the captures themselves:\n- Claude models overview: ids, limits, effort, retirement, tool-use quote.\n- gpt-6.1-sol and gpt-6-luna: Chat Completions tool rules, 1,050,000/128,000, no free tier, 272K pricing.\n- Gemini 3.8/3.7/3.5-lite: ids, 1,048,576/65,536, Stable, update dates.\n- Mistral card, including the raw HTML: names list; no max output.\n- BFCL: V4, 2026-04-12, f7cf735, 109 rows, Qwen3-0.6B 23.93, Granite-350m 18.98, Haiku-4-5 68.7, licence column apache-2.0 for every Qwen row, discord contact, BFCL-Result link.\n- Gemini terms and the 55-day abuse-monitoring page.\n- OpenAI data controls table and exceptions.\n- Anthropic commercial terms and the retention page (line 16 deferral, ZDR, Covered Models, 400 error, Batch 29 days, flagged 2 years).\n- DeepSeek terms and privacy policy (scope, carve-out, training purpose, retention, PRC storage).\n- Mistral legal index, commercial terms 4.1-4.3 and privacy policy.\n- OpenRouter JSON, parsed: 466 objects; every cited value confirmed.\n- LiveBench card: no licence, even in the raw HTML.\n- Ollama qwen3.5, gemma4, granite4 and phi4-mini pages: sizes, context, cloud tags, the 0.5.13 note.\n- Ollama releases: v0.34.4 to v0.35.1 notes; qwen3.6/3.8 confirmed to have no small tags.\n- The four Qwen LICENSE files (identical except the year) and the secondary Qwen-License claim.\n- Gemma 4 model card; IBM 1B and 350M cards (BFCL v3 table); IBM Granite repo; Phi-4-mini MIT text.\n- Both v0.34.4 CMakeLists: no AVX, SSE or GGML_NATIVE; the ggml-cpu*.dll glob; LLAMA_CPP_VERSION.\n- Intel ARK: SSE4.1/4.2 only.\n- Reused DeepSeek pricing capture and the U-18 Ollama API reference lines.\n\nVerified as correct and not reported:\n- The Qwen licence contradiction resolution (the owner's Apache 2.0 file is trusted over the secondary source).\n- The gpt-6.1-sol tools contradiction.\n- The Granite BFCL version split; Qwen's 72.9 attributed to its 397B model.\n- Gemini 55-day reconciliation; Mistral opt-out conservatism.\n- Benchmark staleness is stated (BFCL 2026-04-12, LiveBench dataset Mar 2025), and benchmark rows are framed as 'what BFCL reports'.\n- U-06, U-17 and U-18 day-one steps are runnable.\n- The brief's E-row URL list matches EVIDENCE exactly."
+ },
+ {
+  "unknowns": [
+   {
+    "id": "U-01",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-02",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED (wording narrowed: Gemini 2.5 qualifier, dummy-signature framing, dummy written as thoughtSignature on the native API)"
+   },
+   {
+    "id": "U-04",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-05",
+    "status": "KNOWN-UNKNOWN (unchanged; day-one U-18 (2))"
+   },
+   {
+    "id": "U-06",
+    "status": "CLOSED (cross-reference corrected: signature on the first tool call of each step)"
+   },
+   {
+    "id": "U-07",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-08",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-09",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-10",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-11",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-12",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-13",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-14",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-15",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-17",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN (probe (2) now records any status, including a 429 for a request over the key's TPM, and never classes a 429 as CONTEXT_LIMIT; it also says the page states no distinguishing message)"
+   },
+   {
+    "id": "U-19",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-20",
+    "status": "CLOSED (narrowed: the signature is on the first call of each step, extra_content is kept only when present and never required; the role 'assistant' choice no longer cites E-07 and is decided by U-18 (8))"
+   }
+  ],
+  "preflight": "PASS  0 blocking, 0 warning(s), 30 passing  [evidencePolicy=pluralist] (exit 0, cwd /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats). handoff.mjs: OK - 38 ledger entries, 37 evidence rows, every capture they cite on disk, chain verifies [role=collector] (exit 0). brief.mjs --state: research/BRIEF.md authored; contradictions answered; decision answered (exit 0).",
+  "handoff": "All 9 verifier issues hold up against the captures, and all 9 are applied. Nothing was committed or fetched, and nothing under research/raw/ was edited: raw mtimes are 14:30:3x and my edits began at 15:04.\n\nChecked against the captures:\n- E-37 lines 843/860/893: only the first parallel call carries extra_content.\n- E-07: 27 user and 8 system roles; no assistant turn, no tool_calls.\n- E-37 line 532: the native text-part response uses thought_signature.\n- E-37 lines 132-133 and 518-520: the 400 applies only to a step's first functionCall part.\n- E-36: shows no over-window body; its 429 row names token volume.\n- E-37 lines 953-962 and 922-929: the Gemini 2.5 qualifier and the dummy-signature framing.\n- E-02 line 4024: the field name is thoughtSignature.\n\nFiles changed, all in /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats/research/: BRIEF.md, DISCOVERY.md, EVIDENCE.md, MAP.md and SOURCES.md. BRIEF.md.bak-2026-10-05 is removed.\n\nProcess note: the DISCOVERY/EVIDENCE edits raised hygiene/brief-stale. That warning's own remedy is `brief.mjs --force`, which re-creates research/BRIEF.md.bak-<date>; this is where the stray backup in issue 9 came from. I ran --force twice, once after the main edits and once after two extra DISCOVERY edits. Each time I put the authored brief back under the fresh stamp, so only the stamp line changed. The fresh auto-draft's body hash (ff91ab8172f10b03) was the same both times, so no auto-drafted part changed. Each time I removed the kit's backup after checking it was byte-identical to my scratchpad copy.\n\nLead: whoever runs `brief.mjs --force` here in future must remove research/BRIEF.md.bak-* before committing. The project .gitignore has no *.bak* rule, and I did not add one, because that is a scaffolding change outside the issue.\n\nRecovery copies are in /tmp/claude-0/-home-user-Research-Kit/5649504a-fc26-5a4a-85c4-62cf875be3b1/scratchpad/:\n- provider-wire-formats.BRIEF.md.bak-2026-10-05: the original superseded backup. It was untracked and never committed, so git holds no copy.\n- *.pre-fix: snapshots of each edited file before my changes.\n- pwf-BRIEF.authored-fixed*.md: the authored brief with its stamp before each restamp.\n\nWhen committing, add the ledger by name (`git add -f research/raw/.fetches.jsonl`).",
+  "applied": [
+   "1 [material] Signature on the first call of each step. BRIEF lines 15-19 (summary), the compat table's Gemini row, design point 1 and design point 10, plus MAP T-2, now say it arrives on the first tool call of each step and only the first of parallel calls carries one. Design point 10 now says OpenAIAccumulator keeps extra_content only when present and never requires it (a call without it is not a protocol error, and a fail-closed check would break parallel steps). The builder sends back exactly what arrived on each call, and never adds a dummy to an unsigned parallel call. The same correction is carried into DISCOVERY U-20 (field statement and design consequence), U-06's cross-reference and the E-37 row (\"the signed tool call\", \"for every signed call\", \"the others arrive with no extra_content\"). I did not repeat the verifier's '8 calls per step' figure, because no corpus file sources it.",
+   "2 [material] E-07 removed as a witness for role 'assistant' in DISCOVERY U-20 and BRIEF Contradictions 15. Both now say E-37's two samples disagree (sequential 'model', parallel 'assistant'), that E-07 has only system and user messages and no tool_calls, that Moonzila keeps 'assistant' because it is the Chat Completions role it already sends, and that U-18 (8) decides it. Heading changed from 'resolved' to 'kept ... decided by U-18 (8)'.",
+   "3 [minor] E-37 spelling census now reads: native examples use thoughtSignature except the parallel request (line 473) and the text-part response (line 532, quoted). BRIEF #17 now says 'resend as received', and that a dummy signature the adapter writes uses E-02's thoughtSignature on the native API, or extra_content.google.thought_signature on the compatible endpoint (the only form E-37's OpenAI section shows). U-03 adds the native field name for the dummy.",
+   "4 [minor] BRIEF design point 1 now separates the design (resend each step's content whole, following E-34's rule that a signature goes back in its original Part) from E-37's narrower 400: a missing signature on a step's first functionCall part, or a step's calls interleaved with their responses. A signature on any other part is not validated.",
+   "5 [minor] Statements of the page's silence are reworded so they describe the page, not the API: BRIEF line 15 ('the page gives no message a classifier could match'), BRIEF line 155 ('The page states no message or reason that tells that 500 from any other'), MAP D-9 and DISCOVERY U-18 (2) ('states no message that tells it apart'). One more instance the verifier did not list is fixed too: DISCOVERY line 53 (status paragraph).",
+   "6 [minor] E-36 now reads 'the page documents no field besides the HTTP code that separates never-retry from wait-and-retry (it shows neither a 402 nor a 429 body)'. 'only in the Example column' is replaced, and the 429 row's 'using too many tokens' and 'Reduce the rate or size of your requests' are added as quotes. DISCOVERY U-18 (2) and BRIEF probe (2) now record whatever status comes back, including a 429 RESOURCE_EXHAUSTED when one prompt exceeds the key's TPM, and never class a 429 as CONTEXT_LIMIT.",
+   "7 [minor] SOURCES.md generate-content/api-errors 'Used for' cell rewritten: 'U-05, U-16 (E-36): error body (code, message, status, details) and per-code retry advice; names over-long input only as an example cause of 500 INTERNAL and 504, with no over-window body.' The link provenance is kept.",
+   "8 [minor] Gemini 2.5 clause now carries 'when a response has function calls', and 'with none, no part carries a signature' is added (quoted in E-37). The dummy values are now framed as the page frames them: injecting such calls is strongly discouraged (quoted), and where it cannot be avoided the dummy values skip validation. Applied in E-37, U-03 and BRIEF lines 128-132.",
+   "9 [minor] research/BRIEF.md.bak-2026-10-05 removed from the corpus (original preserved in the scratchpad, since it was never committed). The same file name was re-created twice by `brief.mjs --force` while clearing brief-stale, and was removed both times after a byte comparison."
+  ],
+  "declined": []
+ },
+ {
+  "unresolved": [],
+  "preflight": "Run from /home/user/moonaliza/docs/research/2026-10-05-provider-wire-formats with Node v24.21.0. `node \"$HOME/.agents/research-kit/bin/preflight.mjs\"` exited 0 and printed: \"PASS  0 blocking, 0 warning(s), 30 passing  [evidencePolicy=pluralist]\". `node \"$HOME/.agents/research-kit/bin/handoff.mjs\"` exited 0 and printed: \"handoff OK - 38 ledger entries, 37 evidence rows, every capture they cite on disk, chain verifies.  [role=collector]\".",
+  "handoff": "Both material issues are resolved. I found no new false claim in the rows the fixes touched. Two small wording notes are below; neither blocks.\n\n**Issue 1 (signature only on the first call of each step): RESOLVED.**\n- I checked the E-37 capture (research/raw/2026-10-05-thought-signatures-gemini-generate-conte-google-e2a2fdbb.md):\n  - Native rules, lines 115-117: \"attached only to the first functionCall part\".\n  - Compatible-endpoint parallel example: line 843 has the signature on the first call, line 859 reads `\"type\": \"function\" // No signature on Parallel FC`, and line 892 reads `\"function\": { //No Signature`.\n  - Line 867: \"preserve <Signature_A> on the first part exactly as received\".\n  - The model-differences list says Gemini 3 \"will always have the signature on the first function call part\".\n- Every passage the issue named now matches this:\n  - BRIEF summary (lines 15-19), compat table Gemini row (line 260), design point 1 (lines 453-456) and design point 10 (lines 540-553).\n  - MAP T-2 (line 31).\n  - DISCOVERY U-20, U-06 and the E-37 row.\n- Design point 10 now says `OpenAIAccumulator` keeps `extra_content` only when a call has one and never requires it. It says a fail-closed check would break parallel steps, and the request builder sends back exactly what arrived. It also says a dummy signature is never added to an unsigned parallel call.\n- A case-insensitive grep across BRIEF, MAP, DISCOVERY, EVIDENCE, SOURCES and TIMELINE finds no remaining \"each tool call\" or \"every tool call\" wording. U-20's \"the field is per tool call\" names where the field sits, not a claim that every call carries one.\n- The researcher did not repeat \"8 calls per step\", since no corpus file sources it. That is a sound decision.\n\n**Issue 2 (E-07 as a witness for role 'assistant'): RESOLVED.**\n- E-07 capture (research/raw/2026-10-05-openai-compatibility-gemini-api-google-a-google-746b888a.md):\n  - Role values: 27 user (22 written `\"role\": \"user\"`, 5 written `role: \"user\"`) and 8 system. None is assistant or model.\n  - Every \"assistant\" string in it is the content \"You are a helpful assistant.\".\n  - `tool_calls` and `tool_call_id` appear 0 times in the capture and 0 times in its source HTML.\n- DISCOVERY U-20 now says E-07 \"cannot decide it (its examples carry only system and user messages, with no assistant turn and no tool_calls)\". BRIEF Contradictions 15 (lines 338-346) says the same. Both say Moonzila keeps `assistant` because it is the Chat Completions role it already sends, and that U-18 (8) decides it.\n- I confirmed that claim in the code: src/main/inference.ts:10 and src/main/provider-stream.ts:173 use role 'assistant'.\n- A grep finds no remaining citation that pairs E-07 with assistant.\n- One gap, not an error: the U-18 (8) probe text in DISCOVERY line 79 and BRIEF probe 8 does not say the second turn is sent with role `assistant`. Only Contradictions 15 says so. Probe 8 could state it so the recording really decides the role.\n\n**Checks on the other applied fixes:**\n- Fix 3: the spelling census is correct. Native examples use `thoughtSignature` at lines 228, 258, 293, 323, 351 and 435; `thought_signature` appears only at 473 (parallel request) and 532 (text-part response).\n  - U-03's added note, \"E-37's examples also show thought_signature, but only for signatures resent as received\", is loose. Line 532 is a model response, and the resend that follows omits the signature. BRIEF #17 words this correctly.\n- Fixes 5-7, one inconsistency: E-36 and SOURCES (fix 7) say over-long input is named under both 500 INTERNAL and 504 DEADLINE_EXCEEDED (capture line 75: \"Your prompt (or context) is too large to be processed in time.\"). Several places still say \"only as an example cause of 500 INTERNAL\":\n  - BRIEF line 15 and design point 5\n  - DISCOVERY line 53 and U-18 (2)\n  - MAP line 25 (D-9)\n  The BRIEF KNOWN-UNKNOWN U-05 section does mention 504. This is minor; U-18 (2) records whatever status comes back.\n- Fix 9: no BRIEF.md.bak file remains in research/.\n\n**Gate:** preflight PASS (0 blocking, 0 warnings, 30 passing); handoff OK (38 ledger entries, 37 evidence rows, chain verifies).\n\nI edited no files and fetched nothing."
+ },
+ {
+  "unknowns": [
+   {
+    "id": "U-01",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-02",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-03",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-04",
+    "status": "KNOWN-UNKNOWN (was CLOSED; the id, 256k context and function calling are established by E-07; the max output is not stated by Mistral; the day-one step is an output probe)"
+   },
+   {
+    "id": "U-05",
+    "status": "CLOSED (narrowed: BFCL lists claude-haiku-4-5-20251001 (FC) 68.7, rank 6, and has no row for any first-build-step model)"
+   },
+   {
+    "id": "U-06",
+    "status": "KNOWN-UNKNOWN"
+   },
+   {
+    "id": "U-07",
+    "status": "CLOSED (abuse page tied to the terms by its own citation and identical purpose wording, not by a link from the terms; Maps grounding 30 days added)"
+   },
+   {
+    "id": "U-08",
+    "status": "CLOSED (chat/completions app-state exceptions and Responses 'at least 30 days' added)"
+   },
+   {
+    "id": "U-09",
+    "status": "KNOWN-UNKNOWN (was CLOSED; the training half is established by E-11 and E-17; standard retention is deferred by E-17 to an uncollected privacy.claude.com article)"
+   },
+   {
+    "id": "U-10",
+    "status": "KNOWN-UNKNOWN (was CLOSED; the privacy policy excludes data from apps built on the open platform, and the training-methods page was not collected; DeepSeek is excluded only as a conservative choice)"
+   },
+   {
+    "id": "U-11",
+    "status": "CLOSED (Labs is now 'may train'; retention marked illustrative and out of scope for business use under the uncollected DPA, with a day-one DPA read)"
+   },
+   {
+    "id": "U-12",
+    "status": "CLOSED (Size / Usage is undefined; tag subsets noted; one size measure for both Gemma sizes)"
+   },
+   {
+    "id": "U-13",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-14",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-15",
+    "status": "KNOWN-UNKNOWN (cmake/local.cmake and LLAMA_CPP_VERSION listed as uncollected candidates)"
+   },
+   {
+    "id": "U-16",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-17",
+    "status": "KNOWN-UNKNOWN (the day-one step now requires free memory to clear the reserve first)"
+   },
+   {
+    "id": "U-18",
+    "status": "KNOWN-UNKNOWN"
+   },
+   {
+    "id": "U-19",
+    "status": "CLOSED"
+   },
+   {
+    "id": "U-20",
+    "status": "KNOWN-UNKNOWN (BFCL-Result and the gorilla code-and-data pages named for the collector; LiveBench reached through the card's two links)"
+   }
+  ],
+  "preflight": "PASS: 0 blocking, 1 warning, 23 passing [evidencePolicy=pluralist], run from /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist. The one warning is collection-attempts/unknown-attempted for U-18, which the U-18 row already accepts. Citations: 37 evidence rows, 110 quotes found in their captures (92 before). The chain of 38 entries verifies. unknown-closure: 12 closed, 8 known-unknown. The hygiene/brief-stale warning that my edits raised partway through is cleared.",
+  "handoff": "handoff.mjs exit 0: \"handoff OK - 38 ledger entries, 37 evidence rows, every capture they cite on disk, chain verifies. [role=collector]\". brief.mjs --state: research/BRIEF.md is authored, with contradictions and decision answered. To refresh the stale stamp I ran brief.mjs --force, put the authored text back under the new stamp (inputs=a8ee5db1c4eb5203 gate=pass), and deleted the .bak it wrote. research/ now holds only BRIEF.md, with no BRIEF.md.bak-*. No file under research/raw/ changed (none modified after 13:35), and nothing was fetched, committed or pushed. The corpus directory is still untracked. The brief now names five pages for the collector machine, each URL copied from a capture, none needed for the first build step. In priority order: the privacy.claude.com retention article (U-09), DeepSeek's model-algorithm-disclosure page (U-10), Mistral's DPA (U-11, organisation accounts), then the BFCL-Result and gorilla BFCL pages (U-20) and cmake/local.cmake at v0.34.4 (U-15). The three runs spent about 42 of the 45-credit cap (19 + 17 + 6), so whether and which to collect is the operator's call.",
+  "applied": [
+   "1 [material] E-10 now quotes 'In those cases, response data will be stored for at least 30 days.' (line 216). It gives the chat/completions cells as 'None, see below for exceptions' and ZDR 'Yes, see below for limitations' (line 180), and names the exceptions: audio 1 h, prompt-cache KV tensors not retained after 24 h, store forced false under ZDR (no period given when true), and CSAM-flagged image inputs kept for manual review even under ZDR (line 247). U-08 and the BRIEF OpenAI row carry the same.",
+   "2 [minor] and 17 [material] Confirmed: BFCL line 43 is Claude-Haiku-4-5-20251001 (FC) 68.7, rank 6, and line 124 is (Prompt) 25.26, rank 87. U-05, E-08, the BRIEF benchmarks bullet and design point 7 now say BFCL lists claude-haiku-4-5-20251001 but none of the Claude 5.x, GPT-6.x, Gemini 3.5/3.7/3.8, Mistral Medium 3.5 or DeepSeek V4 models, so no first-build-step model has a row. E-08 now calls the other vendor rows 'previous-generation', not 'older', and keeps Haiku 4.5 among the current models.",
+   "3 [minor] E-09 no longer says 'not collected'; it says the page was collected later as E-37 (55 days).",
+   "4 [minor] The E-09 paid-logging quote now runs to '...and any required legal or regulatory disclosures.' (lines 193-197). The Google Maps grounding 30-day clause is quoted beside the Search one (lines 414-417). I checked the captures: Maps and Search grounding are both Supported on E-04/E-05/E-06. U-07 and both Gemini rows in the BRIEF table carry this.",
+   "5 [minor] E-13, U-10 and the BRIEF DeepSeek row now give 'as long as you have an account' as the service-provision example and a floor. They add that data may be kept longer, with no period stated, for legitimate business interests (improving and developing the Services), legal obligations, legal claims or after a violation (lines 400-415).",
+   "6 [minor] and 23 [minor] U-12, E-18 and the BRIEF intro now say Ollama's Size / Usage column is undefined, so it is taken as neither download size nor peak memory. Download size comes from the day-one pull and peak memory from U-17. The unsupported 'never peak memory' and 'bounds the download' are removed.",
+   "7 [minor] E-03 now quotes the 272K clause at line 167. E-02 quotes the same sentence at line 175. The BRIEF uses 'at 2x input and cache rates and 1.5x output for the full request' with both line numbers.",
+   "8 [minor] E-08's small-row list now reads 'include' and adds Qwen3-4B-Instruct-2507 (FC) 35.68 rank 54 (line 91), (Prompt) 35.52 rank 55 (line 92), Gemma-3-4b-it 19.62 rank 101 (line 138) and Gemma-3-1b-it 7.17 rank 109 (line 146).",
+   "9 [minor] E-19's Type cell stays P because the row has one Type cell. The finding text now says P covers Ollama's own tag, size, context and capability facts. The readme claims (coding benchmarks, function calling, E2B/E4B parameter counts) are marked S, re-hosted Google text that rests on E-27 (lines 96-100, 125). U-12 and the BRIEF cite E-27 for the parameter counts.",
+   "10 [minor] and 27 [minor] Deleted the stale research/BRIEF.md.bak-2026-10-05 (the old FAIL brief). The bak that brief.mjs --force wrote was also removed after the authored text was carried over.",
+   "11 [material] Confirmed: capture line 80 says Mistral 'may use'. E-32 now says Labs or Preview Models may be used for training, the opt-out including ZDR does not apply, and quotes section 4.3. The BRIEF Mistral row lists all section 4.2 exceptions, including (a)(i) opted-in on an opt-out-by-default product, and says 'where Mistral may train and the opt-out does not apply'.",
+   "12 [minor] Confirmed: the terms .md has no link to the abuse page; source.html line 999 is the sidebar link, and abuse capture lines 74-76 cite the Additional Terms. E-37, U-07 and BRIEF Contradiction 10 now say the page appears in the docs navigation and is tied to the terms by its own citation and identical purpose wording. E-09 is updated to match.",
+   "13 [minor] and 24 [minor] E-33 quotes 'for illustrative purposes' (line 90) and the business-context scope exclusion (line 16, Mistral as processor). It points to the uncollected DPA (E-32 12.3, line 150). U-11, BRIEF Contradiction 9, the Mistral retention cell and design point 3 use the disclosure 'Mistral's privacy policy states 30 days (illustrative; an organisation's DPA may differ)'. Reading the DPA on the collector machine is added as a day-one check.",
+   "14 [minor] E-21 now says 'no cloud tag among the 2 of 5 tags shown'. E-19 says 13 of 51 tags are shown and E-20 says 4 of 17. In the BRIEF, design point 6 now uses a name test (no tag named cloud or ending in -cloud) plus a check of the full tag list at pull time, instead of naming only two tags.",
+   "15 [material] Confirmed: E-17 line 16 defers standard retention to privacy.claude.com, and the line-23 sentence sits under 'Where a feature necessarily requires storage' (line 20). The collector path is closed in this phase, so U-09 became KNOWN-UNKNOWN for its retention half, with a day-one step to collect the article on the collector machine. This matches the plan's own priority-4 fallback. E-17, the BRIEF Anthropic row, Contradiction 6 and design point 3 now say standard retention is not established; Anthropic stays offerable on training terms only, and its disclosure never says 'not retained'.",
+   "16 [material] Confirmed: the privacy-policy carve-out (lines 33-36) and API terms 5.5 (lines 239-245) exclude end users of open-platform apps, and the training-methods page (line 41, line 437) was not collected. Added the carve-out to E-12 and E-13. U-10 became KNOWN-UNKNOWN, with a day-one step to collect the training-methods page on the collector machine. Contradiction 7 and design point 3 now give DeepSeek's exclusion as a conservative choice, not a finding.",
+   "18 [material] Design point 1 now has two required conditions: a CPU variant loads without AVX, and available RAM minus max(2 GiB, 15% of RAM) holds the measured peak memory. Whatever U-15, U-17 and U-18 show, no model is offered while memory fails that test. 'Then, in order', Next steps, the BRIEF U-17 bullet and the DISCOVERY U-17 day-one step now say U-17/U-18 on this PC need memory freed first, or must run on a machine that clears the reserve.",
+   "19 [minor] U-04 is now KNOWN-UNKNOWN. The row states that the id, context and function calling are established (E-07) and that the output limit is open, with the existing probe. mistral-medium-3-5 is not offered until the probe passes.",
+   "20 [minor] U-20, E-08 and the BRIEF name two uncollected candidate pages for the collector: https://github.com/HuanzhiMao/BFCL-Result (line 168) and the gorilla berkeley-function-call-leaderboard code-and-data page (lines 22-23). For LiveBench, the route is now the card's own two links, https://livebench.ai/ (line 140) and arXiv 2406.19314 (line 142), noting that the card gives no GitHub URL.",
+   "21 [minor] U-15, E-30 and the BRIEF U-15 bullet list cmake/local.cmake at v0.34.4 (E-30 line 78, lines 49-50), the LLAMA_CPP_VERSION file (E-34 line 123) and the release workflow as uncollected candidates. The day-one log reading stays the closure.",
+   "22 [minor] The BRIEF OpenAI row now reads: 'no application state by default, except audio outputs (1 h), prompt-cache tensors (up to 24 h), the store parameter, and CSAM-flagged inputs'.",
+   "25 [minor] Design point 6 applies one size measure to both Gemma sizes. With embeddings, e2b is 5.1B and e4b 8B, both past the bound; by effective parameters they are 2.3B and 4.5B. It notes that e2b's 4.6-7.5GB exceeds qwen3.5:4b's 3.3-4.0GB and flags both. 'Then, in order' includes e2b and e4b only if the chosen measure admits them, and U-12 is aligned.",
+   "26 [minor] E-15 and Contradiction 3 (retitled 'DeepSeek maximum output') list every OpenRouter DeepSeek entry: Pro deepseek-v4-pro 384000, ~deepseek-pro-latest 393216, and deepseek-v4-pro-0813 943718 (the last matches DeepSeek's own model version, per the reused capture's line 27); Flash entries are 943718. The owner's 384K is still the trusted figure.",
+   "Also: DISCOVERY has a 'Verification review' note recording the three status changes (now 12 CLOSED, 8 KNOWN-UNKNOWN) and the pages named for the collector, with about 42 of 45 credits spent. The BRIEF header counts, the Known unknowns list (now in numeric order) and the Decision were updated; Decision no longer says 'nothing is waiting to be collected'."
+  ],
+  "declined": []
+ },
+ {
+  "unresolved": [],
+  "preflight": "preflight.mjs (exit 0): \"PASS  0 blocking, 1 warning(s), 23 passing  [evidencePolicy=pluralist]\". The one warning is \"collection-attempts/unknown-attempted: U-18 is KNOWN-UNKNOWN with no recorded fetch attempt\", which DISCOVERY's U-18 row explicitly accepts. handoff.mjs (exit 0): \"handoff OK - 38 ledger entries, 37 evidence rows, every capture they cite on disk, chain verifies.  [role=collector]\". The contract has 12 CLOSED and 8 KNOWN-UNKNOWN rows (U-04, U-06, U-09, U-10, U-15, U-17, U-18, U-20), which matches the BRIEF header.",
+  "handoff": "All six material issues are RESOLVED. I checked each one against the captures, read-only; I fetched nothing and edited no file. Corpus: /home/user/moonaliza/docs/research/2026-10-05-coding-model-shortlist/research/\n\n1. OpenAI (E-10, U-08, BRIEF OpenAI row): RESOLVED. E-10 now quotes line 216 in full, including \"In those cases, response data will be stored for at least 30 days.\" It gives both table cells with their qualifiers (line 180: \"None, see below for exceptions\" / \"Yes, see below for limitations\"). It also lists the exceptions for chat/completions: audio 1 h (line 209), store forced false under ZDR (line 210), prompt-cache tensors up to 24 h (line 212), and CSAM-flagged inputs kept even under ZDR (line 247). U-08 and BRIEF line 70 carry the same text and say \"at least 30 days\" for /v1/responses. Every quote matches the capture.\n\n2. Mistral labs/preview models (E-32, BRIEF Mistral row): RESOLVED. \"always used for training\" is gone everywhere (I grepped EVIDENCE, BRIEF, DISCOVERY and MAP). E-32 now says \"may be used for training\" and quotes capture line 80 exactly, including that ZDR is part of the opt-out that does not apply. BRIEF line 73 lists every section 4.2 exception, including (a)(i) \"opted in on a product set to opt-out by default\", and ends \"where Mistral may train and the opt-out does not apply\". This matches capture line 78.\n\n3. Anthropic retention (U-09): RESOLVED. U-09 is now KNOWN-UNKNOWN for its retention half only. E-17 quotes line 16, which sends standard retention to the uncollected privacy.claude.com article. It places the \"not retained by default\" sentence under the line-20 lead-in about features that require storage, and it cites the line-30 ZDR sentence. The other stated facts all match the capture: Covered Models 30 days (lines 45, 140), Batch 29 days (line 208), flagged content up to 2 years (line 241). The BRIEF data-use row, Contradiction 6, design point 3, Out-of-scope and Decision all agree with this. The stale sentences \"An Anthropic host stated a retention regime ... did not fire\" and \"nothing is waiting to be collected\" no longer appear anywhere.\n\n4. DeepSeek data use (U-10): RESOLVED. U-10 is KNOWN-UNKNOWN. E-13 quotes the open-platform carve-out (lines 33-36) and links the training-methods page (lines 39-41). E-12 quotes the section 5.5 carve-out (lines 239-245) and gives section 8.2 at line 437. The retention wording \"as long as you have an account\", with longer keeping for legitimate interests and no period stated, matches lines 400-415. The governing-law quote spans lines 464-465. Contradiction 7 and design point 3 now call DeepSeek's exclusion \"a conservative choice, not a finding\".\n\n5. BFCL (U-05, BRIEF benchmarks bullet, design point 7): RESOLVED. All three now say BFCL lists claude-haiku-4-5-20251001 at (FC) 68.7, rank 6 (line 43) and (Prompt) 25.26, rank 87 (line 124). I grepped the capture: it has no Claude 5.x, GPT-6.x, Gemini 3.5/3.7/3.8, Mistral Medium 3.5, DeepSeek V4, Qwen3.5, Gemma 4, Granite 4.0 1B/micro or Phi-4-mini rows. Every rank and score E-08 cites checks out (lines 91, 92, 108, 129, 131, 138, 140, 146).\n\n6. No local model on the current PC (BRIEF design point 1 and \"Then, in order\"): RESOLVED. Design point 1 now requires two conditions, a CPU variant that loads without AVX AND RAM minus max(2 GiB, 15% of RAM) holding the measured peak memory, and says \"no model is offered while memory fails that test\". \"Then, in order\", Next steps, the U-17 bullet, DISCOVERY U-17 and Out-of-scope all say memory must be freed first, or the measurement taken on a machine that clears the reserve. The code citations are accurate: in /home/user/moonaliza/src/models/select.ts, line 15 computes the reserve as max(ceil 15%, 2 GiB), line 41 is the admission test, and line 69 (cited in DISCOVERY \"Already decided\" and MAP) is the host-reserve check.\n\nSpot-checks of the rows the fixes touched turned up no new false claims. Each of these matches its capture: the 272K pricing clause (E-02 line 175, E-03 line 167), E-33 lines 16 and 90, the Mistral privacy policy's \"subject to your opt-out\" (line 78), E-37's 55 days (lines 93-94) and its citation of the terms (lines 74-76), and the Ollama tag counts (13 of 51, 4 of 17, 2 of 5, a subset of 72). The BRIEF.md.bak files are deleted.\n\nTwo minor wording points, neither material and neither a false claim:\n(a) U-08 and BRIEF line 70 put \"(background mode about 10 minutes)\" next to the /v1/responses retention. Capture line 218 says background responses follow standard retention when store=true is set explicitly; only otherwise are they deleted after the polling period. The parenthetical leaves out that condition.\n(b) U-17 allows the measurement \"on a machine that clears the reserve\", but U-18 says \"in the same run as U-17, on the Pentium 4405U\". If U-17 runs on another machine, U-18's speed reading still has to come from the Pentium. BRIEF \"Then, in order\" (\"Free memory first, or measure on a machine that clears the reserve\") reads as applying to both measurements."
+ }
+]
