@@ -1,0 +1,105 @@
+# Moonzila Maintenance — proposed plan
+
+**Recommendation:** build a Maintenance Center that can check Moonzila on a schedule, explain failures, and prepare fixes—but keep testing, code repair, and updating as separate steps. A test passing is useful evidence, not proof that an AI-generated change is safe to install automatically.
+
+## 1. Separate the two kinds of “self-check”
+
+An **installed Moonzila app** and a **Moonzila source checkout** can do different things:
+
+- **Installed-app check:** check the app’s own files, startup health, saved diagnostics, and whether a trusted official update is available. If its installation is damaged, the safe repair is restoring a verified official version.
+- **Developer self-test:** when Moonzila’s source checkout is available, run its development checks and investigate code failures. This is where an isolated AI-proposed code fix could fit.
+
+A regular installed copy should not be expected to contain the source repository and development setup required to run the full test suite.
+
+## 2. What the user sees
+
+Add **Settings → Maintenance**, with:
+
+- A user-selected check time and frequency.
+- **Quick check** and **Full check** schedules; recommend quick daily and full weekly.
+- An option to run while Moonzila is open but minimized.
+- “Wait until idle” and “Run a missed check next time Moonzila starts” options.
+- A clear repair policy: **Report only** by default; separately opt into repairing the app from an official release or preparing a source-code fix for review.
+- A **Run now** button, **Stop** button, and history of reports.
+
+If Moonzila is closed, the first version should simply record that a run was missed and try next time it starts. Running checks while it is fully closed would require a separate background mechanism; choose that only after researching and designing its security and installation behavior.
+
+## 3. What each check does
+
+### Quick check
+
+Run inexpensive, non-destructive checks, such as:
+
+- Confirm the installed version and verify its files against a trusted release manifest.
+- Check whether the previous run or startup recorded a crash.
+- Confirm that the environment has what the selected check needs.
+- In Developer mode, run a small set of suitable smoke checks.
+
+### Full check
+
+In Developer mode, use the project’s **existing Windows CI workflow as the source of truth**—not a new, improvised list of commands. It currently includes dependency setup, the native helper, the pinned Research-Kit validator, typecheck, lint, tests, build, runtime checks, and desktop journeys.
+
+### Break-test
+
+Keep this distinct from ordinary tests. Break-tests intentionally probe failure conditions, so run them **only in a disposable source copy**, never against Moonzila’s running installation, a user’s active workspace, or their saved data. Record a baseline first and compare failures against it. A failure caused by a missing tool or unsupported environment should be reported as **Blocked**, not labeled a Moonzila bug.
+
+## 4. How failures turn into possible fixes
+
+Use this bounded process:
+
+```text
+Scheduled check
+  → preflight the environment
+  → run safe checks in isolation
+  → classify and report the result
+  → if a code failure is reproducible, prepare a patch separately
+  → rerun the regression check and relevant quality gate
+  → show the patch and evidence for approval
+  → only then consider a verified release/update
+```
+
+For a code fix, Moonzila should:
+
+1. Reproduce the failure.
+2. Make a small patch in a separate worktree or disposable copy.
+3. Prove the relevant test fails without the fix and passes with it.
+4. Rerun the relevant checks and compare the results with the baseline.
+5. Show the diff, affected files, commands, and results.
+
+**Default policy:** the AI may propose the source patch, but it does not silently replace the running app, merge the change, or publish a release. Automatic repair should initially be limited to restoring Moonzila from a verified official release—not modifying its own source code.
+
+## 5. Technical shape
+
+Keep maintenance separate from inference scheduling. The existing `src/engine/scheduler.ts` coordinates inference/runtime work; it is not a daily maintenance scheduler.
+
+A new maintenance feature would need:
+
+- A durable record for each run, so status and results survive a restart.
+- A main-process coordinator to decide when a run is due.
+- A supervised worker for approved, allowlisted check commands, with safe cancellation and process cleanup.
+- A report view that distinguishes **Passed**, **Failed**, **Blocked**, **Skipped**, and **Needs review**.
+- A repair workspace that cannot write to the running installation or the user’s active project.
+- Logs with secrets redacted, and an explicit policy before any code is sent to a cloud model.
+
+## 6. Build it in stages
+
+1. **Requirements and research:** settle the supported modes, privacy rules, busy/missed-run behavior, and what “automatic repair” may do. Before implementation, verify the Windows scheduling, signing, update, and rollback details rather than guessing.
+2. **Manual report-only check:** add “Run check now” and readable reports. No scheduling, code edits, or updates yet.
+3. **Scheduled checks:** add the user’s daily/weekly schedule, idle behavior, missed-run handling, persistence, and cancellation. Start with checks while Moonzila is running.
+4. **Isolated break-tests:** add controlled probes in a disposable checkout, with baseline comparison and resource/time limits.
+5. **AI patch proposals:** let the agent prepare and verify candidate fixes in that isolated copy; show the diff for approval.
+6. **Trusted repair and updates:** only after the release path supports verification and recovery. Test the updated app at startup and keep a way back to the previous working version.
+
+## 7. What “done” should mean
+
+- A scheduled run does not interrupt Build, inference, or an active user operation.
+- A run is recorded once, can be stopped, and its result survives a restart.
+- Tests do not modify user work or use their credentials.
+- Failures caused by environment problems are reported as blocked, not misdiagnosed as code defects.
+- AI code changes stay isolated until reviewed.
+- No AI-generated patch becomes an installed update merely because a test passed.
+- The exact Windows quality gate is green before a code fix is considered for release.
+
+**Where Moonzila stands:** the repository already has a Windows quality gate and break-test guidance, but the break-test is not currently an in-app feature. The project notes also list diagnostics, updates, signing, and broader installed-app qualification as unfinished. So this is a new feature, not a switch we can turn on today.
+
+One limitation for turning this plan into implementation: the project’s Research-Kit is not installed in the current workspace, so I have not verified the platform-specific scheduling or update details. Those should be an explicit research step before choosing the exact Windows mechanism. No code was changed for this plan.

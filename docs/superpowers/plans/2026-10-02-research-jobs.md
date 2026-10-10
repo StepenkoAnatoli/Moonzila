@@ -570,3 +570,9 @@ Both questions were answered through Research-Kit corpora with a ledger and a pa
   - **Supply chain: a standing rule** (from gpt-pilot's ten-month hidden loader). No telemetry in the engine. Every external tool is pinned by hash and reviewed, as Research-Kit is. An unmaintained dependency is a risk to remove.
 
   tffm is unrelated. The GitHub research-and-development topic page refused the fetch, so it remains a known unknown.
+
+## Inputs reviewed October 10 (not approved)
+
+Two proposals the user shared on 2026-10-10 were checked against this code and SmartRouter's in `docs/orchestration/2026-10-05-more-models/reports/2026-10-10-ideas-review.md`. Neither is approved, and nothing was built from them.
+- SmartRouter's Phase 6 "advisory UI" design note (review section 1): input for More models direction 3; whether to adopt it, and which component selects models, are questions for the More models Mandate.
+- A Maintenance self-check plan (review section 2): its code-fix rules overlap "Self-unblocking with research"; recording its principles as decisions is the user's call.
