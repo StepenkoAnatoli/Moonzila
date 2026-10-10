@@ -1,0 +1,90 @@
+{
+  "topic": "Which cloud and local coding models are worth offering in Moonzila as of 2026-10-05: current API model ids with context and output limits, tool-calling reliability, how vendors use and retain API inputs, and for small local models their licences, Ollama availability and sizes, runtime version and CPU requirements",
+  "notes": "Run 2 of 2, the local side: 14 owner pages named directly plus 1 search keeping 1 page = 15 pages (maxScrapes 15), about 17 credits. Run it after research/plan.json; pages already captured are cache hits and cost nothing. No plan-level prefer (review round 1, fix 3). Where each URL comes from (grep of every raw capture under docs/, 2026-10-05; full table in research/DISCOVERY.md under Collection plan): linked from an existing capture - the four Ollama library pages, the Ollama releases page, the Gemma 4 model card; linked from no capture, pattern-derived, may 404 - the Qwen3-0.6B and three Qwen3.5 LICENSE files, the granite-4.0-1b card, the Phi-4-mini-instruct LICENSE, and both CMakeLists.txt files at v0.34.4 (the tag's raw path is proven by three v0.34.4 captures in docs/handoff/work/research; main's capture shows a commit moving GGML to llama-server, so the ggml path may differ at the tag). Licences are read on each publisher's own host: Ollama redistributes the weights and shows only the default tag's layers, so its licence layer is context. A licence URL that 404s is replaced by the publisher repository link a run-2 capture gives (the Ollama library pages are in this run), copied, as a conditional page - not by a guessed second spelling (review round 2, fix 5; research/DISCOVERY.md, Capture risks). Not collected again, by decision: the qwen3:0.6b tag size and the Ollama Windows requirements (docs/handoff/work/research E-17, E-11). Budget: about 35 credits for runs 1 and 2 together; the conditional pages and the order in which they give way at the 45-credit cap are in research/DISCOVERY.md under Capture risks.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 1,
+  "maxScrapes": 15,
+  "queries": [
+    {
+      "q": "Intel Pentium Processor 4405U specifications instruction set extensions",
+      "why": "U-16: whether the user's CPU supports SSE4.1, SSE4.2, AVX and AVX2 (Intel ARK); a kept page is type S until read, promoted to P only if it is on intel.com; no intel.com page makes U-16 a KNOWN-UNKNOWN with the measurement in DISCOVERY",
+      "prefer": [
+        "intel.com"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://ollama.com/library/qwen3.5",
+      "type": "P",
+      "why": "U-12, U-17: Qwen3.5 0.8b, 2b and 4b tags, sizes, context, capabilities, cloud tags, minimum Ollama version (linked from the 2026-10-02 library capture)"
+    },
+    {
+      "url": "https://ollama.com/library/gemma4",
+      "type": "P",
+      "why": "U-12: Gemma 4 e2b and e4b tags, sizes, context, cloud tags, minimum Ollama version (linked from the 2026-10-02 library capture)"
+    },
+    {
+      "url": "https://ollama.com/library/granite4",
+      "type": "P",
+      "why": "U-12: Granite 4 350m, 1b and 3b tags, sizes, context, minimum Ollama version, and the Hugging Face repositories the tags come from (linked from the 2026-10-02 library capture)"
+    },
+    {
+      "url": "https://ollama.com/library/phi4-mini",
+      "type": "P",
+      "why": "U-12: Phi-4-mini 3.8b tag, size, context, minimum Ollama version (linked from the 2026-10-02 library capture)"
+    },
+    {
+      "url": "https://github.com/ollama/ollama/releases",
+      "type": "P",
+      "why": "U-13: latest Ollama release against the pinned v0.34.4, and model support in the notes since (linked from three existing captures)"
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B/blob/main/LICENSE",
+      "type": "P",
+      "why": "U-14: the licence text of the already pinned qwen3:0.6b, against the secondary claim of a Qwen License (pattern-derived from the linked Qwen3-32B LICENSE, may 404) On a 404, replaced by the repository link a run-2 capture gives, copied, as a conditional page."
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/main/LICENSE",
+      "type": "P",
+      "why": "U-14: the licence text of qwen3.5:0.8b from Qwen's own repository (pattern-derived, may 404) On a 404, replaced by the repository link a run-2 capture gives, copied, as a conditional page."
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen3.5-2B/blob/main/LICENSE",
+      "type": "P",
+      "why": "U-14: the licence text of qwen3.5:2b from Qwen's own repository (pattern-derived, may 404) On a 404, replaced by the repository link a run-2 capture gives, copied, as a conditional page."
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/LICENSE",
+      "type": "P",
+      "why": "U-14: the licence text of qwen3.5:4b from Qwen's own repository (pattern-derived, may 404) On a 404, replaced by the repository link a run-2 capture gives, copied, as a conditional page."
+    },
+    {
+      "url": "https://ai.google.dev/gemma/docs/core/model_card_4",
+      "type": "P",
+      "why": "U-14, U-12: Gemma 4 licence or terms, sizes and function calling from Google's own model card (linked from the 2026-10-02 Gemini pricing capture, line 1268)"
+    },
+    {
+      "url": "https://huggingface.co/ibm-granite/granite-4.0-1b",
+      "type": "P",
+      "why": "U-14: the licence IBM states on its own Granite 4.0 1B model card (pattern-derived, may 404; the 350m and 3b cards are conditional) On a 404, replaced by the repository link a run-2 capture gives, copied, as a conditional page."
+    },
+    {
+      "url": "https://huggingface.co/microsoft/Phi-4-mini-instruct/blob/main/LICENSE",
+      "type": "P",
+      "why": "U-14: the licence text of Phi-4-mini from Microsoft's own repository (pattern-derived, may 404) On a 404, replaced by the repository link a run-2 capture gives, copied, as a conditional page."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/CMakeLists.txt",
+      "type": "P",
+      "why": "U-15: whether the pinned build turns GGML_CPU_ALL_VARIANTS on, and the path it takes ggml from (file name confirmed on main, path at the tag pattern-derived)"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/ollama/ollama/v0.34.4/ml/backend/ggml/ggml/src/CMakeLists.txt",
+      "type": "P",
+      "why": "U-15: the CPU variants GGML_CPU_ALL_VARIANTS builds at the pinned tag (baseline x64, SSE4.2, AVX, AVX2 and newer) (pattern-derived, may 404)"
+    }
+  ]
+}
